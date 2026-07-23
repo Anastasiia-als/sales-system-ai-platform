@@ -1,0 +1,22 @@
+{
+  "name": "sales-system-ai-platform",
+  "version": "1.0.0",
+  "description": "AI-assisted sales consulting platform with service pages, booking flow, CRM/admin logic, lead statuses and automation concepts.",
+  "main": "index.html",
+  "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File ./server.ps1",
+    "start": "npx serve -s . -p 3000"
+  },
+  "keywords": [
+    "ai-assisted",
+    "sales",
+    "crm",
+    "vercel",
+    "automation",
+    "dashboard",
+    "pet-project",
+    "portfolio"
+  ],
+  "author": "Anastasiia Zaporozhets",
+  "license": "MIT"
+}
