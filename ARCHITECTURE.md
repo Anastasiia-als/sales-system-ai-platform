@@ -49,3 +49,24 @@ $$\text{Commercial Terms} \longrightarrow \text{Payment Schedule} \longrightarro
 6. **Append-Only Audit Log (`invoice_audit_events`)**:
    - Immutable audit trail capturing creation, issuance, status changes, and payments.
    - Direct `UPDATE` is strictly prohibited by database triggers.
+
+---
+
+## 4. Analytics & Executive Insights Engine (Phase 5D)
+
+### 4.1 Analytics Architecture
+- **Analytics Center (`#/portal/analytics`)**: Centralized executive intelligence portal providing portfolio overview, delivery funnel, performance rates, client analytics, team workload, and currency-isolated financial statistics.
+- **Reports Center (`#/portal/reports`)**: Formal management report generation and multi-format exports.
+- **High-Performance Aggregation**: Backend RPC `get_portfolio_analytics_data` computes metrics in a single pass with native database indexing.
+
+### 4.2 Canonical Metric Formulas
+- **Milestone Completion Rate**: `(completed_milestones / total_milestones) * 100`
+- **Tasks Completion Rate**: `(completed_tasks / total_tasks) * 100`
+- **Overdue Task Rate**: `(overdue_tasks / (open_tasks + overdue_tasks)) * 100`
+- **Client Action Completion Rate**: `(completed_client_actions / total_client_actions) * 100`
+- **On-Time Delivery Rate**: `(on_time_completed_projects / total_completed_projects) * 100`
+- **Forecast Margin %**: `((Contract Value - Planned Costs) / Contract Value) * 100`
+
+### 4.3 Saved Views
+- Presets are stored in `analytics_saved_views` with per-user RLS isolation (`auth.uid() = user_id`).
+

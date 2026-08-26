@@ -18,6 +18,8 @@ import { renderFinanceView, initFinanceEvents } from "../portal/ui/portal-financ
 import { renderInvoiceRegistryView, initInvoiceRegistryEvents } from "../portal/ui/portal-invoice-registry-view.js";
 import { renderInvoiceDetailView, initInvoiceDetailEvents } from "../portal/ui/portal-invoice-detail-view.js";
 import { renderInvoicePrintView, initInvoicePrintEvents } from "../portal/ui/portal-invoice-print-view.js";
+import { renderAnalyticsView, initAnalyticsEvents } from "../portal/ui/portal-analytics-view.js";
+import { renderReportsView, initReportsEvents } from "../portal/ui/portal-reports-view.js";
 
 export const PortalPage = {
     render() {
@@ -183,6 +185,38 @@ export async function renderPortalPage() {
                 breadcrumbTitle = "Реєстр рахунків";
                 childHtml = renderInvoiceRegistryView();
             }
+        } else if (activeSection === "analytics") {
+            if (PortalAuth.isSpecialist() && !PortalAuth.isGlobalOwner() && !PortalAuth.isOrgAdmin()) {
+                breadcrumbTitle = "Аналітика";
+                childHtml = `
+                    <div class="portal-content">
+                        <div class="portal-placeholder-box">
+                            <div class="portal-empty-icon" style="color: var(--color-danger);"><i data-lucide="shield-alert"></i></div>
+                            <div class="portal-empty-title">Доступ обмежено</div>
+                            <div class="portal-empty-desc">Аналітичний центр доступний виключно для керівництва та PM.</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                breadcrumbTitle = "Аналітика";
+                childHtml = renderAnalyticsView();
+            }
+        } else if (activeSection === "reports") {
+            if (PortalAuth.isSpecialist() && !PortalAuth.isGlobalOwner() && !PortalAuth.isOrgAdmin()) {
+                breadcrumbTitle = "Звіти";
+                childHtml = `
+                    <div class="portal-content">
+                        <div class="portal-placeholder-box">
+                            <div class="portal-empty-icon" style="color: var(--color-danger);"><i data-lucide="shield-alert"></i></div>
+                            <div class="portal-empty-title">Доступ обмежено</div>
+                            <div class="portal-empty-desc">Центр звітів доступний виключно для керівництва та PM.</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                breadcrumbTitle = "Звіти";
+                childHtml = renderReportsView();
+            }
         } else {
             // Placeholder Sections for Future Phases
             const sectionTitles = {
@@ -257,6 +291,14 @@ export async function renderPortalPage() {
         } else if (activeSection === "invoices") {
             if (!PortalAuth.isSpecialist() || PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin()) {
                 await initInvoiceRegistryEvents();
+            }
+        } else if (activeSection === "analytics") {
+            if (!PortalAuth.isSpecialist() || PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin()) {
+                await initAnalyticsEvents();
+            }
+        } else if (activeSection === "reports") {
+            if (!PortalAuth.isSpecialist() || PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin()) {
+                await initReportsEvents();
             }
         }
     } catch (err) {

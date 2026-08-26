@@ -81,3 +81,24 @@ Strictly append-only audit trail.
 - `new_values` (JSONB)
 - `metadata` (JSONB)
 - `created_at` (TIMESTAMPTZ)
+
+---
+
+## Analytics & Reporting Schema (Phase 5D)
+
+### 7. `public.analytics_saved_views`
+Stores user-specific filter presets for Analytics and Reports.
+- `id` (UUID PK)
+- `user_id` (UUID FK -> auth.users NOT NULL DEFAULT auth.uid())
+- `name` (TEXT NOT NULL)
+- `view_type` (TEXT CHECK analytics/reports/projects NOT NULL DEFAULT 'analytics')
+- `filters` (JSONB NOT NULL DEFAULT '{}')
+- `is_default` (BOOLEAN NOT NULL DEFAULT FALSE)
+- `created_at`, `updated_at` (TIMESTAMPTZ)
+- **RLS**: Strict personal ownership (`auth.uid() = user_id`).
+
+### 8. RPC Functions
+- `public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id)`:
+  Unified high-performance analytics payload with executive KPIs, delivery funnel, delivery rates, client analytics, team workload, isolated multi-currency summaries, 6 AR aging buckets, and period trend deltas.
+- `public.get_reports_data(p_report_type, p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id, p_currency, p_status)`:
+  Predefined report payload generator for Portfolio Summary, Project Status, AR Aging, and Delivery Performance.

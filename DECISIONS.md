@@ -36,3 +36,35 @@ In Phase 5C.1 / 5C.1.1, FIRSTWIN established project commercial terms, payment s
 - Reliable, audit-compliant financial and invoicing workflows.
 - Zero risk of floating-point calculation errors or broken historical invoice data.
 - Clear separation between delivery tasks and billing/payment requests.
+
+---
+
+## ADR-006: Phase 5D — Analytics, Reporting & Executive Insights Architecture
+
+### Context
+To support executive oversight without manual spreadsheet aggregation, FIRSTWIN required an integrated analytics and management reporting module (`#/portal/analytics` and `#/portal/reports`).
+
+### Decisions
+
+#### 1. Single-Pass High Performance RPC (`get_portfolio_analytics_data`)
+- Instead of dozens of independent client queries, a single database RPC calculates executive KPIs, lifecycle funnel counts, deterministic performance rates, multi-currency financials, team workload, and period trend deltas in one unified query.
+
+#### 2. Deterministic KPI Formulas
+- **Milestone Completion Rate**: `(completed_milestones / total_milestones) * 100`
+- **Tasks Completion Rate**: `(completed_tasks / total_tasks) * 100`
+- **Overdue Task Rate**: `(overdue_tasks / (open_tasks + overdue_tasks)) * 100`
+- **Client Action Completion Rate**: `(completed_client_actions / total_client_actions) * 100`
+- **On-Time Delivery Rate**: `(on_time_completed_projects / total_completed_projects) * 100`
+
+#### 3. Strict Role-Based Scope Enforced in Database Engine
+- Owner: platform-wide access.
+- PM: scoped strictly to authorized organizations (`organization_id = ANY(v_allowed_org_ids)`).
+- Specialist: denied access (42501 Access Denied).
+- Client: denied access (42501 Access Denied).
+
+#### 4. Personal Saved Views (`public.analytics_saved_views`)
+- Filters presets are stored per-user (`user_id = auth.uid()`) with strict RLS isolation preventing unauthorized viewing or modification.
+
+#### 5. Multi-Format Native Exports
+- Supports CSV, multi-sheet XLSX, and clean Printable PDF layout directly adhering to the caller's permission scope.
+

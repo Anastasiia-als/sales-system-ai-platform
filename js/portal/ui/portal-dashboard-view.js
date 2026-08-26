@@ -586,6 +586,43 @@ function renderDashboardContent(mount, dashboardData, financeSummary = {}, arSum
                     }).join("")}
                 </div>
             </div>
+
+            <!-- Analytics & Executive Trends Widget (Phase 5D) -->
+            <div class="portal-card" style="padding: 20px;">
+                <div class="portal-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="portal-card-icon" style="background: rgba(99, 102, 241, 0.12); color: #818cf8;">
+                            <i data-lucide="bar-chart-3"></i>
+                        </div>
+                        <div>
+                            <h3 class="portal-card-title" style="font-size: 1rem;">Аналітика та тенденції</h3>
+                            <p class="portal-card-subtitle" style="font-size: 0.76rem;">Ключові показники портфеля та виконання</p>
+                        </div>
+                    </div>
+                    <a href="#/portal/analytics" class="btn btn-primary btn-xs" style="font-size: 0.78rem;">
+                        Відкрити аналітику →
+                    </a>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
+                    <div style="padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Активні клієнти</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">${kpis.activeClientsCount || 0}</div>
+                    </div>
+                    <div style="padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Проєкти у ризику</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: ${kpis.atRiskProjectsCount > 0 ? '#EF4444' : 'var(--text-primary)'};">${kpis.atRiskProjectsCount || 0}</div>
+                    </div>
+                    <div style="padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Прострочені задачі</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: ${kpis.overdueTasksCount > 0 ? '#F59E0B' : 'var(--text-primary)'};">${kpis.overdueTasksCount || 0}</div>
+                    </div>
+                    <div style="padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                        <div style="font-size: 0.72rem; color: var(--text-muted);">Контрольні точки</div>
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #10B981;">${kpis.upcomingMilestonesCount || 0} в плані</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- 4. Tertiary Row: Team Workload Snapshot & Recent Activity -->

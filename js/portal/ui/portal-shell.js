@@ -13,10 +13,15 @@ export function renderPortalShell(activeSection, childHtml, breadcrumbTitle = ""
     const initials = (fullName.substring(0, 2) || "FW").toUpperCase();
 
     const canSeeFinance = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin();
+    const canSeeAnalytics = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin();
 
     const navItems = [
         { id: "dashboard", label: "Дашборд", icon: "layout-dashboard", href: "#/portal/dashboard", isPlaceholder: false },
         { id: "notifications", label: "Сповіщення", icon: "bell", href: "#/portal/notifications", isPlaceholder: false },
+        ...(canSeeAnalytics ? [
+            { id: "analytics", label: "Аналітика", icon: "bar-chart-3", href: "#/portal/analytics", isPlaceholder: false },
+            { id: "reports", label: "Звіти", icon: "file-spreadsheet", href: "#/portal/reports", isPlaceholder: false }
+        ] : []),
         { id: "clients", label: "Клієнти", icon: "briefcase", href: "#/portal/clients", isPlaceholder: false },
         { id: "projects", label: "Проєкти", icon: "folder", href: "#/portal/projects", isPlaceholder: false },
         ...(canSeeFinance ? [

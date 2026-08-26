@@ -4138,6 +4138,112 @@ export const DataClient = {
             return [];
         }
         return data || [];
+    },
+
+    // -------------------------------------------------------------------------
+    // 17. Executive Analytics & Reporting (Phase 5D)
+    // -------------------------------------------------------------------------
+    async getPortfolioAnalytics(filters = {}) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const { data, error } = await supabase.rpc("get_portfolio_analytics_data", {
+            p_period_type: filters.periodType || "30d",
+            p_start_date: filters.startDate || null,
+            p_end_date: filters.endDate || null,
+            p_org_id: filters.orgId || null,
+            p_project_id: filters.projectId || null,
+            p_pm_id: filters.pmId || null
+        });
+
+        if (error) {
+            console.error("[DataClient] getPortfolioAnalytics error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async getReportsData(reportType, filters = {}) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const { data, error } = await supabase.rpc("get_reports_data", {
+            p_report_type: reportType || "portfolio_summary",
+            p_period_type: filters.periodType || "30d",
+            p_start_date: filters.startDate || null,
+            p_end_date: filters.endDate || null,
+            p_org_id: filters.orgId || null,
+            p_project_id: filters.projectId || null,
+            p_pm_id: filters.pmId || null,
+            p_currency: filters.currency || null,
+            p_status: filters.status || null
+        });
+
+        if (error) {
+            console.error("[DataClient] getReportsData error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async getAnalyticsSavedViews(viewType = "analytics") {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: null };
+
+        const { data, error } = await supabase
+            .from("analytics_saved_views")
+            .select("*")
+            .eq("view_type", viewType)
+            .order("created_at", { ascending: false });
+
+        if (error) {
+            console.error("[DataClient] getAnalyticsSavedViews error:", error);
+            return { data: [], error };
+        }
+        return { data: data || [], error: null };
+    },
+
+    async createAnalyticsSavedView(name, viewType, filters, isDefault = false) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData?.user?.id;
+        if (!userId) return { data: null, error: new Error("User not authenticated") };
+
+        const { data, error } = await supabase
+            .from("analytics_saved_views")
+            .insert({
+                user_id: userId,
+                name,
+                view_type: viewType || "analytics",
+                filters: filters || {},
+                is_default: isDefault
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error("[DataClient] createAnalyticsSavedView error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async deleteAnalyticsSavedView(viewId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const { error } = await supabase
+            .from("analytics_saved_views")
+            .delete()
+            .eq("id", viewId);
+
+        if (error) {
+            console.error("[DataClient] deleteAnalyticsSavedView error:", error);
+            return { error };
+        }
+        return { error: null };
     }
 };
 
