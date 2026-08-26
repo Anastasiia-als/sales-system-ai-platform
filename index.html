@@ -18,6 +18,20 @@
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/pages.css">
+    <link rel="stylesheet" href="css/portal.css">
+
+    <!-- Instant Portal & Client Workspace Layout Isolation Guard -->
+    <script>
+        (function() {
+            var hash = window.location.hash || '';
+            if (hash.indexOf('#/portal') === 0 || hash.indexOf('#/client') === 0) {
+                document.documentElement.classList.add('portal-active');
+            }
+            if (hash.indexOf('#/client') === 0) {
+                document.documentElement.classList.add('client-active');
+            }
+        })();
+    </script>
 
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -175,6 +189,9 @@
         <a href="#/consultation" class="btn btn-primary"><i data-lucide="calendar"></i> Консультація</a>
         <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline"><i data-lucide="send"></i> Telegram</a>
     </div>
+
+    <!-- Public Runtime Configuration -->
+    <script src="js/config.js"></script>
 
     <!-- Application Script -->
     <script type="module" src="js/app.js"></script>

@@ -3,7 +3,7 @@
 import { Router } from "./router.js";
 import { Chat } from "./components/chat.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
     // 1. Initialize Client-Side Router
     Router.init();
 
@@ -32,4 +32,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (window.lucide) {
         window.lucide.createIcons();
     }
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initApp);
+} else {
+    initApp();
+}
+

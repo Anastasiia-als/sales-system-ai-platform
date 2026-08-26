@@ -1,0 +1,11 @@
+# FIRSTWIN Development Roadmap
+
+- [x] **Phase 0 / 1A**: Foundation, Supabase Schema, Auth & Multi-Tenancy.
+- [x] **Phase 1B**: Core Delivery Pipeline, Projects, Stages & Milestones.
+- [x] **Phase 2 / 3**: Client Actions, Deliverables, Meeting Management.
+- [x] **Phase 4A / 4B**: Security Hardening, RLS Isolation, Access Revocation.
+- [x] **Phase 5A**: Owner Operational Dashboard & Cross-Project Health.
+- [x] **Phase 5B / 5B.1**: Notification System, Trigger Engines & Mutation Hardening.
+- [x] **Phase 5C.1 / 5C.1.1**: Finance Foundation, Commercial Terms, Cash Flow & UAH Support.
+- [x] **Phase 5C.2**: Billing Engine, Invoices, Accounts Receivable (AR) & Client Payment Requests.
+- [ ] **Phase 5C.3**: Payment Gateway / Acquiring Integration & Automated Webhooks (Future).

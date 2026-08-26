@@ -17,6 +17,8 @@ import { Refund } from "./pages/refund.js";
 import { Contacts } from "./pages/contacts.js";
 import { AiSolutions } from "./pages/ai-solutions.js";
 import { Admin } from "./pages/admin.js";
+import { PortalPage } from "./pages/portal-page.js";
+import { ClientPage } from "./pages/client-page.js";
 
 const routes = {
   "/": Home,
@@ -36,49 +38,119 @@ const routes = {
   "/privacy": Privacy,
   "/refund": Refund,
   "/contacts": Contacts,
-  "/admin": Admin
+  "/admin": Admin,
+  "/portal": PortalPage,
+  "/client": ClientPage
 };
 
 export const Router = {
   init() {
     window.addEventListener('hashchange', this.handleRouting.bind(this));
-    window.addEventListener('load', this.handleRouting.bind(this));
+    // Immediately execute routing on initialization
+    this.handleRouting();
   },
   
   handleRouting() {
     let hash = window.location.hash.slice(1) || "/";
+    const isPortal = hash.startsWith('/portal');
+    const isClient = hash.startsWith('/client');
+    const isWorkspace = isPortal || isClient;
+    
+    if (isWorkspace) {
+      document.documentElement.classList.add('portal-active');
+      document.body.classList.add('portal-active');
+    } else {
+      document.documentElement.classList.remove('portal-active');
+      document.body.classList.remove('portal-active');
+    }
+
+    if (isClient) {
+      document.documentElement.classList.add('client-active');
+      document.body.classList.add('client-active');
+    } else {
+      document.documentElement.classList.remove('client-active');
+      document.body.classList.remove('client-active');
+    }
+
     const app = document.getElementById("app-content");
+    if (!app) return;
+
     const navMenu = document.getElementById("nav-menu");
     
-    app.innerHTML = '<div class="loader-container"><div class="loader"></div></div>';
-    
-    // Update active nav link
-    if (navMenu) {
+    // Update active nav link for public website
+    if (navMenu && !isWorkspace) {
       const links = navMenu.querySelectorAll('.nav-link');
       links.forEach(link => link.classList.remove('active'));
       const activeLink = navMenu.querySelector(`a[href="#${hash}"]`);
       if (activeLink) {
         activeLink.classList.add('active');
         if (activeLink.classList.contains('dropdown-item')) {
-          activeLink.closest('.dropdown').querySelector('.dropdown-toggle').classList.add('active');
+          activeLink.closest('.dropdown')?.querySelector('.dropdown-toggle')?.classList.add('active');
         }
       }
     }
     
     // Smooth scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
-    setTimeout(() => {
-      const page = routes[hash] || Home;
-      app.innerHTML = page.render();
-      
-      if (typeof page.init === "function") {
-        page.init();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+
+    const executeRoute = () => {
+      try {
+        let page = routes[hash];
+        if (!page && hash.startsWith("/portal")) {
+          page = PortalPage;
+        }
+        if (!page && hash.startsWith("/client")) {
+          page = ClientPage;
+        }
+        if (!page) {
+          page = Home;
+        }
+
+        app.innerHTML = page.render();
+        
+        if (typeof page.init === "function") {
+          page.init();
+        }
+        
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      } catch (err) {
+        console.error("[Router] Error rendering route:", hash, err);
+        if (isWorkspace) {
+          app.innerHTML = `
+            <div class="portal-wrapper" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-dark);">
+              <div class="portal-empty-state" style="max-width: 480px; padding: 40px 24px; text-align: center;">
+                <div class="portal-empty-icon" style="color: var(--color-danger);"><i data-lucide="alert-triangle"></i></div>
+                <div class="portal-empty-title" style="font-size: 1.3rem; margin-bottom: 8px;">Помилка завантаження розділу</div>
+                <div class="portal-empty-desc" style="margin-bottom: 20px; color: var(--text-secondary);">
+                  ${err?.message || "Виникла непередбачена помилка під час відкриття сторінки."}
+                </div>
+                <button class="btn btn-primary" onclick="window.location.reload()">
+                  <i data-lucide="refresh-cw"></i> Оновити сторінку
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          app.innerHTML = `
+            <div class="container" style="padding: 80px 20px; text-align: center;">
+              <h2>Помилка завантаження сторінки</h2>
+              <p style="color: var(--text-secondary); margin: 12px 0 24px;">${err?.message || "Будь ласка, спробуйте оновити сторінку."}</p>
+              <button class="btn btn-primary" onclick="window.location.reload()">Оновити</button>
+            </div>
+          `;
+        }
+        if (window.lucide) window.lucide.createIcons();
       }
-      
-      if (window.lucide) {
-        window.lucide.createIcons();
-      }
-    }, 300); // Simulate loading for premium feel
+    };
+
+    if (isWorkspace) {
+      // Instant execution for Workspace (Portal & Client) to prevent flash and infinite spinners
+      executeRoute();
+    } else {
+      app.innerHTML = '<div class="loader-container"><div class="loader"></div></div>';
+      setTimeout(executeRoute, 150);
+    }
   }
 };
