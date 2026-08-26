@@ -192,6 +192,8 @@ BEGIN
     'active_projects', (SELECT COUNT(*) FROM scoped_projects WHERE status IN ('in_progress', 'discovery', 'onboarding', 'waiting_client', 'client_review')),
     'at_risk_projects', (SELECT COUNT(*) FROM scoped_projects WHERE health IN ('at_risk', 'critical') OR status = 'blocked'),
     'completed_projects', (SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed'),
+    'total_tasks', (SELECT COUNT(*) FROM scoped_tasks),
+    'open_tasks', (SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done'),
     'overdue_tasks', (SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done' AND due_date < CURRENT_DATE),
     'overdue_client_actions', (SELECT COUNT(*) FROM scoped_tasks WHERE responsibility_type = 'client' AND status != 'done' AND due_date < CURRENT_DATE),
     'completed_milestones', (SELECT COUNT(*) FROM scoped_milestones WHERE status = 'completed'),
@@ -275,7 +277,17 @@ BEGIN
     'on_time_delivery_rate',
       CASE WHEN (SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed') > 0 THEN 
         ROUND(((SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed' AND (COALESCE(target_date, target_end_date) IS NULL OR updated_at::DATE <= COALESCE(target_date, target_end_date))) * 100.0) / (SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed'), 1)
-      ELSE 100.0 END
+      ELSE 100.0 END,
+    'project_completion_rate',
+      CASE WHEN (SELECT COUNT(*) FROM scoped_projects) > 0 THEN 
+        ROUND(((SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed') * 100.0) / (SELECT COUNT(*) FROM scoped_projects), 1)
+      ELSE 0.0 END,
+    'avg_completion_delay_days',
+      COALESCE((
+        SELECT ROUND(AVG(GREATEST(updated_at::DATE - COALESCE(target_date, target_end_date), 0)), 1)
+        FROM scoped_projects
+        WHERE status = 'completed' AND COALESCE(target_date, target_end_date) IS NOT NULL
+      ), 0.0)
   ) INTO v_delivery_rates
   FROM scoped_milestones m;
 
@@ -612,7 +624,16 @@ BEGIN
       'summary', (SELECT public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id))
     ) INTO v_report_data;
 
-  ELSIF p_report_type = 'projects_status' THEN
+  ELSIF p_report_type = 'client_report' THEN
+    SELECT jsonb_build_object(
+      'report_type', 'client_report',
+      'generated_at', NOW(),
+      'clients', (
+        SELECT (public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id))->'clients'
+      )
+    ) INTO v_report_data;
+
+  ELSIF p_report_type IN ('projects_status', 'project_status') THEN
     SELECT jsonb_build_object(
       'report_type', 'projects_status',
       'generated_at', NOW(),
@@ -640,6 +661,22 @@ BEGIN
           AND (p_pm_id IS NULL OR p.responsible_pm_id = p_pm_id)
           AND (p_status IS NULL OR p.status = p_status)
       )
+    ) INTO v_report_data;
+
+  ELSIF p_report_type = 'delivery_performance' THEN
+    SELECT jsonb_build_object(
+      'report_type', 'delivery_performance',
+      'generated_at', NOW(),
+      'delivery_funnel', (SELECT (public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id))->'delivery_funnel'),
+      'delivery_rates', (SELECT (public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id))->'delivery_rates'),
+      'projects', (SELECT (public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id))->'projects')
+    ) INTO v_report_data;
+
+  ELSIF p_report_type = 'finance_summary' THEN
+    SELECT jsonb_build_object(
+      'report_type', 'finance_summary',
+      'generated_at', NOW(),
+      'financial_analytics', (SELECT (public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id))->'financial_analytics')
     ) INTO v_report_data;
 
   ELSIF p_report_type = 'accounts_receivable' THEN
@@ -670,6 +707,13 @@ BEGIN
           AND i.status != 'cancelled'
           AND i.outstanding_minor > 0
       )
+    ) INTO v_report_data;
+
+  ELSIF p_report_type = 'pm_workload' THEN
+    SELECT jsonb_build_object(
+      'report_type', 'pm_workload',
+      'generated_at', NOW(),
+      'team_workload', (SELECT (public.get_portfolio_analytics_data(p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id))->'team_workload')
     ) INTO v_report_data;
 
   ELSE

@@ -16,7 +16,8 @@ const testSuites = [
   { name: 'Phase 5C.2.2 Browser Routes (9/9)', cmd: 'node scratch/test_phase5c2_2_full_browser.js' },
   { name: 'Phase 5D Calculations', cmd: 'node scratch/test_phase5d_calculations.js' },
   { name: 'Phase 5D Security & RLS', cmd: 'node scratch/test_phase5d_security.js' },
-  { name: 'Phase 5D Browser Acceptance', cmd: 'node scratch/test_phase5d_browser.js' }
+  { name: 'Phase 5D Browser Acceptance', cmd: 'node scratch/test_phase5d_browser.js' },
+  { name: 'Phase 5D.1 Acceptance & Export', cmd: 'node scratch/test_phase5d1_acceptance.js' }
 ];
 
 console.log('=== RUNNING FULL MASTER REGRESSION (PHASE 4A - 5D) ===\n');

@@ -61,6 +61,8 @@ async function runCalculationsSuite() {
     assert(typeof rates.overdue_task_rate === 'number' && rates.overdue_task_rate >= 0 && rates.overdue_task_rate <= 100, 'Rates: overdue_task_rate bounded 0-100%');
     assert(typeof rates.client_action_completion_rate === 'number' && rates.client_action_completion_rate >= 0 && rates.client_action_completion_rate <= 100, 'Rates: client_action_completion_rate bounded 0-100%');
     assert(typeof rates.on_time_delivery_rate === 'number' && rates.on_time_delivery_rate >= 0 && rates.on_time_delivery_rate <= 100, 'Rates: on_time_delivery_rate bounded 0-100%');
+    assert(typeof rates.project_completion_rate === 'number' && rates.project_completion_rate >= 0 && rates.project_completion_rate <= 100, 'Rates: project_completion_rate bounded 0-100%');
+    assert(typeof rates.avg_completion_delay_days === 'number' && rates.avg_completion_delay_days >= 0, 'Rates: avg_completion_delay_days is >= 0');
 
     // 6. Currency Isolation & Integrity
     const finances = analytics.financial_analytics || {};

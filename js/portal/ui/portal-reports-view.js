@@ -1,4 +1,4 @@
-/* js/portal/ui/portal-reports-view.js - Management Reports Center (Phase 5D) */
+/* js/portal/ui/portal-reports-view.js - Management Reports Center (Phase 5D.1) */
 
 import { DataClient } from "../api/data-client.js";
 import { PortalAuth } from "../auth/auth-service.js";
@@ -118,6 +118,9 @@ function renderReportsContent(root, reportData, orgs, pms) {
                 <button class="btn btn-outline btn-sm" id="btn-export-report-csv" title="Експорт даних звіту в CSV">
                     <i data-lucide="download"></i> CSV
                 </button>
+                <button class="btn btn-outline btn-sm" id="btn-export-report-xlsx" title="Експорт звіту в Microsoft Excel (.xlsx)">
+                    <i data-lucide="file-spreadsheet"></i> XLSX
+                </button>
                 <a href="#/portal/analytics" class="btn btn-outline btn-sm">
                     <i data-lucide="bar-chart-3"></i> Аналітика
                 </a>
@@ -131,9 +134,12 @@ function renderReportsContent(root, reportData, orgs, pms) {
                     <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Тип звіту:</label>
                     <select id="report-type-select" class="portal-select" style="width: 100%;">
                         <option value="portfolio_summary" ${reportType === 'portfolio_summary' ? 'selected' : ''}>Portfolio Summary</option>
+                        <option value="client_report" ${reportType === 'client_report' ? 'selected' : ''}>Client Report (Звіт по клієнтах)</option>
                         <option value="projects_status" ${reportType === 'projects_status' ? 'selected' : ''}>Project Status Report</option>
-                        <option value="accounts_receivable" ${reportType === 'accounts_receivable' ? 'selected' : ''}>Accounts Receivable (Дебіторка)</option>
                         <option value="delivery_performance" ${reportType === 'delivery_performance' ? 'selected' : ''}>Delivery Performance</option>
+                        <option value="finance_summary" ${reportType === 'finance_summary' ? 'selected' : ''}>Finance Summary (Фінансовий звіт)</option>
+                        <option value="accounts_receivable" ${reportType === 'accounts_receivable' ? 'selected' : ''}>Accounts Receivable (Дебіторка)</option>
+                        <option value="pm_workload" ${reportType === 'pm_workload' ? 'selected' : ''}>PM Workload Report (Навантаження)</option>
                     </select>
                 </div>
 
@@ -178,6 +184,47 @@ function renderReportsContent(root, reportData, orgs, pms) {
 function renderSpecificReport(reportType, reportData) {
     const timestamp = new Date().toLocaleString("uk-UA");
 
+    // 1. Client Report
+    if (reportType === "client_report") {
+        const clients = reportData.clients || [];
+        return `
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 1.3rem;">Client Overview & Health Report</h2>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Сформовано: ${timestamp} | Клієнтів у звіті: ${clients.length}</div>
+            </div>
+
+            <table class="portal-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th>Клієнт / Організація</th>
+                        <th>Статус</th>
+                        <th>Проєкти (Акт/Заверш)</th>
+                        <th>Overdue Задачі</th>
+                        <th>Client Actions</th>
+                        <th>Документи на погодженні</th>
+                        <th>Наступна зустріч</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${clients.length === 0 ? `
+                        <tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-secondary);">Клієнтів не знайдено.</td></tr>
+                    ` : clients.map(c => `
+                        <tr>
+                            <td style="font-weight: 600;">${escapeHtml(c.name)}</td>
+                            <td><span class="portal-badge ${c.status === 'active' ? 'portal-badge-success' : ''}">${escapeHtml(c.status || 'active')}</span></td>
+                            <td>${c.active_projects_count || 0} / ${c.completed_projects_count || 0}</td>
+                            <td>${c.overdue_tasks_count > 0 ? `<span style="color: #EF4444; font-weight: 600;">${c.overdue_tasks_count}</span>` : '0'}</td>
+                            <td>${c.client_actions_pending || 0}</td>
+                            <td>${c.docs_awaiting_approval || 0}</td>
+                            <td>${c.next_meeting_date ? new Date(c.next_meeting_date).toLocaleDateString('uk-UA') : '—'}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+        `;
+    }
+
+    // 2. Project Status Report
     if (reportType === "projects_status") {
         const projects = reportData.projects || [];
         return `
@@ -217,6 +264,108 @@ function renderSpecificReport(reportType, reportData) {
         `;
     }
 
+    // 3. Delivery Performance Report
+    if (reportType === "delivery_performance") {
+        const funnel = reportData.delivery_funnel || {};
+        const rates = reportData.delivery_rates || {};
+        const projects = reportData.projects || [];
+        return `
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 1.3rem;">Delivery Performance & Funnel Report</h2>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Сформовано: ${timestamp}</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
+                <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Milestone Rate</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${rates.milestone_completion_rate || 0}%</div>
+                </div>
+                <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Tasks Rate</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #6366F1;">${rates.tasks_completion_rate || 0}%</div>
+                </div>
+                <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Overdue Task Rate</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.overdue_task_rate > 15 ? '#EF4444' : '#F59E0B'};">${rates.overdue_task_rate || 0}%</div>
+                </div>
+                <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">On-Time Delivery</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${rates.on_time_delivery_rate || 100}%</div>
+                </div>
+                <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Project Completion Rate</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #38BDF8;">${rates.project_completion_rate || 0}%</div>
+                </div>
+                <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Avg Delay</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.avg_completion_delay_days > 0 ? '#EF4444' : '#10B981'};">${rates.avg_completion_delay_days || 0} дн.</div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">Проєкти у воронці виконання (${projects.length})</h3>
+            <table class="portal-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th>Проєкт</th>
+                        <th>Клієнт</th>
+                        <th>Статус</th>
+                        <th>Health</th>
+                        <th>Прогрес</th>
+                        <th>Overdue Задачі</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${projects.map(p => `
+                        <tr>
+                            <td style="font-weight: 600;">${escapeHtml(p.title)}</td>
+                            <td>${escapeHtml(p.organization_name)}</td>
+                            <td><span class="portal-badge">${escapeHtml(p.status)}</span></td>
+                            <td><span class="portal-badge ${p.health === 'good' ? 'portal-badge-success' : 'portal-badge-warning'}">${escapeHtml(p.health)}</span></td>
+                            <td>${p.progress_percent || 0}%</td>
+                            <td>${p.overdue_tasks > 0 ? `<span style="color: #EF4444; font-weight: 600;">${p.overdue_tasks}</span>` : '0'}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+        `;
+    }
+
+    // 4. Finance Summary Report
+    if (reportType === "finance_summary") {
+        const finances = reportData.financial_analytics || {};
+        return `
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 1.3rem;">Finance Summary Report (Multi-Currency)</h2>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Сформовано: ${timestamp}</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+                ${Object.keys(finances).map(curr => {
+                    const f = finances[curr] || {};
+                    const ar = f.ar_aging || {};
+                    return `
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px;">
+                                <span style="font-size: 1.1rem; font-weight: 700; color: #818CF8;">${escapeHtml(curr)}</span>
+                                <span class="portal-badge portal-badge-primary">Маржа: ${f.forecast_margin_pct || 0}%</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem; margin-bottom: 12px;">
+                                <div><span style="color: var(--text-secondary);">Контракт:</span> <strong>${formatMoney(f.contract_value_minor, curr)}</strong></div>
+                                <div><span style="color: var(--text-secondary);">Виставлено:</span> <strong>${formatMoney(f.invoiced_minor, curr)}</strong></div>
+                                <div><span style="color: var(--text-secondary);">Отримано:</span> <strong style="color: #10B981;">${formatMoney(f.received_minor, curr)}</strong></div>
+                                <div><span style="color: var(--text-secondary);">Очікується:</span> <strong>${formatMoney(f.outstanding_minor, curr)}</strong></div>
+                                <div><span style="color: var(--text-secondary);">Планові витрати:</span> <strong>${formatMoney(f.planned_costs_minor, curr)}</strong></div>
+                                <div><span style="color: var(--text-secondary);">Прогнозний результат:</span> <strong style="color: #818CF8;">${formatMoney(f.forecast_result_minor, curr)}</strong></div>
+                                <div style="grid-column: span 2;"><span style="color: var(--text-secondary);">Прострочено (Overdue):</span> <strong style="color: ${f.overdue_minor > 0 ? '#EF4444' : 'inherit'};">${formatMoney(f.overdue_minor, curr)}</strong></div>
+                            </div>
+                        </div>
+                    `;
+                }).join("")}
+            </div>
+        `;
+    }
+
+    // 5. Accounts Receivable Report
     if (reportType === "accounts_receivable") {
         const invoices = reportData.invoices || [];
         return `
@@ -261,7 +410,45 @@ function renderSpecificReport(reportType, reportData) {
         `;
     }
 
-    // Default: Portfolio Summary
+    // 6. PM Workload Report
+    if (reportType === "pm_workload") {
+        const workload = reportData.team_workload || [];
+        return `
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 1.3rem;">Team & PM Operational Workload Report</h2>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Сформовано: ${timestamp} | Співробітників: ${workload.length}</div>
+            </div>
+
+            <table class="portal-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th>Спеціаліст / PM</th>
+                        <th>Роль</th>
+                        <th>Активні проєкти</th>
+                        <th>Відкриті задачі</th>
+                        <th>Overdue задачі</th>
+                        <th>Пріоритетні (High/Critical)</th>
+                        <th>Дедлайни в межах 7д</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${workload.map(w => `
+                        <tr>
+                            <td style="font-weight: 600;">${escapeHtml(w.full_name || w.email)}</td>
+                            <td style="text-transform: uppercase; font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(w.global_role)}</td>
+                            <td>${w.active_projects || 0}</td>
+                            <td>${w.open_tasks || 0}</td>
+                            <td>${w.overdue_tasks > 0 ? `<span style="color: #EF4444; font-weight: 600;">${w.overdue_tasks}</span>` : '0'}</td>
+                            <td>${w.high_priority_tasks || 0}</td>
+                            <td>${w.upcoming_deadlines_7d || 0}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+        `;
+    }
+
+    // 7. Default: Portfolio Summary
     const summary = reportData.summary || {};
     const kpis = summary.executive_kpis || {};
     const rates = summary.delivery_rates || {};
@@ -341,9 +528,28 @@ function attachReportsEventListeners(root, reportData, orgs, pms) {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `firstwin_report_${reportsState.reportType}_${new Date().toISOString().slice(0, 10)}.txt`);
+        link.setAttribute("download", `firstwin_report_${reportsState.reportType}_${new Date().toISOString().slice(0, 10)}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    });
+
+    document.getElementById("btn-export-report-xlsx")?.addEventListener("click", () => {
+        if (typeof XLSX === "undefined") {
+            alert("XLSX generator is loading, please try CSV export.");
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+        const table = document.querySelector("#report-render-card table");
+        if (table) {
+            const ws = XLSX.utils.table_to_sheet(table);
+            XLSX.utils.book_append_sheet(wb, ws, "Report");
+        } else {
+            const lines = (document.getElementById("report-render-card")?.innerText || "").split("\n").map(l => [l]);
+            const ws = XLSX.utils.aoa_to_sheet(lines);
+            XLSX.utils.book_append_sheet(wb, ws, "Report");
+        }
+        XLSX.writeFile(wb, `firstwin_report_${reportsState.reportType}_${new Date().toISOString().slice(0, 10)}.xlsx`, { bookType: "xlsx" });
     });
 }

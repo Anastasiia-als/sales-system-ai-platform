@@ -364,6 +364,14 @@ function renderAnalyticsContent(root, payload, orgs, pms) {
                         <div style="font-size: 0.8rem; color: var(--text-secondary);">On-Time Delivery</div>
                         <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${rates.on_time_delivery_rate || 100}%</div>
                     </div>
+                    <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Project Completion Rate</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: #38BDF8;">${rates.project_completion_rate || 0}%</div>
+                    </div>
+                    <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Completion Delay</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.avg_completion_delay_days > 0 ? '#EF4444' : '#10B981'};">${rates.avg_completion_delay_days || 0} дн.</div>
+                    </div>
                 </div>
                 <div style="margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary);">
                     Client Action Completion: <strong>${rates.client_action_completion_rate || 0}%</strong>
@@ -670,55 +678,146 @@ function exportAnalyticsCSV(payload) {
 }
 
 function exportAnalyticsXLSX(payload) {
-    // Generates an Excel-compatible multi-worksheet XML structure
-    const projects = payload.projects || [];
-    const kpis = payload.executive_kpis || {};
-    
-    let xml = `<?xml version="1.0"?>
-    <?mso-application progid="Excel.Sheet"?>
-    <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
-     xmlns:o="urn:schemas-microsoft-com:office:office"
-     xmlns:x="urn:schemas-microsoft-com:office:excel"
-     xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-     <Worksheet ss:Name="Executive Summary">
-      <Table>
-       <Row><Cell><Data ss:Type="String">Metric</Data></Cell><Cell><Data ss:Type="String">Value</Data></Cell></Row>
-       <Row><Cell><Data ss:Type="String">Active Clients</Data></Cell><Cell><Data ss:Type="Number">${kpis.active_clients || 0}</Data></Cell></Row>
-       <Row><Cell><Data ss:Type="String">Active Projects</Data></Cell><Cell><Data ss:Type="Number">${kpis.active_projects || 0}</Data></Cell></Row>
-       <Row><Cell><Data ss:Type="String">At Risk Projects</Data></Cell><Cell><Data ss:Type="Number">${kpis.at_risk_projects || 0}</Data></Cell></Row>
-       <Row><Cell><Data ss:Type="String">Overdue Tasks</Data></Cell><Cell><Data ss:Type="Number">${kpis.overdue_tasks || 0}</Data></Cell></Row>
-      </Table>
-     </Worksheet>
-     <Worksheet ss:Name="Projects">
-      <Table>
-       <Row>
-        <Cell><Data ss:Type="String">Project</Data></Cell>
-        <Cell><Data ss:Type="String">Client</Data></Cell>
-        <Cell><Data ss:Type="String">PM</Data></Cell>
-        <Cell><Data ss:Type="String">Health</Data></Cell>
-        <Cell><Data ss:Type="String">Progress %</Data></Cell>
-        <Cell><Data ss:Type="String">Target Date</Data></Cell>
-       </Row>
-       ${projects.map(p => `
-        <Row>
-         <Cell><Data ss:Type="String">${escapeHtml(p.title)}</Data></Cell>
-         <Cell><Data ss:Type="String">${escapeHtml(p.organization_name)}</Data></Cell>
-         <Cell><Data ss:Type="String">${escapeHtml(p.pm_name || '')}</Data></Cell>
-         <Cell><Data ss:Type="String">${escapeHtml(p.health)}</Data></Cell>
-         <Cell><Data ss:Type="Number">${p.progress_percent || 0}</Data></Cell>
-         <Cell><Data ss:Type="String">${p.target_date || ''}</Data></Cell>
-        </Row>
-       `).join("")}
-      </Table>
-     </Worksheet>
-    </Workbook>`;
+    if (typeof XLSX === "undefined") {
+        console.error("XLSX library not loaded. Falling back to CSV.");
+        exportAnalyticsCSV(payload);
+        return;
+    }
 
-    const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `firstwin_analytics_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const wb = XLSX.utils.book_new();
+
+    // 1. Sheet: Summary
+    const kpis = payload.executive_kpis || {};
+    const rates = payload.delivery_rates || {};
+    const summaryData = [
+        ["FIRSTWIN Executive Analytics Summary", ""],
+        ["Generated At", new Date().toLocaleString("uk-UA")],
+        ["Period", payload.period?.type || "30d"],
+        ["", ""],
+        ["Metric", "Value"],
+        ["Total Clients", kpis.total_clients || 0],
+        ["Active Clients", kpis.active_clients || 0],
+        ["Total Projects", kpis.total_projects || 0],
+        ["Active Projects", kpis.active_projects || 0],
+        ["At Risk Projects", kpis.at_risk_projects || 0],
+        ["Completed Projects", kpis.completed_projects || 0],
+        ["Overdue Tasks", kpis.overdue_tasks || 0],
+        ["Overdue Client Actions", kpis.overdue_client_actions || 0],
+        ["Completed Milestones", kpis.completed_milestones || 0],
+        ["Total Milestones", kpis.total_milestones || 0],
+        ["Docs Awaiting Approval", kpis.docs_awaiting_approval || 0],
+        ["", ""],
+        ["Delivery Rate Metric", "Rate % / Days"],
+        ["Milestone Completion Rate", rates.milestone_completion_rate || 0],
+        ["Tasks Completion Rate", rates.tasks_completion_rate || 0],
+        ["Overdue Task Rate", rates.overdue_task_rate || 0],
+        ["Client Action Completion Rate", rates.client_action_completion_rate || 0],
+        ["On-Time Delivery Rate", rates.on_time_delivery_rate || 0],
+        ["Project Completion Rate", rates.project_completion_rate || 0],
+        ["Avg Completion Delay (days)", rates.avg_completion_delay_days || 0]
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+    // 2. Sheet: Projects
+    const projects = payload.projects || [];
+    const projectsData = [
+        ["Project ID", "Title", "Client", "PM", "Status", "Health", "Progress %", "Open Tasks", "Overdue Tasks", "Client Actions Total", "Client Actions Overdue", "Target Date", "Financial Status", "Contract Currency", "Contract Value"]
+    ];
+    projects.forEach(p => {
+        projectsData.push([
+            p.id,
+            p.title || "",
+            p.organization_name || "",
+            p.pm_name || "",
+            p.status || "",
+            p.health || "",
+            p.progress_percent || 0,
+            p.open_tasks || 0,
+            p.overdue_tasks || 0,
+            p.client_actions_total || 0,
+            p.client_actions_overdue || 0,
+            p.target_date || "",
+            p.financial_status || "",
+            p.contract_currency || "",
+            p.contract_value_minor ? Number(p.contract_value_minor) / 100 : 0
+        ]);
+    });
+    const wsProjects = XLSX.utils.aoa_to_sheet(projectsData);
+    XLSX.utils.book_append_sheet(wb, wsProjects, "Projects");
+
+    // 3. Sheet: Tasks & Workload
+    const workload = payload.team_workload || [];
+    const tasksData = [
+        ["User ID", "Name", "Role", "Active Projects", "Open Tasks", "Overdue Tasks", "High Priority Tasks", "Upcoming Deadlines 7d"]
+    ];
+    workload.forEach(w => {
+        tasksData.push([
+            w.user_id,
+            w.full_name || w.email || "",
+            w.global_role || "",
+            w.active_projects || 0,
+            w.open_tasks || 0,
+            w.overdue_tasks || 0,
+            w.high_priority_tasks || 0,
+            w.upcoming_deadlines_7d || 0
+        ]);
+    });
+    const wsTasks = XLSX.utils.aoa_to_sheet(tasksData);
+    XLSX.utils.book_append_sheet(wb, wsTasks, "Tasks");
+
+    // 4. Sheet: Client Actions & Clients
+    const clients = payload.clients || [];
+    const clientsData = [
+        ["Client ID", "Client Name", "Status", "Total Projects", "Active Projects", "Completed Projects", "Overdue Tasks", "Pending Client Actions", "Docs Awaiting Approval", "Next Meeting Date"]
+    ];
+    clients.forEach(c => {
+        clientsData.push([
+            c.id,
+            c.name || "",
+            c.status || "",
+            c.total_projects_count || 0,
+            c.active_projects_count || 0,
+            c.completed_projects_count || 0,
+            c.overdue_tasks_count || 0,
+            c.client_actions_pending || 0,
+            c.docs_awaiting_approval || 0,
+            c.next_meeting_date || ""
+        ]);
+    });
+    const wsClients = XLSX.utils.aoa_to_sheet(clientsData);
+    XLSX.utils.book_append_sheet(wb, wsClients, "Client Actions");
+
+    // 5. Sheet: Finance (Strict Multi-Currency Isolation)
+    const finances = payload.financial_analytics || {};
+    const financeData = [
+        ["Currency", "Contract Value", "Invoiced", "Received", "Outstanding", "Overdue", "Planned Costs", "Actual Costs", "Forecast Result", "Forecast Margin %", "Not Due (AR)", "1-7d (AR)", "8-30d (AR)", "31-60d (AR)", "61-90d (AR)", "90+d (AR)"]
+    ];
+    Object.keys(finances).forEach(curr => {
+        const f = finances[curr] || {};
+        const ar = f.ar_aging || {};
+        financeData.push([
+            curr,
+            Number(f.contract_value_minor || 0) / 100,
+            Number(f.invoiced_minor || 0) / 100,
+            Number(f.received_minor || 0) / 100,
+            Number(f.outstanding_minor || 0) / 100,
+            Number(f.overdue_minor || 0) / 100,
+            Number(f.planned_costs_minor || 0) / 100,
+            Number(f.actual_costs_minor || 0) / 100,
+            Number(f.forecast_result_minor || 0) / 100,
+            f.forecast_margin_pct || 0,
+            Number(ar.not_due_minor || 0) / 100,
+            Number(ar.days_1_7_minor || 0) / 100,
+            Number(ar.days_8_30_minor || 0) / 100,
+            Number(ar.days_31_60_minor || 0) / 100,
+            Number(ar.days_61_90_minor || 0) / 100,
+            Number(ar.days_90_plus_minor || 0) / 100
+        ]);
+    });
+    const wsFinance = XLSX.utils.aoa_to_sheet(financeData);
+    XLSX.utils.book_append_sheet(wb, wsFinance, "Finance");
+
+    // Write binary OOXML XLSX
+    XLSX.writeFile(wb, `firstwin_portfolio_analytics_${new Date().toISOString().slice(0, 10)}.xlsx`, { bookType: "xlsx" });
 }
