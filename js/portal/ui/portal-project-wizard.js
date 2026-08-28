@@ -138,7 +138,7 @@ export async function initPortalWizardEvents(templateId, onClose) {
                         <label>Валюта</label>
                         <select class="form-input" id="wiz-curr">
                             <option value="UAH" ${state.currency==='UAH'?'selected':''}>UAH</option>
-                            <option value="USD" ${state.currency==='USD'?'selected':''}>USD</option>
+                            <option value="EUR" ${state.currency==='EUR'?'selected':''}>EUR</option>
                             <option value="CZK" ${state.currency==='CZK'?'selected':''}>CZK</option>
                         </select>
                     </div>

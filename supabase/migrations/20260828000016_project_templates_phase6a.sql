@@ -152,23 +152,21 @@ ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.template_audit_events ENABLE ROW LEVEL SECURITY;
 
 -- Security Definer to bypass some strict rules during complex creation, but let's implement base read policies
-CREATE OR REPLACE FUNCTION public.is_template_readable(p_org_id UUID) RETURNS BOOLEAN AS $$
+CREATE OR REPLACE FUNCTION public.is_template_readable(p_org_id UUID) RETURNS BOOLEAN AS $
 BEGIN
-    -- If global template (org_id is null), everyone internal can read it
     IF p_org_id IS NULL THEN
-        RETURN EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role IN ('owner', 'pm'));
+        RETURN EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND global_role IN ('owner', 'pm'));
     END IF;
-    -- If tenant template, only owner or PM of that org can read
-    RETURN EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'owner') OR
-           EXISTS (SELECT 1 FROM organization_members WHERE user_id = auth.uid() AND organization_id = p_org_id AND role = 'pm');
+    RETURN EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND global_role = 'owner') OR
+           EXISTS (SELECT 1 FROM public.organization_memberships WHERE user_id = auth.uid() AND organization_id = p_org_id AND org_role IN ('pm', 'admin'));
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE POLICY "Internal Read Templates" ON public.project_templates FOR SELECT USING (public.is_template_readable(organization_id));
-CREATE POLICY "Owner Manage Templates" ON public.project_templates FOR ALL USING (EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'owner'));
+CREATE POLICY "Owner Manage Templates" ON public.project_templates FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND global_role = 'owner'));
 CREATE POLICY "PM Manage Tenant Templates" ON public.project_templates FOR ALL USING (
     organization_id IS NOT NULL AND 
-    EXISTS (SELECT 1 FROM organization_members WHERE user_id = auth.uid() AND organization_id = project_templates.organization_id AND role = 'pm')
+    EXISTS (SELECT 1 FROM public.organization_memberships WHERE user_id = auth.uid() AND organization_id = project_templates.organization_id AND org_role IN ('pm', 'admin'))
 );
 
 -- Versions and blueprint tables inherit template visibility via JOINs, or we can just simplify
