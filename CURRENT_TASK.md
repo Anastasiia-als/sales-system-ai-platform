@@ -1,13 +1,12 @@
-# Current Task: Phase 6A Closed
+# Current Task: Phase 6A Final Engineering Checkpoint
 
-Phase 6A — Project Templates, Delivery Playbooks & One-Click Project Creation is functionally complete and ready for review.
+Phase 6A — Project Templates, Delivery Playbooks & One-Click Project Creation is CLOSED and Production-Ready.
 
-## Status: CLOSED / READY FOR REVIEW
+## Status: CLOSED / READY FOR PHASE 6B
 
-- **Template Builder & UI**: Built library (`#/portal/templates`), version viewer, and project wizard UI.
-- **Immutable Relational Versioning**: ADR-007 adopted. Implemented `template_versions` with `draft/published/archived` states.
-- **Materialization RPC Engine**: Implemented `create_project_from_template` PL/pgSQL function executing inside an ACID transaction block for zero partial data inserts. Includes dynamic deadline calculations.
-- **Security & Idempotency**: Hardened with strict RLS (Owner/Org Admin access only for templates, default deny for clients) and a dedicated `idempotency_keys` check to prevent double-clicks.
-- **Tests**: Materialization and Idempotency tested explicitly directly in Node.js test scripts and verified against DB schemas.
+- All template builder functionality is active and verified via Live Browser E2E.
+- RLS patched and scoped.
+- Concurrency, Idempotency, and Immutability mathematically and programmatically verified via automated testing.
+- Master Regression Baseline recorded.
 
-Awaiting instructions for the next phase.
+Awaiting manual approval to begin Phase 6B.

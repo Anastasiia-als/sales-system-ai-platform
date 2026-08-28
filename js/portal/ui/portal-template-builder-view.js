@@ -1,4 +1,4 @@
-import { supabase } from "../api/supabase-client.js";
+import { getSupabase } from "../api/supabase-client.js";
 
 let currentTemplateId = null;
 let currentTemplate = null;
@@ -62,9 +62,9 @@ export async function initTemplateBuilderEvents() {
         const pubBtn = e.target.closest("#btn-publish-version");
         if (pubBtn) {
             if (confirm("Опублікувати цю версію? Вона стане доступною для генерації проєктів.")) {
-                await supabase.from('template_versions').update({ status: 'published', is_locked: true }).eq('id', activeVersion.id);
+                await (await getSupabase()).from('template_versions').update({ status: 'published', is_locked: true }).eq('id', activeVersion.id);
                 // lock all previous published
-                await supabase.from('template_versions').update({ status: 'archived' }).eq('template_id', currentTemplateId).eq('status', 'published').neq('id', activeVersion.id);
+                await (await getSupabase()).from('template_versions').update({ status: 'archived' }).eq('template_id', currentTemplateId).eq('status', 'published').neq('id', activeVersion.id);
                 await loadData();
             }
         }
@@ -78,7 +78,7 @@ export async function initTemplateBuilderEvents() {
 }
 
 async function loadData() {
-    const { data: tData } = await supabase.from('project_templates').select('*, template_versions(*)').eq('id', currentTemplateId).single();
+    const { data: tData } = await (await getSupabase()).from('project_templates').select('*, template_versions(*)').eq('id', currentTemplateId).single();
     if (tData) {
         currentTemplate = tData;
         const versions = [...tData.template_versions].sort((a, b) => b.version_number - a.version_number);
@@ -164,7 +164,7 @@ async function renderTabContent() {
         
         // Dynamic fetch depending on tab
         const tableName = 'template_' + activeTab;
-        const { data } = await supabase.from(tableName).select('*').eq('version_id', activeVersion.id);
+        const { data } = await (await getSupabase()).from(tableName).select('*').eq('version_id', activeVersion.id);
         const tbody = document.getElementById("tab-table-body");
         if (data && data.length > 0) {
             tbody.innerHTML = data.map(item => `

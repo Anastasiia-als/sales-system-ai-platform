@@ -1,4 +1,4 @@
-import { supabase } from "../api/supabase-client.js";
+import { getSupabase } from "../api/supabase-client.js";
 import { PortalAuth } from "../auth/auth-service.js";
 
 export async function renderPortalWizard(templateId) {
@@ -57,9 +57,9 @@ export async function initPortalWizardEvents(templateId, onClose) {
 
     // Load data
     const [{ data: tData }, { data: orgData }, { data: uData }] = await Promise.all([
-        supabase.from('project_templates').select('*, template_versions(*)').eq('id', templateId).single(),
-        supabase.from('organizations').select('id, name').order('name'),
-        supabase.from('profiles').select('id, full_name, global_role')
+        (await getSupabase()).from('project_templates').select('*, template_versions(*)').eq('id', templateId).single(),
+        (await getSupabase()).from('organizations').select('id, name').order('name'),
+        (await getSupabase()).from('profiles').select('id, full_name, global_role')
     ]);
 
     template = tData;
@@ -213,7 +213,7 @@ export async function initPortalWizardEvents(templateId, onClose) {
                 p_idempotency_key: idempotencyKey
             };
 
-            const { data, error } = await supabase.rpc('create_project_from_template', payload);
+            const { data, error } = await (await getSupabase()).rpc('create_project_from_template', payload);
             if (error) throw error;
             if (!data.success) throw new Error(data.error);
 

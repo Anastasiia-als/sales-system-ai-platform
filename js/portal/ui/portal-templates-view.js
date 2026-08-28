@@ -1,4 +1,4 @@
-import { supabase } from "../api/supabase-client.js";
+import { getSupabase } from "../api/supabase-client.js";
 import { PortalAuth } from "../auth/auth-service.js";
 import { renderPortalWizard } from "./portal-project-wizard.js";
 
@@ -68,7 +68,7 @@ export async function initTemplatesEvents() {
 
     document.getElementById("btn-create-template")?.addEventListener("click", async () => {
         // Quick create draft
-        const { data, error } = await supabase.from('project_templates')
+        const { data, error } = await (await getSupabase()).from('project_templates')
             .insert([{
                 name: 'Новий Шаблон',
                 project_type: 'consulting',
@@ -77,7 +77,7 @@ export async function initTemplatesEvents() {
             }]).select().single();
         if (data) {
             // create initial draft version
-            await supabase.from('template_versions').insert([{
+            await (await getSupabase()).from('template_versions').insert([{
                 template_id: data.id, version_number: 1, status: 'draft', created_by: PortalAuth.currentUser.id
             }]);
             window.location.hash = `#/portal/templates/${data.id}`;
@@ -100,7 +100,7 @@ export async function initTemplatesEvents() {
         if (archiveBtn) {
             const templateId = archiveBtn.dataset.id;
             if (confirm("Архівувати цей шаблон?")) {
-                await supabase.from('project_templates').update({ status: 'archived' }).eq('id', templateId);
+                await (await getSupabase()).from('project_templates').update({ status: 'archived' }).eq('id', templateId);
                 await loadTemplates();
             }
         }
@@ -109,7 +109,7 @@ export async function initTemplatesEvents() {
 
 async function loadTemplates() {
     // In a real app we would join with versions to get metrics, but let's keep it simple for now
-    const { data, error } = await supabase.from('project_templates')
+    const { data, error } = await (await getSupabase()).from('project_templates')
         .select('*, template_versions(id, version_number, status, is_locked)')
         .order('created_at', { ascending: false });
     
