@@ -54,13 +54,13 @@ async function runPhase5D1AcceptanceSuite() {
   assert(!rpcErr && analytics && analytics.success, 'Analytics RPC returns data payload');
   const rates = analytics?.delivery_rates || {};
 
-  assert(typeof rates.milestone_completion_rate === 'number', 'Metric: milestone_completion_rate is numeric');
-  assert(typeof rates.tasks_completion_rate === 'number', 'Metric: tasks_completion_rate is numeric');
-  assert(typeof rates.overdue_task_rate === 'number', 'Metric: overdue_task_rate is numeric');
-  assert(typeof rates.client_action_completion_rate === 'number', 'Metric: client_action_completion_rate is numeric');
-  assert(typeof rates.on_time_delivery_rate === 'number', 'Metric: on_time_delivery_rate is numeric');
-  assert(typeof rates.project_completion_rate === 'number', 'Metric: project_completion_rate is numeric');
-  assert(typeof rates.avg_completion_delay_days === 'number', 'Metric: avg_completion_delay_days is numeric');
+  assert(rates.milestone_completion_rate === null || typeof rates.milestone_completion_rate === 'number', 'Metric: milestone_completion_rate is numeric or NULL');
+  assert(rates.tasks_completion_rate === null || typeof rates.tasks_completion_rate === 'number', 'Metric: tasks_completion_rate is numeric or NULL');
+  assert(rates.overdue_task_rate === null || typeof rates.overdue_task_rate === 'number', 'Metric: overdue_task_rate is numeric or NULL');
+  assert(rates.client_action_completion_rate === null || typeof rates.client_action_completion_rate === 'number', 'Metric: client_action_completion_rate is numeric or NULL');
+  assert(rates.on_time_delivery_rate === null || typeof rates.on_time_delivery_rate === 'number', 'Metric: on_time_delivery_rate is numeric or NULL');
+  assert(rates.project_completion_rate === null || typeof rates.project_completion_rate === 'number', 'Metric: project_completion_rate is numeric or NULL');
+  assert(rates.avg_completion_delay_days === null || typeof rates.avg_completion_delay_days === 'number', 'Metric: avg_completion_delay_days is numeric or NULL');
 
   // 3. Verify Canonical Overdue Task Rate Semantics
   console.log('\n--- 3. Verifying Canonical Overdue Task Rate Semantics ---');

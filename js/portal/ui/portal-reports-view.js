@@ -21,6 +21,13 @@ function formatMoney(amountMinor, currency) {
     return `${val} ${currency || ""}`.trim();
 }
 
+function formatRate(val, unit = "%") {
+    if (val === null || val === undefined || isNaN(Number(val))) {
+        return '<span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">—</span>';
+    }
+    return `${val}${unit}`;
+}
+
 let reportsState = {
     reportType: "portfolio_summary",
     periodType: "30d",
@@ -278,27 +285,27 @@ function renderSpecificReport(reportType, reportData) {
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
                 <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                     <div style="font-size: 0.75rem; color: var(--text-secondary);">Milestone Rate</div>
-                    <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${rates.milestone_completion_rate || 0}%</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${formatRate(rates.milestone_completion_rate)}</div>
                 </div>
                 <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                     <div style="font-size: 0.75rem; color: var(--text-secondary);">Tasks Rate</div>
-                    <div style="font-size: 1.3rem; font-weight: 700; color: #6366F1;">${rates.tasks_completion_rate || 0}%</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #6366F1;">${formatRate(rates.tasks_completion_rate)}</div>
                 </div>
                 <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                     <div style="font-size: 0.75rem; color: var(--text-secondary);">Overdue Task Rate</div>
-                    <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.overdue_task_rate > 15 ? '#EF4444' : '#F59E0B'};">${rates.overdue_task_rate || 0}%</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.overdue_task_rate > 15 ? '#EF4444' : '#F59E0B'};">${formatRate(rates.overdue_task_rate)}</div>
                 </div>
                 <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                     <div style="font-size: 0.75rem; color: var(--text-secondary);">On-Time Delivery</div>
-                    <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${rates.on_time_delivery_rate || 100}%</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${formatRate(rates.on_time_delivery_rate)}</div>
                 </div>
                 <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                     <div style="font-size: 0.75rem; color: var(--text-secondary);">Project Completion Rate</div>
-                    <div style="font-size: 1.3rem; font-weight: 700; color: #38BDF8;">${rates.project_completion_rate || 0}%</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #38BDF8;">${formatRate(rates.project_completion_rate)}</div>
                 </div>
                 <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                     <div style="font-size: 0.75rem; color: var(--text-secondary);">Avg Delay</div>
-                    <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.avg_completion_delay_days > 0 ? '#EF4444' : '#10B981'};">${rates.avg_completion_delay_days || 0} дн.</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.avg_completion_delay_days > 0 ? '#EF4444' : '#10B981'};">${formatRate(rates.avg_completion_delay_days, ' дн.')}</div>
                 </div>
             </div>
 
@@ -471,7 +478,7 @@ function renderSpecificReport(reportType, reportData) {
             </div>
             <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">On-Time Delivery</div>
-                <div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">${rates.on_time_delivery_rate || 100}%</div>
+                <div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">${formatRate(rates.on_time_delivery_rate)}</div>
             </div>
             <div style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Прострочені задачі</div>

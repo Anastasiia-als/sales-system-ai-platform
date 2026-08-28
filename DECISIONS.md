@@ -49,15 +49,17 @@ To support executive oversight without manual spreadsheet aggregation, FIRSTWIN 
 #### 1. Single-Pass High Performance RPC (`get_portfolio_analytics_data`)
 - Instead of dozens of independent client queries, a single database RPC calculates executive KPIs, lifecycle funnel counts, deterministic performance rates, multi-currency financials, team workload, and period trend deltas in one unified query.
 
-#### 2. Deterministic KPI Formulas (Canonical Semantic Model)
-- **Milestone Completion Rate**: `(completed_milestones / total_milestones) * 100` (0% if total is 0)
-- **Tasks Completion Rate**: `(completed_tasks / total_tasks) * 100` (0% if total is 0)
-- **Overdue Task Rate**: `(overdue_tasks / open_tasks) * 100`
-  *Semantic clarification: `open_tasks` is defined as `status != 'done'`. Since `overdue_tasks` is `status != 'done' AND due_date < CURRENT_DATE`, it is already a strict subset of `open_tasks`. The denominator is `open_tasks` (0% if `open_tasks` is 0).*
-- **Client Action Completion Rate**: `(completed_client_actions / total_client_actions) * 100` (0% if total is 0)
-- **On-Time Delivery Rate**: `(on_time_completed_projects / total_completed_projects) * 100` (100% if no completed projects)
-- **Project Completion Rate**: `(completed_projects / total_projects) * 100` (0% if total is 0)
-- **Average Completion Delay (days)**: `AVG(GREATEST(completed_at - target_date, 0))` for completed projects (0.0 if none)
+#### 2. Deterministic KPI Formulas (Canonical Semantic Model & Strict Nulls)
+- **Global Null Policy**: Absence of required denominator/sample strictly returns `NULL` in the database RPC/API and is rendered as `«—»` or `«Недостатньо даних»` in the UI and blank cells in exports. Missing samples are NEVER converted into misleading `0%`, `100%`, `NaN`, or `Infinity`.
+- **Milestone Completion Rate**: `(completed_milestones / total_milestones) * 100` (`NULL` if total milestones = 0)
+- **Tasks Completion Rate**: `(completed_tasks / total_tasks) * 100` (`NULL` if total tasks = 0)
+- **Overdue Task Rate**: `(overdue_tasks / open_tasks) * 100` (`NULL` if open tasks = 0)
+  *Semantic clarification: `open_tasks` is defined as `status != 'done'`. Since `overdue_tasks` is `status != 'done' AND due_date < CURRENT_DATE`, it is a strict subset of `open_tasks`.*
+- **Client Action Completion Rate**: `(completed_client_actions / total_client_actions) * 100` (`NULL` if total actions = 0)
+- **On-Time Delivery Rate**: `(on_time_completed_projects / total_completed_projects) * 100` (`NULL` if total completed projects = 0)
+- **Project Completion Rate**: `(completed_projects / total_projects) * 100` (`NULL` if total projects = 0)
+- **Average Completion Delay (days)**: `AVG(GREATEST(completed_at - target_date, 0))` for projects with `status = 'completed' AND target_date IS NOT NULL` (`NULL` if no valid completed projects)
+- **Forecast Margin %**: `((Contract Value - Planned Costs) / Contract Value) * 100` (`NULL` if Contract Value <= 0)
 
 #### 3. Strict Role-Based Scope Enforced in Database Engine
 - Owner: platform-wide access.
@@ -68,13 +70,13 @@ To support executive oversight without manual spreadsheet aggregation, FIRSTWIN 
 #### 4. Personal Saved Views (`public.analytics_saved_views`)
 - Filters presets are stored per-user (`user_id = auth.uid()`) with strict RLS isolation preventing unauthorized viewing or modification.
 
-#### 5. True Binary OOXML XLSX Export & Multi-Format Reporting
+#### 5. True Binary OOXML XLSX Export with Typed Dates & Multi-Format Reporting
 - Produces valid Microsoft Excel `.xlsx` / Open Packaging Convention ZIP workbooks containing 5 structured sheets:
   1. `Summary`
   2. `Projects`
   3. `Tasks`
   4. `Client Actions`
   5. `Finance`
-- Preserves native numeric types, dates, and strict currency separation (UAH, CZK, EUR).
+- Preserves native numeric types (`t: 'n'`), native Excel Date types (`t: 'd'` with number format `yyyy-mm-dd`), and strict currency separation (UAH, CZK, EUR).
 - Reports Center (`#/portal/reports`) generates 7 canonical reports: `Portfolio Summary`, `Client Report`, `Project Status Report`, `Delivery Performance`, `Finance Summary`, `Accounts Receivable`, and `PM Workload Report`.
 

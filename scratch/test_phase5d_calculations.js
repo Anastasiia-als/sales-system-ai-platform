@@ -54,15 +54,15 @@ async function runCalculationsSuite() {
     assert(typeof funnel.discovery_pct === 'number' && funnel.discovery_pct >= 0 && funnel.discovery_pct <= 100, 'Delivery Funnel: discovery_pct bounded 0-100%');
     assert(typeof funnel.in_progress_pct === 'number' && funnel.in_progress_pct >= 0 && funnel.in_progress_pct <= 100, 'Delivery Funnel: in_progress_pct bounded 0-100%');
 
-    // 5. Deterministic Delivery Performance Rates
+    // 5. Deterministic Delivery Performance Rates (Strict Nullable Semantics)
     const rates = analytics.delivery_rates || {};
-    assert(typeof rates.milestone_completion_rate === 'number' && rates.milestone_completion_rate >= 0 && rates.milestone_completion_rate <= 100, 'Rates: milestone_completion_rate bounded 0-100%');
-    assert(typeof rates.tasks_completion_rate === 'number' && rates.tasks_completion_rate >= 0 && rates.tasks_completion_rate <= 100, 'Rates: tasks_completion_rate bounded 0-100%');
-    assert(typeof rates.overdue_task_rate === 'number' && rates.overdue_task_rate >= 0 && rates.overdue_task_rate <= 100, 'Rates: overdue_task_rate bounded 0-100%');
-    assert(typeof rates.client_action_completion_rate === 'number' && rates.client_action_completion_rate >= 0 && rates.client_action_completion_rate <= 100, 'Rates: client_action_completion_rate bounded 0-100%');
-    assert(typeof rates.on_time_delivery_rate === 'number' && rates.on_time_delivery_rate >= 0 && rates.on_time_delivery_rate <= 100, 'Rates: on_time_delivery_rate bounded 0-100%');
-    assert(typeof rates.project_completion_rate === 'number' && rates.project_completion_rate >= 0 && rates.project_completion_rate <= 100, 'Rates: project_completion_rate bounded 0-100%');
-    assert(typeof rates.avg_completion_delay_days === 'number' && rates.avg_completion_delay_days >= 0, 'Rates: avg_completion_delay_days is >= 0');
+    assert(rates.milestone_completion_rate === null || (typeof rates.milestone_completion_rate === 'number' && rates.milestone_completion_rate >= 0 && rates.milestone_completion_rate <= 100), 'Rates: milestone_completion_rate valid or NULL');
+    assert(rates.tasks_completion_rate === null || (typeof rates.tasks_completion_rate === 'number' && rates.tasks_completion_rate >= 0 && rates.tasks_completion_rate <= 100), 'Rates: tasks_completion_rate valid or NULL');
+    assert(rates.overdue_task_rate === null || (typeof rates.overdue_task_rate === 'number' && rates.overdue_task_rate >= 0 && rates.overdue_task_rate <= 100), 'Rates: overdue_task_rate valid or NULL');
+    assert(rates.client_action_completion_rate === null || (typeof rates.client_action_completion_rate === 'number' && rates.client_action_completion_rate >= 0 && rates.client_action_completion_rate <= 100), 'Rates: client_action_completion_rate valid or NULL');
+    assert(rates.on_time_delivery_rate === null || (typeof rates.on_time_delivery_rate === 'number' && rates.on_time_delivery_rate >= 0 && rates.on_time_delivery_rate <= 100), 'Rates: on_time_delivery_rate valid or NULL');
+    assert(rates.project_completion_rate === null || (typeof rates.project_completion_rate === 'number' && rates.project_completion_rate >= 0 && rates.project_completion_rate <= 100), 'Rates: project_completion_rate valid or NULL');
+    assert(rates.avg_completion_delay_days === null || (typeof rates.avg_completion_delay_days === 'number' && rates.avg_completion_delay_days >= 0), 'Rates: avg_completion_delay_days is valid or NULL');
 
     // 6. Currency Isolation & Integrity
     const finances = analytics.financial_analytics || {};

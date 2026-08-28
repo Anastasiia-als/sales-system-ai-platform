@@ -21,6 +21,20 @@ function formatMoney(amountMinor, currency) {
     return `${val} ${currency || ""}`.trim();
 }
 
+function formatRate(val, unit = "%") {
+    if (val === null || val === undefined || isNaN(Number(val))) {
+        return '<span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">—</span>';
+    }
+    return `${val}${unit}`;
+}
+
+function formatMarginBadge(val) {
+    if (val === null || val === undefined || isNaN(Number(val))) {
+        return '<span class="portal-badge" style="opacity: 0.7;">Маржа: —</span>';
+    }
+    return `<span class="portal-badge portal-badge-primary">Маржа: ${val}%</span>`;
+}
+
 let analyticsState = {
     periodType: "30d",
     startDate: null,
@@ -271,7 +285,7 @@ function renderAnalyticsContent(root, payload, orgs, pms) {
                             <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px;">
                                     <span style="font-size: 1.1rem; font-weight: 700; color: #818CF8;">${escapeHtml(curr)}</span>
-                                    <span class="portal-badge portal-badge-primary">Маржинальність: ${f.forecast_margin_pct || 0}%</span>
+                                    ${formatMarginBadge(f.forecast_margin_pct)}
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem; margin-bottom: 12px;">
                                     <div><span style="color: var(--text-secondary);">Контракт:</span> <strong>${formatMoney(f.contract_value_minor, curr)}</strong></div>
@@ -350,31 +364,31 @@ function renderAnalyticsContent(root, payload, orgs, pms) {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Milestone Completion</div>
-                        <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${rates.milestone_completion_rate || 0}%</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${formatRate(rates.milestone_completion_rate)}</div>
                     </div>
                     <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Tasks Completion</div>
-                        <div style="font-size: 1.3rem; font-weight: 700; color: #6366F1;">${rates.tasks_completion_rate || 0}%</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: #6366F1;">${formatRate(rates.tasks_completion_rate)}</div>
                     </div>
                     <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Overdue Task Rate</div>
-                        <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.overdue_task_rate > 15 ? '#EF4444' : '#F59E0B'};">${rates.overdue_task_rate || 0}%</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.overdue_task_rate > 15 ? '#EF4444' : '#F59E0B'};">${formatRate(rates.overdue_task_rate)}</div>
                     </div>
                     <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
                         <div style="font-size: 0.8rem; color: var(--text-secondary);">On-Time Delivery</div>
-                        <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${rates.on_time_delivery_rate || 100}%</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: #10B981;">${formatRate(rates.on_time_delivery_rate)}</div>
                     </div>
                     <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Project Completion Rate</div>
-                        <div style="font-size: 1.3rem; font-weight: 700; color: #38BDF8;">${rates.project_completion_rate || 0}%</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: #38BDF8;">${formatRate(rates.project_completion_rate)}</div>
                     </div>
                     <div class="portal-kpi-subcard" style="padding: 12px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border-color);">
                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Completion Delay</div>
-                        <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.avg_completion_delay_days > 0 ? '#EF4444' : '#10B981'};">${rates.avg_completion_delay_days || 0} дн.</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: ${rates.avg_completion_delay_days > 0 ? '#EF4444' : '#10B981'};">${formatRate(rates.avg_completion_delay_days, ' дн.')}</div>
                     </div>
                 </div>
                 <div style="margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary);">
-                    Client Action Completion: <strong>${rates.client_action_completion_rate || 0}%</strong>
+                    Client Action Completion: <strong>${formatRate(rates.client_action_completion_rate)}</strong>
                 </div>
             </div>
         </div>
@@ -685,14 +699,21 @@ function exportAnalyticsXLSX(payload) {
     }
 
     const wb = XLSX.utils.book_new();
+    const parseDate = (d) => {
+        if (!d) return null;
+        const dt = new Date(d);
+        return isNaN(dt.getTime()) ? null : dt;
+    };
 
     // 1. Sheet: Summary
     const kpis = payload.executive_kpis || {};
     const rates = payload.delivery_rates || {};
     const summaryData = [
         ["FIRSTWIN Executive Analytics Summary", ""],
-        ["Generated At", new Date().toLocaleString("uk-UA")],
+        ["Generated At", new Date()],
         ["Period", payload.period?.type || "30d"],
+        ["Period Start", parseDate(payload.period?.start_date)],
+        ["Period End", parseDate(payload.period?.end_date)],
         ["", ""],
         ["Metric", "Value"],
         ["Total Clients", kpis.total_clients || 0],
@@ -701,6 +722,8 @@ function exportAnalyticsXLSX(payload) {
         ["Active Projects", kpis.active_projects || 0],
         ["At Risk Projects", kpis.at_risk_projects || 0],
         ["Completed Projects", kpis.completed_projects || 0],
+        ["Total Tasks", kpis.total_tasks || 0],
+        ["Open Tasks", kpis.open_tasks || 0],
         ["Overdue Tasks", kpis.overdue_tasks || 0],
         ["Overdue Client Actions", kpis.overdue_client_actions || 0],
         ["Completed Milestones", kpis.completed_milestones || 0],
@@ -708,21 +731,21 @@ function exportAnalyticsXLSX(payload) {
         ["Docs Awaiting Approval", kpis.docs_awaiting_approval || 0],
         ["", ""],
         ["Delivery Rate Metric", "Rate % / Days"],
-        ["Milestone Completion Rate", rates.milestone_completion_rate || 0],
-        ["Tasks Completion Rate", rates.tasks_completion_rate || 0],
-        ["Overdue Task Rate", rates.overdue_task_rate || 0],
-        ["Client Action Completion Rate", rates.client_action_completion_rate || 0],
-        ["On-Time Delivery Rate", rates.on_time_delivery_rate || 0],
-        ["Project Completion Rate", rates.project_completion_rate || 0],
-        ["Avg Completion Delay (days)", rates.avg_completion_delay_days || 0]
+        ["Milestone Completion Rate", rates.milestone_completion_rate !== null ? rates.milestone_completion_rate : null],
+        ["Tasks Completion Rate", rates.tasks_completion_rate !== null ? rates.tasks_completion_rate : null],
+        ["Overdue Task Rate", rates.overdue_task_rate !== null ? rates.overdue_task_rate : null],
+        ["Client Action Completion Rate", rates.client_action_completion_rate !== null ? rates.client_action_completion_rate : null],
+        ["On-Time Delivery Rate", rates.on_time_delivery_rate !== null ? rates.on_time_delivery_rate : null],
+        ["Project Completion Rate", rates.project_completion_rate !== null ? rates.project_completion_rate : null],
+        ["Avg Completion Delay (days)", rates.avg_completion_delay_days !== null ? rates.avg_completion_delay_days : null]
     ];
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData, { cellDates: true, dateNF: "yyyy-mm-dd" });
     XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
 
     // 2. Sheet: Projects
     const projects = payload.projects || [];
     const projectsData = [
-        ["Project ID", "Title", "Client", "PM", "Status", "Health", "Progress %", "Open Tasks", "Overdue Tasks", "Client Actions Total", "Client Actions Overdue", "Target Date", "Financial Status", "Contract Currency", "Contract Value"]
+        ["Project ID", "Title", "Client", "PM", "Status", "Health", "Progress %", "Open Tasks", "Overdue Tasks", "Client Actions Total", "Client Actions Overdue", "Start Date", "Target Date", "Financial Status", "Contract Currency", "Contract Value"]
     ];
     projects.forEach(p => {
         projectsData.push([
@@ -732,18 +755,19 @@ function exportAnalyticsXLSX(payload) {
             p.pm_name || "",
             p.status || "",
             p.health || "",
-            p.progress_percent || 0,
-            p.open_tasks || 0,
-            p.overdue_tasks || 0,
-            p.client_actions_total || 0,
-            p.client_actions_overdue || 0,
-            p.target_date || "",
+            p.progress_percent !== null ? Number(p.progress_percent) : null,
+            p.open_tasks !== null ? Number(p.open_tasks) : 0,
+            p.overdue_tasks !== null ? Number(p.overdue_tasks) : 0,
+            p.client_actions_total !== null ? Number(p.client_actions_total) : 0,
+            p.client_actions_overdue !== null ? Number(p.client_actions_overdue) : 0,
+            parseDate(p.start_date),
+            parseDate(p.target_date),
             p.financial_status || "",
             p.contract_currency || "",
-            p.contract_value_minor ? Number(p.contract_value_minor) / 100 : 0
+            p.contract_value_minor !== null ? Number(p.contract_value_minor) / 100 : null
         ]);
     });
-    const wsProjects = XLSX.utils.aoa_to_sheet(projectsData);
+    const wsProjects = XLSX.utils.aoa_to_sheet(projectsData, { cellDates: true, dateNF: "yyyy-mm-dd" });
     XLSX.utils.book_append_sheet(wb, wsProjects, "Projects");
 
     // 3. Sheet: Tasks & Workload
@@ -756,14 +780,14 @@ function exportAnalyticsXLSX(payload) {
             w.user_id,
             w.full_name || w.email || "",
             w.global_role || "",
-            w.active_projects || 0,
-            w.open_tasks || 0,
-            w.overdue_tasks || 0,
-            w.high_priority_tasks || 0,
-            w.upcoming_deadlines_7d || 0
+            w.active_projects !== null ? Number(w.active_projects) : 0,
+            w.open_tasks !== null ? Number(w.open_tasks) : 0,
+            w.overdue_tasks !== null ? Number(w.overdue_tasks) : 0,
+            w.high_priority_tasks !== null ? Number(w.high_priority_tasks) : 0,
+            w.upcoming_deadlines_7d !== null ? Number(w.upcoming_deadlines_7d) : 0
         ]);
     });
-    const wsTasks = XLSX.utils.aoa_to_sheet(tasksData);
+    const wsTasks = XLSX.utils.aoa_to_sheet(tasksData, { cellDates: true, dateNF: "yyyy-mm-dd" });
     XLSX.utils.book_append_sheet(wb, wsTasks, "Tasks");
 
     // 4. Sheet: Client Actions & Clients
@@ -776,16 +800,16 @@ function exportAnalyticsXLSX(payload) {
             c.id,
             c.name || "",
             c.status || "",
-            c.total_projects_count || 0,
-            c.active_projects_count || 0,
-            c.completed_projects_count || 0,
-            c.overdue_tasks_count || 0,
-            c.client_actions_pending || 0,
-            c.docs_awaiting_approval || 0,
-            c.next_meeting_date || ""
+            c.total_projects_count !== null ? Number(c.total_projects_count) : 0,
+            c.active_projects_count !== null ? Number(c.active_projects_count) : 0,
+            c.completed_projects_count !== null ? Number(c.completed_projects_count) : 0,
+            c.overdue_tasks_count !== null ? Number(c.overdue_tasks_count) : 0,
+            c.client_actions_pending !== null ? Number(c.client_actions_pending) : 0,
+            c.docs_awaiting_approval !== null ? Number(c.docs_awaiting_approval) : 0,
+            parseDate(c.next_meeting_date)
         ]);
     });
-    const wsClients = XLSX.utils.aoa_to_sheet(clientsData);
+    const wsClients = XLSX.utils.aoa_to_sheet(clientsData, { cellDates: true, dateNF: "yyyy-mm-dd" });
     XLSX.utils.book_append_sheet(wb, wsClients, "Client Actions");
 
     // 5. Sheet: Finance (Strict Multi-Currency Isolation)
@@ -798,24 +822,24 @@ function exportAnalyticsXLSX(payload) {
         const ar = f.ar_aging || {};
         financeData.push([
             curr,
-            Number(f.contract_value_minor || 0) / 100,
-            Number(f.invoiced_minor || 0) / 100,
-            Number(f.received_minor || 0) / 100,
-            Number(f.outstanding_minor || 0) / 100,
-            Number(f.overdue_minor || 0) / 100,
-            Number(f.planned_costs_minor || 0) / 100,
-            Number(f.actual_costs_minor || 0) / 100,
-            Number(f.forecast_result_minor || 0) / 100,
-            f.forecast_margin_pct || 0,
-            Number(ar.not_due_minor || 0) / 100,
-            Number(ar.days_1_7_minor || 0) / 100,
-            Number(ar.days_8_30_minor || 0) / 100,
-            Number(ar.days_31_60_minor || 0) / 100,
-            Number(ar.days_61_90_minor || 0) / 100,
-            Number(ar.days_90_plus_minor || 0) / 100
+            f.contract_value_minor !== null ? Number(f.contract_value_minor) / 100 : 0,
+            f.invoiced_minor !== null ? Number(f.invoiced_minor) / 100 : 0,
+            f.received_minor !== null ? Number(f.received_minor) / 100 : 0,
+            f.outstanding_minor !== null ? Number(f.outstanding_minor) / 100 : 0,
+            f.overdue_minor !== null ? Number(f.overdue_minor) / 100 : 0,
+            f.planned_costs_minor !== null ? Number(f.planned_costs_minor) / 100 : 0,
+            f.actual_costs_minor !== null ? Number(f.actual_costs_minor) / 100 : 0,
+            f.forecast_result_minor !== null ? Number(f.forecast_result_minor) / 100 : 0,
+            f.forecast_margin_pct !== null ? Number(f.forecast_margin_pct) : null,
+            ar.not_due_minor !== null ? Number(ar.not_due_minor) / 100 : 0,
+            ar.days_1_7_minor !== null ? Number(ar.days_1_7_minor) / 100 : 0,
+            ar.days_8_30_minor !== null ? Number(ar.days_8_30_minor) / 100 : 0,
+            ar.days_31_60_minor !== null ? Number(ar.days_31_60_minor) / 100 : 0,
+            ar.days_61_90_minor !== null ? Number(ar.days_61_90_minor) / 100 : 0,
+            ar.days_90_plus_minor !== null ? Number(ar.days_90_plus_minor) / 100 : 0
         ]);
     });
-    const wsFinance = XLSX.utils.aoa_to_sheet(financeData);
+    const wsFinance = XLSX.utils.aoa_to_sheet(financeData, { cellDates: true, dateNF: "yyyy-mm-dd" });
     XLSX.utils.book_append_sheet(wb, wsFinance, "Finance");
 
     // Write binary OOXML XLSX

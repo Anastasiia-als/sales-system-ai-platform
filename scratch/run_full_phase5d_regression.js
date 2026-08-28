@@ -17,7 +17,8 @@ const testSuites = [
   { name: 'Phase 5D Calculations', cmd: 'node scratch/test_phase5d_calculations.js' },
   { name: 'Phase 5D Security & RLS', cmd: 'node scratch/test_phase5d_security.js' },
   { name: 'Phase 5D Browser Acceptance', cmd: 'node scratch/test_phase5d_browser.js' },
-  { name: 'Phase 5D.1 Acceptance & Export', cmd: 'node scratch/test_phase5d1_acceptance.js' }
+  { name: 'Phase 5D.1 Acceptance & Export', cmd: 'node scratch/test_phase5d1_acceptance.js' },
+  { name: 'Phase 5D.2 Semantic Hardening & XLSX Dates', cmd: 'node scratch/test_phase5d2_semantics_and_xlsx_dates.js' }
 ];
 
 console.log('=== RUNNING FULL MASTER REGRESSION (PHASE 4A - 5D) ===\n');

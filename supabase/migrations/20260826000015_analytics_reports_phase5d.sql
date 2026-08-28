@@ -267,27 +267,27 @@ BEGIN
   )
   SELECT jsonb_build_object(
     'milestone_completion_rate', 
-      CASE WHEN COUNT(m.id) > 0 THEN ROUND((COUNT(m.id) FILTER (WHERE m.status = 'completed') * 100.0) / COUNT(m.id), 1) ELSE 0 END,
+      CASE WHEN COUNT(m.id) > 0 THEN ROUND((COUNT(m.id) FILTER (WHERE m.status = 'completed') * 100.0) / COUNT(m.id), 1) ELSE NULL END,
     'tasks_completion_rate',
-      CASE WHEN (SELECT COUNT(*) FROM scoped_tasks) > 0 THEN ROUND(((SELECT COUNT(*) FROM scoped_tasks WHERE status = 'done') * 100.0) / (SELECT COUNT(*) FROM scoped_tasks), 1) ELSE 0 END,
+      CASE WHEN (SELECT COUNT(*) FROM scoped_tasks) > 0 THEN ROUND(((SELECT COUNT(*) FROM scoped_tasks WHERE status = 'done') * 100.0) / (SELECT COUNT(*) FROM scoped_tasks), 1) ELSE NULL END,
     'overdue_task_rate',
-      CASE WHEN (SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done') > 0 THEN ROUND(((SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done' AND due_date < CURRENT_DATE) * 100.0) / (SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done'), 1) ELSE 0 END,
+      CASE WHEN (SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done') > 0 THEN ROUND(((SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done' AND due_date < CURRENT_DATE) * 100.0) / (SELECT COUNT(*) FROM scoped_tasks WHERE status != 'done'), 1) ELSE NULL END,
     'client_action_completion_rate',
-      CASE WHEN (SELECT COUNT(*) FROM scoped_tasks WHERE responsibility_type = 'client') > 0 THEN ROUND(((SELECT COUNT(*) FROM scoped_tasks WHERE responsibility_type = 'client' AND status = 'done') * 100.0) / (SELECT COUNT(*) FROM scoped_tasks WHERE responsibility_type = 'client'), 1) ELSE 0 END,
+      CASE WHEN (SELECT COUNT(*) FROM scoped_tasks WHERE responsibility_type = 'client') > 0 THEN ROUND(((SELECT COUNT(*) FROM scoped_tasks WHERE responsibility_type = 'client' AND status = 'done') * 100.0) / (SELECT COUNT(*) FROM scoped_tasks WHERE responsibility_type = 'client'), 1) ELSE NULL END,
     'on_time_delivery_rate',
       CASE WHEN (SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed') > 0 THEN 
         ROUND(((SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed' AND (COALESCE(target_date, target_end_date) IS NULL OR updated_at::DATE <= COALESCE(target_date, target_end_date))) * 100.0) / (SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed'), 1)
-      ELSE 100.0 END,
+      ELSE NULL END,
     'project_completion_rate',
       CASE WHEN (SELECT COUNT(*) FROM scoped_projects) > 0 THEN 
         ROUND(((SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed') * 100.0) / (SELECT COUNT(*) FROM scoped_projects), 1)
-      ELSE 0.0 END,
+      ELSE NULL END,
     'avg_completion_delay_days',
-      COALESCE((
-        SELECT ROUND(AVG(GREATEST(updated_at::DATE - COALESCE(target_date, target_end_date), 0)), 1)
-        FROM scoped_projects
-        WHERE status = 'completed' AND COALESCE(target_date, target_end_date) IS NOT NULL
-      ), 0.0)
+      CASE WHEN (SELECT COUNT(*) FROM scoped_projects WHERE status = 'completed' AND COALESCE(target_date, target_end_date) IS NOT NULL) > 0 THEN
+        (SELECT ROUND(AVG(GREATEST(updated_at::DATE - COALESCE(target_date, target_end_date), 0)), 1)
+         FROM scoped_projects
+         WHERE status = 'completed' AND COALESCE(target_date, target_end_date) IS NOT NULL)
+      ELSE NULL END
   ) INTO v_delivery_rates
   FROM scoped_milestones m;
 
@@ -512,7 +512,7 @@ BEGIN
               COALESCE((SELECT SUM(amount_minor) FROM scoped_costs WHERE currency = c.currency AND cost_type = 'planned'), 0)) * 100.0) /
              (SELECT SUM(contract_value_minor) FROM scoped_terms WHERE currency = c.currency), 1
           )
-        ELSE 0 END,
+        ELSE NULL END,
       'ar_aging', (
         SELECT jsonb_build_object(
           'not_due_minor', COALESCE(SUM(outstanding_minor) FILTER (WHERE due_date >= CURRENT_DATE), 0),
