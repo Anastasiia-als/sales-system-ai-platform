@@ -102,3 +102,10 @@ Stores user-specific filter presets for Analytics and Reports.
   Unified high-performance analytics payload with executive KPIs, delivery funnel, delivery rates, client analytics, team workload, isolated multi-currency summaries, 6 AR aging buckets, and period trend deltas.
 - `public.get_reports_data(p_report_type, p_period_type, p_start_date, p_end_date, p_org_id, p_project_id, p_pm_id, p_currency, p_status)`:
   Predefined report payload generator for Portfolio Summary, Project Status, AR Aging, and Delivery Performance.
+
+## Phase 6A: Project Templates (Playbooks)
+- project_templates: Root container for a playbook.
+- 	emplate_versions: Version control snapshot (draft/published/archived).
+- 	emplate_stages, 	emplate_milestones, 	emplate_tasks, 	emplate_client_actions, 	emplate_documents, 	emplate_meetings: Component blueprints bound to a specific version.
+- idempotency_keys: Prevents double execution of project generation RPC.
+- 	emplate_audit_events: Tracks project generation and version changes.

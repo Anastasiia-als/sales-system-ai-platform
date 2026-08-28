@@ -18,3 +18,9 @@
 4. **Anti-Overpayment Guard**: Trigger `handle_payment_mutation` prevents payment insertions exceeding the invoice outstanding balance.
 5. **Analytics & Reports Access Guard**: Executive analytics and report generators are restricted to `Owner` and `PM`. Specialists and Clients receive 42501 Access Denied. PM scope is constrained to permitted organization IDs.
 6. **Saved Views Personal Isolation**: Policies on `analytics_saved_views` enforce `auth.uid() = user_id` for SELECT, INSERT, UPDATE, and DELETE.
+
+## Phase 6A: Templates & Project Generation
+- **Owner**: Full access to create, edit, and archive templates. Can publish versions and generate projects.
+- **Org Admin**: Scoped access to templates. Can generate projects.
+- **Specialist**: Default Deny for all template routes and endpoints.
+- **Client**: Default Deny for all template routes and endpoints.

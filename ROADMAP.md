@@ -9,4 +9,6 @@
 - [x] **Phase 5C.1 / 5C.1.1**: Finance Foundation, Commercial Terms, Cash Flow & UAH Support.
 - [x] **Phase 5C.2**: Billing Engine, Invoices, Accounts Receivable (AR) & Client Payment Requests.
 - [x] **Phase 5D**: Executive Analytics, Delivery Performance, Financial Insights, Reports & Saved Views.
-- [ ] **Phase 6A**: Client Portal Self-Service & Onboarding Automation (Next).
+- [x] **Phase 6A**: Project Templates, Delivery Playbooks & One-Click Project Creation
+- [ ] **Phase 6B**: Template Cloning & Advanced Delivery Orchestration
+- [ ] **Phase 6C**: Advanced Process Automation & API Hooks

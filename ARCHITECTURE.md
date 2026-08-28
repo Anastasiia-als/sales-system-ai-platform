@@ -70,3 +70,6 @@ $$\text{Commercial Terms} \longrightarrow \text{Payment Schedule} \longrightarro
 ### 4.3 Saved Views
 - Presets are stored in `analytics_saved_views` with per-user RLS isolation (`auth.uid() = user_id`).
 
+
+### 1.5 Immutable Project Templates (Phase 6A)
+Projects are instantiated from version-locked templates via an atomic PL/pgSQL RPC (create_project_from_template). Edits to a published template branch into a new draft version, preventing cascade destruction of in-flight client projects. A strict idempotency guard (idempotency_keys) protects the materialization process from duplicate client network requests.
