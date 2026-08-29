@@ -10,5 +10,5 @@
 - [x] **Phase 5C.2**: Billing Engine, Invoices, Accounts Receivable (AR) & Client Payment Requests.
 - [x] **Phase 5D**: Executive Analytics, Delivery Performance, Financial Insights, Reports & Saved Views.
 - [x] **Phase 6A**: Project Templates, Delivery Playbooks & One-Click Project Creation
-- [ ] **Phase 6B**: Template Cloning & Advanced Delivery Orchestration
+- [x] **Phase 6B**: Template Cloning & Advanced Delivery Orchestration
 - [ ] **Phase 6C**: Advanced Process Automation & API Hooks

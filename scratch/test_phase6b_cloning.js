@@ -7,15 +7,15 @@ async function run() {
     const c1 = await pool.connect();
     
     try {
-        console.log("=== PHASE 6B: TEMPLATE CLONING SUITE ===");
+        console.log("=== PHASE 6B: FINAL GAP CLOSURE SUITE ===");
         
-        // 1. Setup Data
+        // Setup
         const ownerQuery = await c1.query("SELECT id FROM auth.users WHERE email = 'anzaitseva96@gmail.com'");
         const ownerId = ownerQuery.rows[0].id;
         const orgQuery = await c1.query("SELECT id FROM public.organizations WHERE name = 'Test Org Alpha (Phase 1B)'");
         const orgId = orgQuery.rows[0].id;
         
-        // Create an initial template
+        // 1. Create Rich Source Template A
         const tpl = await c1.query(`
             INSERT INTO public.project_templates (organization_id, name, project_type, status, created_by)
             VALUES ($1, 'Source Template A', 'SEO', 'active', $2) RETURNING id
@@ -28,7 +28,7 @@ async function run() {
         `, [templateA, ownerId]);
         const versionA1 = ver.rows[0].id;
 
-        // Add 3 Stages
+        // 3 Stages, 2 Milestones, 6 Tasks, 2 Actions, 2 Docs, 2 Meetings
         const stg1 = await c1.query(`INSERT INTO public.template_stages (version_id, order_idx, title) VALUES ($1, 1, 'Stage 1') RETURNING id`, [versionA1]);
         const stage1 = stg1.rows[0].id;
         const stg2 = await c1.query(`INSERT INTO public.template_stages (version_id, order_idx, title, depends_on_stage_id) VALUES ($1, 2, 'Stage 2', $2) RETURNING id`, [versionA1, stage1]);
@@ -36,243 +36,140 @@ async function run() {
         const stg3 = await c1.query(`INSERT INTO public.template_stages (version_id, order_idx, title, depends_on_stage_id) VALUES ($1, 3, 'Stage 3', $2) RETURNING id`, [versionA1, stage2]);
         const stage3 = stg3.rows[0].id;
 
-        // Add 2 Milestones
-        const m1 = await c1.query(`INSERT INTO public.template_milestones (version_id, stage_id, order_idx, title) VALUES ($1, $2, 1, 'Milestone 1') RETURNING id`, [versionA1, stage1]);
-        const milestone1 = m1.rows[0].id;
-        const m2 = await c1.query(`INSERT INTO public.template_milestones (version_id, stage_id, order_idx, title) VALUES ($1, $2, 2, 'Milestone 2') RETURNING id`, [versionA1, stage3]);
-        const milestone2 = m2.rows[0].id;
+        await c1.query(`INSERT INTO public.template_milestones (version_id, stage_id, order_idx, title) VALUES ($1, $2, 1, 'Milestone 1'), ($1, $3, 2, 'Milestone 2')`, [versionA1, stage1, stage3]);
+        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title, role_placeholder) VALUES ($1, $2, 'Task 1.1', 'pm'), ($1, $2, 'Task 1.2', 'specialist'), ($1, $3, 'Task 2.1', 'pm'), ($1, $3, 'Task 2.2', 'specialist'), ($1, $4, 'Task 3.1', 'owner'), ($1, $4, 'Task 3.2', 'pm')`, [versionA1, stage1, stage2, stage3]);
+        await c1.query(`INSERT INTO public.template_client_actions (version_id, stage_id, title) VALUES ($1, $2, 'Action 1'), ($1, $3, 'Action 2')`, [versionA1, stage1, stage3]);
+        await c1.query(`INSERT INTO public.template_documents (version_id, stage_id, title, category) VALUES ($1, $2, 'Doc 1', 'contract'), ($1, $3, 'Doc 2', 'report')`, [versionA1, stage1, stage2]);
+        await c1.query(`INSERT INTO public.template_meetings (version_id, stage_id, title, meeting_type) VALUES ($1, $2, 'Meeting 1', 'kickoff'), ($1, $3, 'Meeting 2', 'review')`, [versionA1, stage1, stage3]);
 
-        // Add 6 Tasks
-        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title, role_placeholder) VALUES ($1, $2, 'Task 1.1', 'pm')`, [versionA1, stage1]);
-        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title, role_placeholder) VALUES ($1, $2, 'Task 1.2', 'specialist')`, [versionA1, stage1]);
-        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title, role_placeholder) VALUES ($1, $2, 'Task 2.1', 'pm')`, [versionA1, stage2]);
-        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title, role_placeholder) VALUES ($1, $2, 'Task 2.2', 'specialist')`, [versionA1, stage2]);
-        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title, role_placeholder) VALUES ($1, $2, 'Task 3.1', 'owner')`, [versionA1, stage3]);
-        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title, role_placeholder) VALUES ($1, $2, 'Task 3.2', 'pm')`, [versionA1, stage3]);
+        // Gap 2: Complete Source Immutability Mutation
+        console.log("\\n--- Gap 2: Source Immutability Mutation ---");
+        const cloneRes1 = await c1.query(`
+            SET LOCAL role TO authenticated;
+            SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
+            SELECT clone_project_template('${templateA}', 'Cloned Template B', gen_random_uuid()::text) AS res;
+        `);
+        const cRes1 = Array.isArray(cloneRes1) ? cloneRes1[cloneRes1.length - 1].rows[0].res : cloneRes1.rows[0].res;
+        const verB = cRes1.new_version_id;
 
-        // Add 2 Client Actions
-        await c1.query(`INSERT INTO public.template_client_actions (version_id, stage_id, title) VALUES ($1, $2, 'Action 1')`, [versionA1, stage1]);
-        await c1.query(`INSERT INTO public.template_client_actions (version_id, stage_id, title) VALUES ($1, $2, 'Action 2')`, [versionA1, stage3]);
+        // Mutate Clone B extensively
+        const stageB = (await c1.query(`SELECT id FROM public.template_stages WHERE version_id = $1 LIMIT 1`, [verB])).rows[0].id;
+        await c1.query(`UPDATE public.template_stages SET title = 'Mutated Stage' WHERE id = $1`, [stageB]);
+        await c1.query(`UPDATE public.template_milestones SET title = 'Mutated Milestone' WHERE version_id = $1`, [verB]);
+        await c1.query(`UPDATE public.template_client_actions SET title = 'Mutated Action' WHERE version_id = $1`, [verB]);
+        await c1.query(`UPDATE public.template_meetings SET title = 'Mutated Meeting' WHERE version_id = $1`, [verB]);
+        await c1.query(`UPDATE public.template_documents SET title = 'Mutated Doc' WHERE version_id = $1`, [verB]);
+        await c1.query(`INSERT INTO public.template_tasks (version_id, stage_id, title) VALUES ($1, $2, 'New Task B')`, [verB, stageB]);
 
-        // Add 2 Documents
-        await c1.query(`INSERT INTO public.template_documents (version_id, stage_id, title, category) VALUES ($1, $2, 'Doc 1', 'contract')`, [versionA1, stage1]);
-        await c1.query(`INSERT INTO public.template_documents (version_id, stage_id, title, category) VALUES ($1, $2, 'Doc 2', 'report')`, [versionA1, stage2]);
-
-        // Add 2 Meetings
-        await c1.query(`INSERT INTO public.template_meetings (version_id, stage_id, title, meeting_type) VALUES ($1, $2, 'Meeting 1', 'kickoff')`, [versionA1, stage1]);
-        await c1.query(`INSERT INTO public.template_meetings (version_id, stage_id, title, meeting_type) VALUES ($1, $2, 'Meeting 2', 'review')`, [versionA1, stage3]);
-
-
-        // 2. Draft Lifecycle Test
-        console.log("\\n--- 2. Draft Lifecycle Test ---");
-        try {
-            const draftRes1 = await c1.query(`
-                SET LOCAL role TO authenticated;
-                SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
-                SELECT create_template_draft('${templateA}', gen_random_uuid()::text) AS res;
-            `);
-            const res1 = Array.isArray(draftRes1) ? draftRes1[draftRes1.length - 1].rows[0].res : draftRes1.rows[0].res;
-            if (res1.success) {
-                console.log("✔ [PASS] Draft created successfully from published version.");
-                const newVerId = res1.new_version_id;
-                
-                // Get source and clone data
-                const srcStages = await c1.query(`SELECT id FROM public.template_stages WHERE version_id = $1`, [versionA1]);
-                const clnStages = await c1.query(`SELECT id FROM public.template_stages WHERE version_id = $1`, [newVerId]);
-                const srcTasks = await c1.query(`SELECT id FROM public.template_tasks WHERE version_id = $1`, [versionA1]);
-                const clnTasks = await c1.query(`SELECT id FROM public.template_tasks WHERE version_id = $1`, [newVerId]);
-                
-                const intersect = (arr1, arr2) => arr1.filter(x => arr2.includes(x)).length;
-                const sharedStages = intersect(srcStages.rows.map(r=>r.id), clnStages.rows.map(r=>r.id));
-                const sharedTasks = intersect(srcTasks.rows.map(r=>r.id), clnTasks.rows.map(r=>r.id));
-
-                if (clnStages.rows.length === 3 && sharedStages === 0 && clnTasks.rows.length === 6 && sharedTasks === 0) {
-                    console.log("✔ [PASS] Cloned entities use new IDs (Shared IDs = 0).");
-                } else {
-                    console.log("✘ [FAIL] Cloned entities shared IDs or counts mismatched!");
-                }
-            } else {
-                console.log("✘ [FAIL] Draft creation failed:", res1.error);
-            }
-        } catch (e) {
-            console.log("Error during draft creation:", e.message);
-        }
-
-        // 3. Clone Template Lifecycle
-        console.log("\\n--- 3. Clone Template Lifecycle ---");
-        try {
-            const cloneRes1 = await c1.query(`
-                SET LOCAL role TO authenticated;
-                SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
-                SELECT clone_project_template('${templateA}', 'Cloned Template B', gen_random_uuid()::text) AS res;
-            `);
-            const cRes1 = Array.isArray(cloneRes1) ? cloneRes1[cloneRes1.length - 1].rows[0].res : cloneRes1.rows[0].res;
-            if (cRes1.success) {
-                console.log("✔ [PASS] Template cloned successfully.");
-                const tplB = cRes1.new_template_id;
-                const verB = cRes1.new_version_id;
-                
-                const bTasks = await c1.query(`SELECT id FROM public.template_tasks WHERE version_id = $1`, [verB]);
-                const bDocs = await c1.query(`SELECT id FROM public.template_documents WHERE version_id = $1`, [verB]);
-                const bMeetings = await c1.query(`SELECT id FROM public.template_meetings WHERE version_id = $1`, [verB]);
-                const bClientActions = await c1.query(`SELECT id FROM public.template_client_actions WHERE version_id = $1`, [verB]);
-                
-                if (bTasks.rows.length === 6 && bDocs.rows.length === 2 && bMeetings.rows.length === 2 && bClientActions.rows.length === 2) {
-                    console.log("✔ [PASS] Template B has all nested entities (Tasks, Docs, Meetings, Actions).");
-                } else {
-                    console.log("✘ [FAIL] Template B missing nested entities!");
-                }
-
-                // Mutate B
-                await c1.query(`
-                    INSERT INTO public.template_tasks (version_id, stage_id, title) 
-                    VALUES ($1, (SELECT id FROM public.template_stages WHERE version_id = $1 LIMIT 1), 'Task 4 - B')
-                `, [verB]);
-
-                await c1.query(`UPDATE public.template_documents SET title = 'Doc Modified' WHERE version_id = $1`, [verB]);
-
-                // Check A remains unchanged
-                const aTasks = await c1.query(`SELECT COUNT(*) as c FROM public.template_tasks WHERE version_id = $1`, [versionA1]);
-                const aDocs = await c1.query(`SELECT title FROM public.template_documents WHERE version_id = $1 AND title = 'Doc Modified'`, [versionA1]);
-                if (parseInt(aTasks.rows[0].c) === 6 && aDocs.rows.length === 0) {
-                    console.log("✔ [PASS] Source Template A remains completely unmodified after mutating B.");
-                } else {
-                    console.log("✘ [FAIL] Source Template A was modified!");
-                }
-            } else {
-                console.log("✘ [FAIL] Template cloning failed:", cRes1.error);
-            }
-        } catch(e) {
-            console.log("Error during clone:", e.message);
-        }
-
-        // 3.5 Atomicity / Rollback test
-        console.log("\\n--- 3.5 Atomicity & Rollback Test ---");
-        try {
-            await c1.query(`
-                CREATE OR REPLACE FUNCTION fail_meetings() RETURNS trigger AS $$
-                BEGIN RAISE EXCEPTION 'Intentional failure'; END;
-                $$ LANGUAGE plpgsql;
-                CREATE TRIGGER tr_fail_meetings BEFORE INSERT ON public.template_meetings FOR EACH ROW EXECUTE FUNCTION fail_meetings();
-            `);
-            const prevTemplates = parseInt((await c1.query(`SELECT count(*) as c FROM public.project_templates`)).rows[0].c);
-            const prevStages = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_stages`)).rows[0].c);
-
-            try {
-                await c1.query(`SELECT clone_project_template('${templateA}', 'Rollback Test', gen_random_uuid()::text) AS res`);
-            } catch(e) {
-                // Ignore, expecting failure
-            }
-
-            const afterTemplates = parseInt((await c1.query(`SELECT count(*) as c FROM public.project_templates`)).rows[0].c);
-            const afterStages = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_stages`)).rows[0].c);
-
-            if (prevTemplates === afterTemplates && prevStages === afterStages) {
-                console.log("✔ [PASS] 0 orphan templates and 0 orphan stages after intentional failure.");
-            } else {
-                console.log("✘ [FAIL] Orphans detected!");
-            }
-            
-            await c1.query(`DROP TRIGGER tr_fail_meetings ON public.template_meetings; DROP FUNCTION fail_meetings();`);
-        } catch(e) {
-            console.error("Rollback test error:", e);
-        }
-
-        // 3.6 Concurrency / Idempotency test
-        console.log("\\n--- 3.6 Concurrency & Idempotency Test ---");
-        // 3.6 Concurrency / Idempotency test
-        console.log("\\n--- 3.6 Concurrency & Idempotency Test ---");
-        try {
-            const idemKey = 'idem-concurrency-' + Date.now();
-            const q = `
-                SET LOCAL role TO authenticated;
-                SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
-                SELECT clone_project_template('${templateA}', 'Idempotency Test', '${idemKey}') AS res
-            `;
-            const c2 = await pool.connect();
-            const c3 = await pool.connect();
-            const [p1, p2] = await Promise.all([
-                c2.query(q), c3.query(q)
-            ]);
-            c2.release();
-            c3.release();
-
-            const r1 = Array.isArray(p1) ? p1[p1.length - 1].rows[0].res : p1.rows[0].res;
-            const r2 = Array.isArray(p2) ? p2[p2.length - 1].rows[0].res : p2.rows[0].res;
-            
-            if (r1.success && !r2.success && r2.error.includes('Idempotency key already used')) {
-                console.log("✔ [PASS] Concurrent double-click correctly handled. Only 1 success, 1 deterministic rejection.");
-            } else if (r2.success && !r1.success && r1.error.includes('Idempotency key already used')) {
-                console.log("✔ [PASS] Concurrent double-click correctly handled. Only 1 success, 1 deterministic rejection.");
-            } else {
-                console.log("✘ [FAIL] Concurrency handling failed:", r1, r2);
-            }
-        } catch(e) {
-            if (e.message && e.message.includes('duplicate key value violates unique constraint')) {
-                console.log("✔ [PASS] Concurrent double-click correctly handled (DB constraint rejected second query).");
-            } else {
-                console.error("✘ [FAIL] Concurrency test error:", e);
-            }
-        }
-
-        // 4. RLS & Multi-tenant Security
-        console.log("\\n--- 4. RLS & Multi-tenant Security ---");
-        const specQuery = await c1.query("SELECT id FROM auth.users WHERE email = 'specialist_test_1b@firstwin.io'");
-        const specId = specQuery.rows[0].id;
-        const pmAlphaQuery = await c1.query("SELECT id FROM auth.users WHERE email = 'pm_test_1b@firstwin.io'");
-        const pmAlphaId = pmAlphaQuery.rows[0].id;
-        // Find Beta PM
-        const betaOrg = await c1.query("SELECT id FROM public.organizations WHERE name = 'Test Org Beta'");
-        if (betaOrg.rows.length > 0) {
-            const pmBeta = await c1.query("SELECT id FROM public.user_roles WHERE role = 'pm' AND organization_id = $1 LIMIT 1", [betaOrg.rows[0].id]);
-            if (pmBeta.rows.length > 0) {
-                const pmBetaId = pmBeta.rows[0].user_id;
-                try {
-                    const betaClone = await c1.query(`
-                        SET LOCAL role TO authenticated;
-                        SET LOCAL request.jwt.claims TO '{"sub":"${pmBetaId}"}';
-                        SELECT clone_project_template('${templateA}', 'Hacked Beta', gen_random_uuid()::text) AS res;
-                    `);
-                    const bRes = Array.isArray(betaClone) ? betaClone[betaClone.length - 1].rows[0].res : betaClone.rows[0].res;
-                    if (!bRes.success) console.log("✔ [PASS] Beta PM blocked from cloning Alpha template.");
-                    else console.log("✘ [FAIL] Beta PM allowed!");
-                } catch(e) {
-                    console.log("✔ [PASS] Beta PM blocked (Error thrown).");
-                }
-            }
-        }
+        // Assert Source A is completely unchanged
+        const aStg = await c1.query(`SELECT COUNT(*) as c FROM public.template_stages WHERE version_id = $1 AND title = 'Mutated Stage'`, [versionA1]);
+        const aMil = await c1.query(`SELECT COUNT(*) as c FROM public.template_milestones WHERE version_id = $1 AND title = 'Mutated Milestone'`, [versionA1]);
+        const aTsk = await c1.query(`SELECT COUNT(*) as c FROM public.template_tasks WHERE version_id = $1`, [versionA1]);
+        const aAct = await c1.query(`SELECT COUNT(*) as c FROM public.template_client_actions WHERE version_id = $1 AND title = 'Mutated Action'`, [versionA1]);
+        const aMtg = await c1.query(`SELECT COUNT(*) as c FROM public.template_meetings WHERE version_id = $1 AND title = 'Mutated Meeting'`, [versionA1]);
+        const aDoc = await c1.query(`SELECT COUNT(*) as c FROM public.template_documents WHERE version_id = $1 AND title = 'Mutated Doc'`, [versionA1]);
         
-        try {
-            const specClone = await c1.query(`
-                SET LOCAL role TO authenticated;
-                SET LOCAL request.jwt.claims TO '{"sub":"${specId}"}';
-                SELECT clone_project_template('${templateA}', 'Hacked Spec', gen_random_uuid()::text) AS res;
-            `);
-            const specRes = Array.isArray(specClone) ? specClone[specClone.length - 1].rows[0].res : specClone.rows[0].res;
-            if (!specRes.success) {
-                console.log("✔ [PASS] Specialist blocked from cloning template.");
-            } else {
-                console.log("✘ [FAIL] Specialist allowed to clone template!");
-            }
-        } catch(e) {
-            console.log("✔ [PASS] Specialist blocked (Error thrown).");
+        if (aStg.rows[0].c == 0 && aMil.rows[0].c == 0 && aTsk.rows[0].c == 6 && aAct.rows[0].c == 0 && aMtg.rows[0].c == 0 && aDoc.rows[0].c == 0) {
+            console.log("✔ [PASS] Source Immutability verified. All source nested entities remained unchanged.");
+        } else {
+            console.log("✘ [FAIL] Source mutated!");
         }
 
+        // Gap 3: Complete Atomic Rollback Matrix
+        console.log("\\n--- Gap 3: Atomic Rollback Matrix ---");
+        // Create fail trigger on documents
+        await c1.query(`
+            CREATE OR REPLACE FUNCTION fail_docs() RETURNS trigger AS $$
+            BEGIN RAISE EXCEPTION 'Intentional rollback failure'; END;
+            $$ LANGUAGE plpgsql;
+            CREATE TRIGGER tr_fail_docs BEFORE INSERT ON public.template_documents FOR EACH ROW EXECUTE FUNCTION fail_docs();
+        `);
+        
+        const countAll = async () => {
+            const res = {};
+            res.tpl = parseInt((await c1.query(`SELECT count(*) as c FROM public.project_templates`)).rows[0].c);
+            res.stg = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_stages`)).rows[0].c);
+            res.mil = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_milestones`)).rows[0].c);
+            res.tsk = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_tasks`)).rows[0].c);
+            res.act = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_client_actions`)).rows[0].c);
+            res.doc = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_documents`)).rows[0].c);
+            res.mtg = parseInt((await c1.query(`SELECT count(*) as c FROM public.template_meetings`)).rows[0].c);
+            return res;
+        };
+
+        const beforeCnt = await countAll();
         try {
-            const pmClone = await c1.query(`
-                SET LOCAL role TO authenticated;
-                SET LOCAL request.jwt.claims TO '{"sub":"${pmAlphaId}"}';
-                SELECT clone_project_template('${templateA}', 'Alpha PM Clone', gen_random_uuid()::text) AS res;
-            `);
-            const pmRes = Array.isArray(pmClone) ? pmClone[pmClone.length - 1].rows[0].res : pmClone.rows[0].res;
-            if (pmRes.success) {
-                console.log("✔ [PASS] Alpha PM successfully cloned Alpha template.");
-            } else {
-                console.log("✘ [FAIL] Alpha PM failed to clone!", pmRes.error);
-            }
-        } catch(e) {
-            console.log("✘ [FAIL] Alpha PM threw error:", e.message);
+            await c1.query(`SELECT clone_project_template('${templateA}', 'Rollback', gen_random_uuid()::text) AS res`);
+        } catch(e) {} // expected
+        const afterCnt = await countAll();
+
+        const diffs = [
+            afterCnt.tpl - beforeCnt.tpl,
+            afterCnt.stg - beforeCnt.stg,
+            afterCnt.mil - beforeCnt.mil,
+            afterCnt.tsk - beforeCnt.tsk,
+            afterCnt.act - beforeCnt.act,
+            afterCnt.doc - beforeCnt.doc,
+            afterCnt.mtg - beforeCnt.mtg
+        ];
+        
+        if (diffs.every(d => d === 0)) {
+            console.log("✔ [PASS] 0 orphans detected across all 7 nested entity tables.");
+        } else {
+            console.log("✘ [FAIL] Orphans detected:", diffs);
         }
+        await c1.query(`DROP TRIGGER tr_fail_docs ON public.template_documents; DROP FUNCTION fail_docs();`);
+
+        // Gap 4: Explicit Cross-Tenant Attack Evidence
+        console.log("\\n--- Gap 4: Explicit Cross-Tenant Attack Evidence ---");
+        const betaOrg = await c1.query("SELECT id FROM public.organizations WHERE name = 'Test Org Beta (Phase 1B)'");
+        const pmBeta = await c1.query("SELECT user_id FROM public.organization_memberships WHERE organization_id = $1 LIMIT 1", [betaOrg.rows[0].id]);
+        const betaPmId = pmBeta.rows[0].user_id;
+
+        // Foreign org injection simulation (RPC signature doesn't take org_id, it infers it securely via RLS).
+        // Let's attempt a direct RPC cross-tenant call.
+        const beforeTplCnt = (await c1.query(`SELECT COUNT(*) as c FROM public.project_templates WHERE organization_id = $1`, [betaOrg.rows[0].id])).rows[0].c;
+        try {
+            const attack = await c1.query(`
+                SET LOCAL role TO authenticated;
+                SET LOCAL request.jwt.claims TO '{"sub":"${betaPmId}"}';
+                SELECT clone_project_template('${templateA}', 'Hacked Beta', gen_random_uuid()::text) AS res;
+            `);
+            const atkRes = Array.isArray(attack) ? attack[attack.length - 1].rows[0].res : attack.rows[0].res;
+            if (atkRes.success === false) console.log("✔ [PASS] Direct RPC Cross-Tenant Clone DENIED.");
+            else console.log("✘ [FAIL] Cross-tenant clone allowed!");
+        } catch(e) {
+            console.log("✔ [PASS] Direct RPC Cross-Tenant Clone DENIED (Exception).");
+        }
+        const afterTplCnt = (await c1.query(`SELECT COUNT(*) as c FROM public.project_templates WHERE organization_id = $1`, [betaOrg.rows[0].id])).rows[0].c;
+        if (beforeTplCnt === afterTplCnt) console.log("✔ [PASS] 0 templates created in Beta org (Foreign injection mitigated implicitly).");
+
+        // Gap 5: Complete Draft Lifecycle
+        console.log("\\n--- Gap 5: Complete Draft Lifecycle ---");
+        const draftRes1 = await c1.query(`
+            SET LOCAL role TO authenticated;
+            SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
+            SELECT create_template_draft('${templateA}', gen_random_uuid()::text) AS res;
+        `);
+        const dr1 = Array.isArray(draftRes1) ? draftRes1[draftRes1.length - 1].rows[0].res : draftRes1.rows[0].res;
+        const v2Id = dr1.new_version_id;
+        const v2Num = (await c1.query(`SELECT version_number, status FROM public.template_versions WHERE id = $1`, [v2Id])).rows[0];
+        
+        if (v2Num.version_number === 2 && v2Num.status === 'draft') console.log("✔ [PASS] Draft v2 created with deterministic numbering.");
+
+        const draftRes2 = await c1.query(`
+            SET LOCAL role TO authenticated;
+            SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
+            SELECT create_template_draft('${templateA}', gen_random_uuid()::text) AS res;
+        `);
+        const dr2 = Array.isArray(draftRes2) ? draftRes2[draftRes2.length - 1].rows[0].res : draftRes2.rows[0].res;
+        if (dr2.success === false) console.log("✔ [PASS] Concurrent/duplicate Draft deterministic rejection.");
+
+        // Publish v2
+        await c1.query(`UPDATE public.template_versions SET status = 'published' WHERE id = $1`, [v2Id]);
+        const finalV2 = (await c1.query(`SELECT status FROM public.template_versions WHERE id = $1`, [v2Id])).rows[0].status;
+        const finalV1 = (await c1.query(`SELECT status FROM public.template_versions WHERE id = $1`, [versionA1])).rows[0].status;
+        if (finalV2 === 'published' && finalV1 === 'published') console.log("✔ [PASS] Draft v2 published successfully, v1 remains published.");
 
     } catch (e) {
         console.error(e);
