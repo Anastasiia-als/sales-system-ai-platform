@@ -221,7 +221,16 @@ export async function initPortalWizardEvents(templateId, onClose) {
             onClose();
             window.location.hash = `#/portal/projects/${data.project_id}`;
         } catch (e) {
-            alert("Помилка: " + e.message);
+            console.error(e);
+            let msg = "Сталася помилка при створенні проєкту.";
+            if (e.code === '42501' || e.message?.includes('Access denied')) {
+                msg = "Недостатньо прав для виконання цієї дії.";
+            } else if (e.code === 'P0002' || e.message?.includes('not found')) {
+                msg = "Шаблон недоступний або не існує.";
+            } else if (e.message) {
+                msg = e.message;
+            }
+            alert("Помилка: " + msg);
             submitBtn.disabled = false;
             submitBtn.innerHTML = "Створити проєкт";
         }

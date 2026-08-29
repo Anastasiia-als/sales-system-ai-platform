@@ -90,13 +90,15 @@ async function run() {
 
     c1 = await pool.connect();
     let initialProjectCount = (await c1.query(`SELECT count(*) FROM public.projects`)).rows[0].count;
-    const res = await c1.query(payloadQueryFail);
-    const resData = Array.isArray(res) ? res[res.length - 1] : res;
-    const data = resData.rows[0].res;
-    if (data.success) {
-        console.error("Atomicity: FAIL (RPC returned success when it should have failed)");
-    } else {
-        console.log(`Expected Error caught inside RPC: ${data.error}`);
+    try {
+        const res = await c1.query(payloadQueryFail);
+        const resData = Array.isArray(res) ? res[res.length - 1] : res;
+        const data = resData.rows[0].res;
+        if (data.success) {
+            console.error("Atomicity: FAIL (RPC returned success when it should have failed)");
+        }
+    } catch (e) {
+        console.log(`Expected Error caught inside RPC: ${e.message}`);
         let finalProjectCount = (await c1.query(`SELECT count(*) FROM public.projects`)).rows[0].count;
         if (initialProjectCount === finalProjectCount) {
             console.log("Atomicity: PASS (No orphan projects or partial rows created)");

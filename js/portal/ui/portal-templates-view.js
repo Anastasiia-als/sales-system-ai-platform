@@ -127,7 +127,16 @@ export async function initTemplatesEvents() {
                         await loadTemplates();
                     }
                 } catch(err) {
-                    alert("Помилка клонування: " + err.message);
+                    console.error(err);
+                    let msg = "Сталася помилка при клонуванні шаблону.";
+                    if (err.code === '42501' || err.message?.includes('Access denied')) {
+                        msg = "Недостатньо прав для виконання цієї дії.";
+                    } else if (err.code === 'P0002' || err.message?.includes('not found')) {
+                        msg = "Шаблон недоступний або не існує.";
+                    } else if (err.message) {
+                        msg = err.message;
+                    }
+                    alert("Помилка: " + msg);
                 }
                 cloneBtn.disabled = false;
                 cloneBtn.innerHTML = '<i data-lucide="copy"></i>';

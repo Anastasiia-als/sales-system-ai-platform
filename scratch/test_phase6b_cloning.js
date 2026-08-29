@@ -136,16 +136,19 @@ async function run() {
                 SELECT clone_project_template('${templateA}', 'Hacked Beta', gen_random_uuid()::text) AS res;
             `);
             const atkRes = Array.isArray(attack) ? attack[attack.length - 1].rows[0].res : attack.rows[0].res;
-            if (atkRes.success === false) console.log("✔ [PASS] Direct RPC Cross-Tenant Clone DENIED.");
-            else console.log("✘ [FAIL] Cross-tenant clone allowed!");
+            console.log("✘ [FAIL] Cross-tenant clone allowed! Returned: " + JSON.stringify(atkRes));
         } catch(e) {
-            console.log("✔ [PASS] Direct RPC Cross-Tenant Clone DENIED (Exception).");
+            if (e.message.includes('permission denied') || e.message.includes('Access denied') || e.message.includes('not found')) {
+                console.log("✔ [PASS] Direct RPC Cross-Tenant Clone DENIED (Exception).");
+            } else {
+                console.log("✘ [FAIL] Direct RPC Cross-Tenant Clone DENIED but unexpected error: " + e.message);
+            }
         }
         const afterTplCnt = (await c1.query(`SELECT COUNT(*) as c FROM public.project_templates WHERE organization_id = $1`, [betaOrg.rows[0].id])).rows[0].c;
         if (beforeTplCnt === afterTplCnt) console.log("✔ [PASS] 0 templates created in Beta org (Foreign injection mitigated implicitly).");
 
         // Gap 5: Complete Draft Lifecycle
-        console.log("\\n--- Gap 5: Complete Draft Lifecycle ---");
+        console.log("\n--- Gap 5: Complete Draft Lifecycle ---");
         const draftRes1 = await c1.query(`
             SET LOCAL role TO authenticated;
             SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';

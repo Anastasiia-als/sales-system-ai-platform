@@ -213,6 +213,7 @@ DECLARE
     v_milestone_map JSONB := '{}'::jsonb;
     v_new_stage_id UUID;
     v_new_milestone_id UUID;
+    v_source_template RECORD;
 BEGIN
     -- 1. Idempotency Check
     IF p_idempotency_key IS NOT NULL THEN
@@ -229,12 +230,18 @@ BEGIN
     WHERE v.id = p_template_version_id AND v.status = 'published';
 
     IF NOT FOUND THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Published template version not found.');
+        RAISE EXCEPTION 'Published template version not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    SELECT * INTO v_source_template FROM public.project_templates WHERE id = v_template_id;
+
+    IF NOT public.is_template_readable(v_source_template.organization_id) THEN
+        RAISE EXCEPTION 'Access denied.' USING ERRCODE = '42501';
     END IF;
 
     -- Basic Org validation
     IF NOT EXISTS (SELECT 1 FROM public.organizations WHERE id = p_organization_id) THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Invalid organization.');
+        RAISE EXCEPTION 'Invalid organization.' USING ERRCODE = '23503';
     END IF;
 
     -- 3. Resolve PM
