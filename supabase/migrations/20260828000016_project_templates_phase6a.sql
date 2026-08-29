@@ -236,12 +236,16 @@ BEGIN
     SELECT * INTO v_source_template FROM public.project_templates WHERE id = v_template_id;
 
     IF NOT public.is_template_readable(v_source_template.organization_id) THEN
-        RAISE EXCEPTION 'Access denied.' USING ERRCODE = '42501';
+        RAISE EXCEPTION 'Published template version not found.' USING ERRCODE = 'P0002';
     END IF;
 
-    -- Basic Org validation
+    -- Basic Target Org validation
     IF NOT EXISTS (SELECT 1 FROM public.organizations WHERE id = p_organization_id) THEN
         RAISE EXCEPTION 'Invalid organization.' USING ERRCODE = '23503';
+    END IF;
+
+    IF NOT public.is_template_readable(p_organization_id) THEN
+        RAISE EXCEPTION 'Access denied to target organization.' USING ERRCODE = '42501';
     END IF;
 
     -- 3. Resolve PM

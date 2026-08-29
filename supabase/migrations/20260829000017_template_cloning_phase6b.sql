@@ -41,7 +41,7 @@ BEGIN
     END IF;
 
     IF NOT public.is_template_readable(v_source_template.organization_id) THEN
-        RAISE EXCEPTION 'Access denied.' USING ERRCODE = '42501';
+        RAISE EXCEPTION 'Template not found.' USING ERRCODE = 'P0002';
     END IF;
 
     -- 3. Check for existing draft
@@ -193,7 +193,7 @@ BEGIN
     END IF;
 
     IF NOT public.is_template_readable(v_source_template.organization_id) THEN
-        RAISE EXCEPTION 'Access denied.' USING ERRCODE = '42501';
+        RAISE EXCEPTION 'Template not found.' USING ERRCODE = 'P0002';
     END IF;
 
     -- 3. Find the version to clone (prefer latest published, otherwise latest draft)
