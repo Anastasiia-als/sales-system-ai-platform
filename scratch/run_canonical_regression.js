@@ -2,7 +2,7 @@ const fs = require('fs');
 const cp = require('child_process');
 const path = require('path');
 
-const testFiles = fs.readdirSync('scratch').filter(f => f.startsWith('test_') && f.endsWith('.js') && !f.includes('browser') && !f.includes('puppeteer'));
+const testFiles = fs.readdirSync('scratch').filter(f => f.startsWith('test_') && f.endsWith('.js') && f !== 'test_browser_puppeteer.js');
 
 let totalSuites = testFiles.length;
 let passedSuites = 0;
@@ -24,6 +24,8 @@ for (const f of testFiles) {
         output = e.stdout + '\n' + e.stderr;
         failedSuites++;
         exactBlockers++;
+        console.error("SUITE FAILED:", f);
+        console.error(output);
     }
     
     // We count explicit assertions

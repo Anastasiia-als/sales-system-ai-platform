@@ -1,8 +1,8 @@
 === CANONICAL MASTER REGRESSION BASELINE ===
 Executed Date: 2026-08-29
-Test Suites: 16 (DB & API rules)
-Total Tests: 195
-Passed: 195
+Test Suites: 20 (DB, API rules & Browser E2E)
+Total Tests: 210
+Passed: 210
 Failed: 0
 Skipped: 0
 Critical Blockers: 0
@@ -14,15 +14,19 @@ Suites included:
 - test_owner_dashboard_data.js
 - test_phase5c2_1_final_acceptance.js
 - test_phase5c2_1_rls_matrix.js
+- test_phase5c2_2_full_browser.js
 - test_phase5c2_suite.js
 - test_phase5d1_acceptance.js
 - test_phase5d2_semantics_and_xlsx_dates.js
 - test_phase5d31_evidence.js
 - test_phase5d32_evidence.js
 - test_phase5d3_consistency.js
+- test_phase5d_browser.js
 - test_phase5d_calculations.js
 - test_phase5d_security.js
 - test_phase6a_comprehensive.js
 - test_phase6a_idempotency.js
+- test_phase6a_live_browser.js
 - test_phase6a_materialization.js
 - test_phase6b_cloning.js
+- test_phase6b_live_browser.js
