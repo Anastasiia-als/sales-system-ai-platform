@@ -104,6 +104,36 @@ export async function initTemplatesEvents() {
                 await loadTemplates();
             }
         }
+
+        const cloneBtn = e.target.closest('.btn-clone-template');
+        if (cloneBtn) {
+            const templateId = cloneBtn.dataset.id;
+            const t = templates.find(x => x.id === templateId);
+            const newName = prompt("Введіть назву для нового шаблону:", t.name + " (Copy)");
+            if (newName && newName.trim()) {
+                cloneBtn.disabled = true;
+                cloneBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                try {
+                    const rpcRes = await (await getSupabase()).rpc('clone_project_template', {
+                        p_template_id: templateId,
+                        p_new_name: newName.trim(),
+                        p_idempotency_key: 'clone-' + Date.now() + '-' + Math.random()
+                    });
+                    if (rpcRes.error) throw rpcRes.error;
+                    const res = rpcRes.data || rpcRes;
+                    if (res && res.success === false) {
+                        alert("Помилка клонування: " + res.error);
+                    } else {
+                        await loadTemplates();
+                    }
+                } catch(err) {
+                    alert("Помилка клонування: " + err.message);
+                }
+                cloneBtn.disabled = false;
+                cloneBtn.innerHTML = '<i data-lucide="copy"></i>';
+                if (window.lucide) window.lucide.createIcons();
+            }
+        }
     });
 }
 
@@ -160,6 +190,9 @@ function renderTable() {
                         <a href="#/portal/templates/${t.id}" class="btn btn-icon btn-outline" title="Редагувати шаблон">
                             <i data-lucide="edit-2"></i>
                         </a>
+                        <button class="btn btn-icon btn-outline btn-clone-template" data-id="${t.id}" title="Клонувати шаблон">
+                            <i data-lucide="copy"></i>
+                        </button>
                         ${hasPublished && t.status === 'active' ? `
                         <button class="btn btn-icon btn-primary btn-create-project" data-id="${t.id}" title="Створити проєкт">
                             <i data-lucide="play"></i>

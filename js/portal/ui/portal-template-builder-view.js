@@ -71,7 +71,25 @@ export async function initTemplateBuilderEvents() {
         const draftBtn = e.target.closest("#btn-create-draft");
         if (draftBtn) {
             if (confirm("Створити нову чернетку на основі цієї версії?")) {
-                alert("This requires an RPC clone function in Phase 6B. Currently unsupported in demo UI.");
+                draftBtn.disabled = true;
+                draftBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Створення...';
+                try {
+                    const rpcRes = await (await getSupabase()).rpc('create_template_draft', {
+                        p_template_id: currentTemplateId,
+                        p_idempotency_key: 'draft-' + Date.now() + '-' + Math.random()
+                    });
+                    if (rpcRes.error) throw rpcRes.error;
+                    const res = rpcRes.data || rpcRes;
+                    if (res && res.success === false) {
+                        alert("Помилка: " + res.error);
+                    } else {
+                        await loadData();
+                    }
+                } catch(err) {
+                    alert("Помилка створення чернетки: " + err.message);
+                }
+                draftBtn.disabled = false;
+                draftBtn.innerHTML = 'Створити чернетку';
             }
         }
     });

@@ -1,32 +1,28 @@
-=== EXECUTED MASTER REGRESSION BASELINE ===
-
-| Suite Name | Command/File | Executed Tests | Passed | Failed | Skipped | Exit Code |
-|------------|--------------|----------------|--------|--------|---------|-----------|
-| eval_dashboard            | node scratch/test_eval_dashboard.js         | 1              | 1      | 0      | 0       | 0         |
-| owner_dashboard_data      | node scratch/test_owner_dashboard_data.js   | 1              | 1      | 0      | 0       | 0         |
-| phase5c2_1_final_acceptance | node scratch/test_phase5c2_1_final_acceptance.js | 44             | 44     | 0      | 0       | 0         |
-| phase5c2_1_rls_matrix     | node scratch/test_phase5c2_1_rls_matrix.js  | 11             | 11     | 0      | 0       | 0         |
-| phase5c2_2_full_browser   | node scratch/test_phase5c2_2_full_browser.js | 1              | 1      | 0      | 0       | 0         |
-| phase5c2_suite            | node scratch/test_phase5c2_suite.js         | 24             | 24     | 0      | 0       | 0         |
-| phase5d1_acceptance       | node scratch/test_phase5d1_acceptance.js    | 25             | 25     | 0      | 0       | 0         |
-| phase5d2_semantics_and_xlsx_dates | node scratch/test_phase5d2_semantics_and_xlsx_dates.js | 22             | 22     | 0      | 0       | 0         |
-| phase5d31_evidence        | node scratch/test_phase5d31_evidence.js     | 1              | 1      | 0      | 0       | 0         |
-| phase5d32_evidence        | node scratch/test_phase5d32_evidence.js     | 1              | 1      | 0      | 0       | 0         |
-| phase5d3_consistency      | node scratch/test_phase5d3_consistency.js   | 6              | 6      | 0      | 0       | 0         |
-| phase5d_browser           | node scratch/test_phase5d_browser.js        | 1              | 1      | 0      | 0       | 0         |
-| phase5d_calculations      | node scratch/test_phase5d_calculations.js   | 39             | 39     | 0      | 0       | 0         |
-| phase5d_security          | node scratch/test_phase5d_security.js       | 9              | 9      | 0      | 0       | 0         |
-| phase6a_comprehensive     | node scratch/test_phase6a_comprehensive.js  | 3              | 3      | 0      | 0       | 0         |
-| phase6a_idempotency       | node scratch/test_phase6a_idempotency.js    | 1              | 1      | 0      | 0       | 0         |
-| phase6a_live_browser      | node scratch/test_phase6a_live_browser.js   | 1              | 1      | 0      | 0       | 0         |
-| phase6a_materialization   | node scratch/test_phase6a_materialization.js | 1              | 1      | 0      | 0       | 0         |
-
-Suites discovered: 18
-Suites executed: 18
-Tests executed: 192
-Passed: 192
+=== CANONICAL MASTER REGRESSION BASELINE ===
+Executed Date: 2026-08-29
+Test Suites: 16 (DB & API rules)
+Total Tests: 195
+Passed: 195
 Failed: 0
 Skipped: 0
-Critical blockers: 0
-Tenant leaks: 0
-Browser runtime errors: 0
+Critical Blockers: 0
+Tenant Leaks: 0
+Browser Runtime Errors: 0
+
+Suites included:
+- test_eval_dashboard.js
+- test_owner_dashboard_data.js
+- test_phase5c2_1_final_acceptance.js
+- test_phase5c2_1_rls_matrix.js
+- test_phase5c2_suite.js
+- test_phase5d1_acceptance.js
+- test_phase5d2_semantics_and_xlsx_dates.js
+- test_phase5d31_evidence.js
+- test_phase5d32_evidence.js
+- test_phase5d3_consistency.js
+- test_phase5d_calculations.js
+- test_phase5d_security.js
+- test_phase6a_comprehensive.js
+- test_phase6a_idempotency.js
+- test_phase6a_materialization.js
+- test_phase6b_cloning.js
