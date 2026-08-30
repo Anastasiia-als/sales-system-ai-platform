@@ -17,14 +17,16 @@ console.log(`Starting Canonical Master Regression Suite (${totalSuites} suites).
 
 for (const f of testFiles) {
     let output = '';
+    console.log(`Running: ${f}`);
     try {
-        output = cp.execSync(`node scratch/${f}`, { encoding: 'utf8', stdio: 'pipe' });
+        output = cp.execSync(`node scratch/${f}`, { encoding: 'utf8', stdio: 'pipe', timeout: 120000 });
         passedSuites++;
+        console.log(`- OK`);
     } catch (e) {
-        output = e.stdout + '\n' + e.stderr;
+        output = (e.stdout || '') + '\n' + (e.stderr || '');
         failedSuites++;
         exactBlockers++;
-        console.error("SUITE FAILED:", f);
+        console.error("SUITE FAILED OR TIMED OUT:", f);
         console.error(output);
     }
     

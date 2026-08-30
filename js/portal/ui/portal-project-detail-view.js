@@ -1,3 +1,4 @@
+import { PortalAutomationView } from "./portal-automation-view.js";
 /* js/portal/ui/portal-project-detail-view.js - Project Card, Overview, Roadmap, Team & Tasks */
 
 import { DataClient } from "../api/data-client.js";
@@ -90,6 +91,7 @@ async function loadProjectDetail(projectId) {
 
         const canManage = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin(project.organization_id);
         const org = project.organizations;
+        const isInternal = PortalAuth.isStaff();
         const pm = project.responsible_pm;
         const members = project.project_memberships || [];
         const projectName = project.name || project.title || "Проєкт";
@@ -183,6 +185,7 @@ async function loadProjectDetail(projectId) {
                 <div class="portal-tab-btn" data-tab="meetings"><i data-lucide="video"></i> Зустрічі (${meetings.length})</div>
                 ${canManage ? `
                     <div class="portal-tab-btn" data-tab="finance"><i data-lucide="dollar-sign"></i> Фінанси</div>
+                ${isInternal ? '<div class="portal-tab-btn" data-tab="automation"><i data-lucide="settings"></i> Автоматизація</div>' : ''}
                 ` : ""}
             </div>
 
@@ -599,6 +602,13 @@ async function loadProjectDetail(projectId) {
                 `}
             </div>
 
+            <!-- Tab 8: Automation (Internal Only) -->
+            ${isInternal ? `
+                <div class="portal-tab-content" id="tab-content-automation" style="display: none;">
+                    <div id="project-automation-container"></div>
+                </div>
+            ` : ""}
+
             <!-- Tab 7: Finance (Owner & PM Only) -->
             ${canManage ? `
                 <div class="portal-tab-content" id="tab-content-finance" style="display: none;">
@@ -636,6 +646,14 @@ async function loadProjectDetail(projectId) {
                 financeEl.style.display = target === "finance" ? "block" : "none";
                 if (target === "finance") {
                     loadAndRenderProjectFinance(projectId);
+                }
+            }
+            const autoEl = document.getElementById("tab-content-automation");
+            if (autoEl) {
+                autoEl.style.display = target === "automation" ? "block" : "none";
+                if (target === "automation") {
+                    const autoTab = new PortalAutomationView("project-automation-container");
+                    autoTab.render(projectId);
                 }
             }
         }
@@ -730,6 +748,7 @@ async function loadProjectDetail(projectId) {
         });
 
     } catch (err) {
+        console.error("loadProjectDetail Error:", err);
         container.innerHTML = `
             <div class="portal-empty-state">
                 <div class="portal-empty-icon" style="color: var(--color-danger);"><i data-lucide="alert-circle"></i></div>

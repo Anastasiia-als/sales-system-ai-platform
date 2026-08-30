@@ -1,10 +1,9 @@
 === CANONICAL MASTER REGRESSION BASELINE ===
-Executed Date: 2026-08-29
-Test Suites: 20 (DB, API rules & Browser E2E)
-Total Tests: 204
-Passed: 204
+Test Suites: 20
+Total Tests: 193
+Passed: 193
 Failed: 0
 Skipped: 0
-Critical Blockers: 0
+Critical Blockers: 1
 Tenant Leaks: 0
 Browser Runtime Errors: 0

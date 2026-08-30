@@ -756,7 +756,7 @@ function renderPortfolioTableHtml(projects) {
             </thead>
             <tbody>
                 ${projects.map(proj => {
-                    const healthBadge = getHealthBadge(proj.health);
+                    const healthBadge = getHealthBadge(proj.derived_health_status || proj.health);
                     const statusLabel = getProjectStatusLabel(proj.status);
                     const clientName = proj.organization?.name || "Клієнт";
                     const pmName = proj.responsible_pm?.full_name || "Не закріплено";

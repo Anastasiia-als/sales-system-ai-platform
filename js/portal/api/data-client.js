@@ -4244,6 +4244,73 @@ export const DataClient = {
             return { error };
         }
         return { error: null };
+    },
+
+    // Phase 6C: Automation & Blockers
+    async getProjectBlockers(projectId) {
+        const { data, error } = await supabase.from('project_blockers')
+            .select('*, responsible_user:profiles!project_blockers_responsible_user_id_fkey(full_name)')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data;
+    },
+    async createBlocker(blocker) {
+        const { data, error } = await supabase.from('project_blockers').insert(blocker).select().single();
+        if (error) throw error;
+        return data;
+    },
+    async resolveBlocker(blockerId, note) {
+        const { data, error } = await supabase.from('project_blockers')
+            .update({ status: 'resolved', resolved_at: new Date().toISOString(), resolution_note: note })
+            .eq('id', blockerId).select().single();
+        if (error) throw error;
+        return data;
+    },
+    async getAutomationRules(projectId) {
+        const { data, error } = await supabase.from('automation_rules')
+            .select('*')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        return data;
+    },
+    async getTemplateAutomationRules(templateId) {
+        const { data, error } = await supabase.from('automation_rules')
+            .select('*')
+            .eq('template_id', templateId)
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        return data;
+    },
+    async updateAutomationRule(ruleId, updates) {
+        const { data, error } = await supabase.from('automation_rules')
+            .update(updates).eq('id', ruleId).select().single();
+        if (error) throw error;
+        return data;
+    },
+    async getExecutionLogs(projectId) {
+        const { data, error } = await supabase.from('automation_execution_events')
+            .select('*, rule:automation_rules(name)')
+            .eq('project_id', projectId)
+            .order('evaluated_at', { ascending: false })
+            .limit(50);
+        if (error) throw error;
+        return data;
+    },
+    async getSlaPolicies(projectId) {
+        const { data, error } = await supabase.from('sla_policies')
+            .select('*')
+            .eq('project_id', projectId);
+        if (error) throw error;
+        return data;
+    },
+    async getDependencies(projectId) {
+        const { data, error } = await supabase.from('project_dependencies')
+            .select('*')
+            .eq('project_id', projectId);
+        if (error) throw error;
+        return data;
     }
 };
 
