@@ -1,9 +1,9 @@
 === CANONICAL MASTER REGRESSION BASELINE ===
 Test Suites: 20
-Total Tests: 193
-Passed: 193
+Total Tests: 199
+Passed: 199
 Failed: 0
 Skipped: 0
-Critical Blockers: 1
+Critical Blockers: 0
 Tenant Leaks: 0
 Browser Runtime Errors: 0
