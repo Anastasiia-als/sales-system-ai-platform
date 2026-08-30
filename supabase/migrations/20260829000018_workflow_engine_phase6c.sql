@@ -260,7 +260,7 @@ BEGIN
     -- Check overdue tasks
     SELECT COUNT(*) INTO v_overdue_tasks
     FROM public.tasks
-    WHERE project_id = p_project_id AND status != 'completed' AND due_date < NOW();
+    WHERE project_id = p_project_id AND status != 'done' AND due_date < NOW();
 
     IF v_overdue_tasks > 0 THEN
         v_new_health := 'delayed';
@@ -318,6 +318,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trg_stage_workflow_before ON public.project_stages;
 CREATE TRIGGER trg_stage_workflow_before
 BEFORE UPDATE ON public.project_stages
 FOR EACH ROW EXECUTE FUNCTION public.trg_stage_workflow();
@@ -337,6 +338,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trg_stage_automation_after_trg ON public.project_stages;
 CREATE TRIGGER trg_stage_automation_after_trg
 AFTER UPDATE ON public.project_stages
 FOR EACH ROW EXECUTE FUNCTION public.trg_stage_automation_after();
@@ -356,6 +358,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trg_document_automation_after_trg ON public.documents;
 CREATE TRIGGER trg_document_automation_after_trg
 AFTER UPDATE ON public.documents
 FOR EACH ROW EXECUTE FUNCTION public.trg_document_automation_after();
@@ -365,7 +368,7 @@ CREATE OR REPLACE FUNCTION public.trg_task_automation_after()
 RETURNS TRIGGER AS $$
 BEGIN
     IF OLD.status IS DISTINCT FROM NEW.status THEN
-        IF NEW.status = 'completed' THEN
+        IF NEW.status = 'done' THEN
             PERFORM public.evaluate_automation_rules('task_completed', NEW.project_id, jsonb_build_object('task_id', NEW.id, 'responsibility_type', NEW.responsibility_type));
             PERFORM public.update_project_health(NEW.project_id);
         END IF;
@@ -374,6 +377,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trg_task_automation_after_trg ON public.tasks;
 CREATE TRIGGER trg_task_automation_after_trg
 AFTER UPDATE ON public.tasks
 FOR EACH ROW EXECUTE FUNCTION public.trg_task_automation_after();

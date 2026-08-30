@@ -6,7 +6,8 @@ const pool = new Pool({
 });
 
 async function run() {
-  const sql = fs.readFileSync('supabase/migrations/20260829000018_workflow_engine_phase6c.sql', 'utf8');
+  const file = process.argv[2];
+  const sql = fs.readFileSync(file, 'utf8');
   try {
     await pool.query(sql);
     console.log("Migration successful!");

@@ -1,33 +1,33 @@
-# Phase 6B — Final Walkthrough: Template Cloning & Advanced Delivery Orchestration
+# Phase 6C: Workflow Automation Engine, Dependencies, SLA & Orchestration
 
-## Огляд змін
-Phase 6B додала можливості повного копіювання шаблонів (Templates) та безпечного створення чернеток (Drafts) на основі вже опублікованих версій.
+We have successfully transformed the FIRSTWIN Delivery Platform from a manual project management tool into a fully automated, constraints-based workflow engine.
 
-### Ключові можливості:
-1. **Template Version Control (Drafting):**
-   Кнопка "Створити чернетку" у Template Builder створює нову `draft` версію (`version_number = published_version + 1`), роблячи глибоку копію (Deep-clone) всіх `stages`, `milestones`, `tasks`, `client actions`, `documents`, та `meetings`. Імутабельність попередньої версії зберігається.
-2. **Template Duplication (Cloning):**
-   Кнопка "Клонувати шаблон" на головному екрані шаблонів дозволяє повністю дублювати шаблон, створюючи новий ID, назву, та копіюючи найсвіжішу версію (published або draft).
-3. **Advanced Delivery Orchestration:**
-   Id mapping логіка збережена (напр. `depends_on_stage_id` посилається на нові склоновані ID етапів).
-4. **Idempotency & Multi-Tenant Security:**
-   Операції захищені через `idempotency_keys`. Cloning дозволено лише в межах організації користувача (Owner/PM), Specialist/Client — заблоковані.
+## Key Technical Additions
 
-## Перевірка (Verification)
+### 1. Workflow Automation Engine
+- **Dependencies (`project_dependencies`)**: Strict constraints model (e.g. `requires`). We implemented `check_dependency_cycles()` (pg_trigger depth limiting) to prevent infinite loops and cyclic dependencies.
+- **Entry & Exit Conditions**: Using PL/pgSQL RPCs like `workflow_transition_stage`, a stage evaluates unmet dependencies (entry conditions) and incomplete tasks (exit conditions) before allowing the transition.
+- **Idempotency & Safety**: Rule execution ensures that duplicate events are dropped via `idempotency_key` (SHA256 of context).
 
-### 1. Browser E2E (`test_phase6b_live_browser.js`)
-- Завантаження UI з шаблонами
-- Наявність кнопок клонування та створення чернеток
-- Перевірка перезавантаження (F5) і відновлення сесії
-- **Результат: PASS** (0 помилок).
+### 2. Rule Engine
+- **Dynamic Rule Engine (`evaluate_automation_rules`)**: Supports JSONB condition checks (`eq`, `neq`) and evaluates `start_stage`, `complete_stage`, `create_task`.
+- **Append-only Execution Log**: All automation evaluations and actions are recorded in `automation_execution_events`.
+- **Execution Depth**: Protected from cascading recursive calls (max depth = 5).
 
-### 2. DB Tests (`test_phase6b_cloning.js`)
-- Успішно проведено перевірку на immutability (зміна клону не впливає на джерело).
-- **Результат: PASS** (0 shared IDs, atomicity/rollback підтверджено).
+### 3. Canonical Project Health & SLA
+- **SLA Engine**: Custom `add_business_days()` function added to Supabase.
+- **Project Health Engine**: Dynamically calculates `on_track`, `delayed`, `blocked` using an explainable JSONB array for `derived_health_reasons`. Calculates overdue tasks and un-resolved blockers (`project_blockers`).
 
-### 3. Master Regression
-- Усі 16 canonical test suites виконано.
-- **Результат: 195/195 PASS** (0 regressions, 0 tenant leaks).
+### 4. Owner Automation Command Center
+- Added **Project Automation Tab** to the UI, fetching execution logs, rules, and blockers directly from `window.DataClient`.
 
-## Наступні кроки
-- Перехід до Phase 6C (Advanced Process Automation & API Hooks).
+## Testing
+6 new integration test suites have been added and passing successfully within the master canonical regression:
+- `test_phase6c_dependencies.js`
+- `test_phase6c_exit_conditions.js`
+- `test_phase6c_health_engine.js`
+- `test_phase6c_rule_engine.js`
+- `test_phase6c_rule_loop.js`
+- `test_phase6c_sla_engine.js`
+
+Phase 6C Definition of Done is fully achieved. 
