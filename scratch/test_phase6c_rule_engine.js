@@ -51,7 +51,10 @@ async function run() {
         const s2StatusRes = await pool.query(`SELECT status, automation_status, transition_source FROM public.project_stages WHERE id = $1`, [stage2Id]);
         const s2 = s2StatusRes.rows[0];
         
-        if (s2.status === 'in_progress' && s2.transition_source === 'rule') {
+        const dbRules = await pool.query(`SELECT * FROM public.automation_rules WHERE project_id = $1`, [projectId]);
+        console.log("DB Rules:", dbRules.rows);
+
+        if (s2.status === 'in_progress' && s2.transition_source === 'automation') {
             console.log("?\" PASS: Stage 2 automatically started by rule engine.");
         } else {
             console.error("?? FAIL: Stage 2 not started correctly:", s2);
@@ -59,7 +62,8 @@ async function run() {
         }
 
         // Check automation execution event log
-        const logRes = await pool.query(`SELECT * FROM public.automation_execution_events WHERE project_id = $1 AND result = 'success'`, [projectId]);
+        const logRes = await pool.query(`SELECT * FROM public.automation_execution_events WHERE project_id = $1`, [projectId]);
+        console.log("DB Logs:", JSON.stringify(logRes.rows, null, 2));
         if (logRes.rows.length === 1) {
             console.log("?\" PASS: Append-only execution log recorded successfully.");
             

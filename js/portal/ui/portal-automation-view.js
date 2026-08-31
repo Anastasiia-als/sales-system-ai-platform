@@ -46,6 +46,45 @@ export class PortalAutomationView {
             </div>
 
             <!-- Modals -->
+
+            <div id="rule-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white p-6 rounded shadow-lg w-1/2 max-h-[90vh] overflow-y-auto">
+                    <h3 class="text-xl font-bold mb-4" id="rule-modal-title">Створити Правило</h3>
+                    <input type="hidden" id="rule-id" value="">
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-1">Подія (Trigger)</label>
+                        <select id="rule-trigger" class="w-full border p-2 rounded">
+                            <option value="stage_completed">Етап завершено</option>
+                            <option value="task_completed">Задачу завершено</option>
+                            <option value="client_action_completed">Клієнт виконав дію</option>
+                            <option value="project_created">Проєкт створено</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-1">Умови (Conditions) JSON</label>
+                        <textarea id="rule-conditions" class="w-full border p-2 rounded h-24" placeholder='[{"field":"task_id","operator":"eq","value":"..."}]'>[]</textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-1">Дії (Actions) JSON</label>
+                        <textarea id="rule-actions" class="w-full border p-2 rounded h-24" placeholder='[{"type":"start_stage","target_name":"Stage 2"}]'>[]</textarea>
+                        <p class="text-xs text-gray-500 mt-1">Підтримувані типи: start_stage, complete_stage, create_task, create_client_action</p>
+                    </div>
+                    
+                    <div class="mb-4 flex items-center">
+                        <input type="checkbox" id="rule-active" class="mr-2" checked>
+                        <label for="rule-active" class="text-sm font-semibold">Активне</label>
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <button id="btn-cancel-rule" class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100">Скасувати</button>
+                        <button id="btn-save-rule" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Зберегти</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="blocker-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                 <div class="bg-white p-6 rounded shadow-lg w-96">
                     <h3 class="text-xl font-bold mb-4">Новий Блокер</h3>
@@ -139,6 +178,53 @@ export class PortalAutomationView {
     }
 
     bindEvents() {
+
+        document.getElementById('btn-add-rule').addEventListener('click', () => {
+            document.getElementById('rule-modal-title').innerText = 'Створити Правило';
+            document.getElementById('rule-id').value = '';
+            document.getElementById('rule-trigger').value = 'stage_completed';
+            document.getElementById('rule-conditions').value = '[]';
+            document.getElementById('rule-actions').value = '[]';
+            document.getElementById('rule-active').checked = true;
+            document.getElementById('rule-modal').classList.remove('hidden');
+        });
+
+        document.getElementById('btn-cancel-rule').addEventListener('click', () => {
+            document.getElementById('rule-modal').classList.add('hidden');
+        });
+
+        document.getElementById('btn-save-rule').addEventListener('click', async () => {
+            try {
+                const id = document.getElementById('rule-id').value;
+                const payload = {
+                    project_id: this.projectId,
+                    trigger_event: document.getElementById('rule-trigger').value,
+                    conditions: JSON.parse(document.getElementById('rule-conditions').value),
+                    actions: JSON.parse(document.getElementById('rule-actions').value),
+                    is_active: document.getElementById('rule-active').checked
+                };
+                
+                if (id) {
+                    await window.DataClient.updateAutomationRule(id, payload);
+                } else {
+                    // Assuming createAutomationRule exists in DataClient
+                    if(!window.DataClient.createAutomationRule) {
+                        window.DataClient.createAutomationRule = async (payload) => {
+                            const { data, error } = await window.supabase.from('automation_rules').insert(payload).select().single();
+                            if(error) throw error;
+                            return data;
+                        };
+                    }
+                    await window.DataClient.createAutomationRule(payload);
+                }
+                document.getElementById('rule-modal').classList.add('hidden');
+                this.loadData();
+            } catch (e) {
+                console.error(e);
+                alert('Помилка збереження правила. Перевірте формат JSON.');
+            }
+        });
+
         document.getElementById('btn-add-blocker').addEventListener('click', () => {
             document.getElementById('blocker-modal').classList.remove('hidden');
         });
