@@ -2,15 +2,56 @@
    Calls the SECURITY DEFINER RPC public.submit_marketing_lead (see migration
    20260901000025). Uses plain fetch with the public anon key — no session, no
    direct table access (RLS blocks it), no secrets.
-   Degrades gracefully: on any failure the caller keeps the localStorage lead
-   as fallback, so a lead is never silently lost. */
+
+   Lead-loss policy (owner decision 2026-09-01):
+   - A lead counts as saved ONLY after the server confirms it. The UI must show
+     an honest error + retry when the server did not confirm.
+   - Personal data is never stored in localStorage. The only client-side copy is
+     a short-lived form draft in sessionStorage (TTL below) so the visitor can
+     retry after an accidental reload; it is deleted on success and on expiry. */
 
 import { MarketingConfig } from "./marketing-config.js";
 import { getAttribution } from "./attribution.js";
 import { getConsent } from "./consent.js";
 
+const REQUEST_TIMEOUT_MS = 15000;
+const DRAFT_TTL_MS = 60 * 60 * 1000; // 1 hour, then auto-deleted
+
 function env() {
     return window.FIRSTWIN_ENV || {};
+}
+
+/* --- Short-lived form draft (sessionStorage: dies with the tab, TTL-capped) --- */
+
+function draftKey(formId) {
+    return "ss_draft_" + formId;
+}
+
+export function saveDraft(formId, fields) {
+    try {
+        const clean = { ...fields };
+        delete clean.website_hp;
+        sessionStorage.setItem(draftKey(formId), JSON.stringify({ ts: Date.now(), fields: clean }));
+    } catch (e) { /* storage unavailable */ }
+}
+
+export function loadDraft(formId) {
+    try {
+        const raw = sessionStorage.getItem(draftKey(formId));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.ts || Date.now() - parsed.ts > DRAFT_TTL_MS) {
+            sessionStorage.removeItem(draftKey(formId));
+            return null;
+        }
+        return parsed.fields;
+    } catch (e) {
+        return null;
+    }
+}
+
+export function clearDraft(formId) {
+    try { sessionStorage.removeItem(draftKey(formId)); } catch (e) { /* ignore */ }
 }
 
 /* Submits a lead. Returns {ok, lead_id, event_id, duplicate} or {ok:false, error}. */
@@ -52,6 +93,8 @@ export async function submitLead(fields, formId, offerId, eventId) {
         consent_marketing: !!consent.marketing
     };
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
         const response = await fetch(supabaseUrl + "/rest/v1/rpc/submit_marketing_lead", {
             method: "POST",
@@ -60,16 +103,23 @@ export async function submitLead(fields, formId, offerId, eventId) {
                 "apikey": anonKey,
                 "Authorization": "Bearer " + anonKey
             },
-            body: JSON.stringify({ p: payload })
+            body: JSON.stringify({ p: payload }),
+            signal: controller.signal
         });
         if (!response.ok) {
             return { ok: false, error: "http_" + response.status };
         }
         const result = await response.json();
+        if (!result || result.ok !== true) {
+            // Structured server-side refusals: validation / rate_limited / server_error
+            return { ok: false, error: (result && result.error) || "bad_response", field: result && result.field };
+        }
         notifyOwner(result, payload); // fire-and-forget, disabled by default
-        return result && result.ok ? result : { ok: false, error: "bad_response" };
+        return result;
     } catch (e) {
         return { ok: false, error: "network" };
+    } finally {
+        clearTimeout(timer);
     }
 }
 

@@ -41,6 +41,7 @@ export const Contacts = {
                   </div>
                   <!-- Honeypot: hidden from humans, catches bots -->
                   <input type="text" id="ct-website-hp" name="website_hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute; left:-9999px; height:0; width:0; opacity:0;">
+                  <div id="ct-form-error" role="alert" style="display:none; margin-bottom: 16px; padding: 12px 16px; border: 1px solid rgba(239,68,68,0.5); border-radius: var(--radius-md); background: rgba(239,68,68,0.08); color: #FCA5A5; font-size: 0.9rem;"></div>
                   <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">Відправити</button>
                 </form>
               </div>
@@ -61,11 +62,36 @@ export const Contacts = {
       });
     }).catch(() => {});
 
+    // Restore a short-lived draft (sessionStorage, auto-expires) after reload
+    import('../marketing/leads-api.js').then(({ loadDraft }) => {
+      const draft = loadDraft('contacts');
+      if (draft) {
+        if (draft.name) document.getElementById('ct-name').value = draft.name;
+        if (draft.raw_contact) document.getElementById('ct-contact').value = draft.raw_contact;
+        if (draft.message) document.getElementById('ct-message').value = draft.message;
+      }
+    }).catch(() => {});
+
+    // The event_id is created once per form attempt and reused on retries
+    let submitEventId = null;
+    const errorBox = document.getElementById('ct-form-error');
+    const showError = (error) => {
+      const messages = {
+        rate_limited: 'Забагато спроб надсилання. Зачекайте, будь ласка, або напишіть напряму: a.zaporozhetswork@gmail.com',
+        validation: 'Перевірте, будь ласка, поля: потрібне ім\'я та контакт для відповіді.',
+        network: 'Не вдалося надіслати повідомлення — схоже, проблема зі з\'єднанням. Спробуйте ще раз.',
+      };
+      errorBox.textContent = (messages[error] || 'Не вдалося надіслати повідомлення. Спробуйте ще раз або напишіть на a.zaporozhetswork@gmail.com') +
+        ' Ваші дані збережені в цій вкладці.';
+      errorBox.style.display = 'block';
+    };
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = form.querySelector('button[type="submit"]');
       btn.innerHTML = 'Відправлення...';
       btn.disabled = true;
+      errorBox.style.display = 'none';
 
       const rawContact = document.getElementById('ct-contact').value.trim();
       const fields = {
@@ -82,30 +108,30 @@ export const Contacts = {
       }
 
       try {
-        const [{ trackGenerateLead }, { submitLead }, { State }] = await Promise.all([
+        const [{ trackGenerateLead, newEventId }, api] = await Promise.all([
           import('../marketing/analytics.js'),
-          import('../marketing/leads-api.js'),
-          import('../state.js')
+          import('../marketing/leads-api.js')
         ]);
 
-        // Local copy always saved first (fallback if the server is unavailable)
-        State.addLead({
-          name: fields.name,
-          phone: fields.phone, email: fields.email, telegram: fields.telegram,
-          problem: fields.message,
-          service: 'contact_message',
-          status: 'new'
-        });
+        api.saveDraft('contacts', { name: fields.name, raw_contact: rawContact, message: fields.message });
+        if (!submitEventId) submitEventId = newEventId();
 
-        const eventId = trackGenerateLead('contacts');
-        const result = await submitLead(fields, 'contacts', null, eventId);
-        if (!result.ok) {
-          console.warn('[Contacts] Server lead capture unavailable (' + result.error + '), local fallback kept.');
+        const result = await api.submitLead(fields, 'contacts', null, submitEventId);
+
+        if (result.ok) {
+          // generate_lead fires ONLY after the server confirmed the stored lead
+          if (result.lead_id) trackGenerateLead('contacts', null, submitEventId);
+          api.clearDraft('contacts');
+          window.location.hash = '#/success';
+          return;
         }
+        showError(result.error);
       } catch (err) {
-        console.error('Error saving contact message', err);
+        console.error('Error submitting contact message', err);
+        showError('network');
       }
-      window.location.hash = '#/success';
+      btn.innerHTML = 'Відправити (повторити)';
+      btn.disabled = false;
     });
   }
 };

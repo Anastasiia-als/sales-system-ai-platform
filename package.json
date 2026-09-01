@@ -5,7 +5,10 @@
   "main": "index.html",
   "scripts": {
     "dev": "powershell -ExecutionPolicy Bypass -File ./server.ps1",
-    "start": "npx serve -s . -p 3000"
+    "start": "npx serve -s . -p 3000",
+    "test:migration": "node test_migration_local.js",
+    "test:marketing": "node test_block_a_marketing.js",
+    "test:smoke": "node test_smoke_routes.js"
   },
   "keywords": [
     "ai-assisted",
@@ -25,6 +28,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "puppeteer": "^25.8.0"
   }
 }

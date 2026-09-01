@@ -11,7 +11,7 @@ import { getAttribution } from "./attribution.js";
 let ga4Loaded = false;
 const sessionFlags = {};
 
-function newEventId() {
+export function newEventId() {
     try { return crypto.randomUUID(); } catch (e) {
         return "ev-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
     }
@@ -85,6 +85,8 @@ export function trackFormStart(formId, offerId) {
     track("form_start", { form_id: formId, offer_id: offerId || undefined });
 }
 
+/* generate_lead is fired ONLY after the server confirmed the lead was stored
+   (owner decision 2026-09-01): callers pass the event_id that the server accepted. */
 export function trackGenerateLead(formId, offerId, eventId) {
     return track("generate_lead", {
         form_id: formId,

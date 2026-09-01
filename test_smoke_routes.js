@@ -1,6 +1,6 @@
 const http = require("http"); const fs = require("fs"); const path = require("path");
-const puppeteer = require(path.join(__dirname, "..", "node_modules", "puppeteer"));
-const ROOT = path.join(__dirname, "..");
+const puppeteer = require("puppeteer");
+const ROOT = __dirname;
 const PORT = 4005;
 const MIME = {".html":"text/html",".js":"text/javascript",".css":"text/css",".png":"image/png",".jpg":"image/jpeg"};
 http.createServer((req,res)=>{ const p=decodeURIComponent(req.url.split("?")[0]);

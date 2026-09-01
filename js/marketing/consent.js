@@ -51,6 +51,7 @@ export function saveConsent(analytics, marketing) {
 }
 
 function renderBanner() {
+    if (document.getElementById("consent-banner")) return;
     const el = document.createElement("div");
     el.id = "consent-banner";
     el.setAttribute("role", "dialog");
@@ -82,8 +83,23 @@ function renderBanner() {
     });
 }
 
+/* Re-opens the banner so the visitor can change or withdraw an earlier choice.
+   Withdrawal is as easy as consent: any [data-consent-settings] element works. */
+export function openConsentSettings() {
+    renderBanner();
+}
+
 export const Consent = {
     init() {
+        // "Cookie settings" links anywhere on the page reopen the banner
+        document.addEventListener("click", (e) => {
+            const trigger = e.target.closest("[data-consent-settings]");
+            if (trigger) {
+                e.preventDefault();
+                openConsentSettings();
+            }
+        });
+
         const existing = getConsent();
         if (existing) {
             pushConsentToGtag(existing);

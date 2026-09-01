@@ -126,6 +126,8 @@ export const Consultation = {
                   <!-- Honeypot: hidden from humans, catches bots -->
                   <input type="text" id="c-website-hp" name="website_hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute; left:-9999px; height:0; width:0; opacity:0;">
 
+                  <div id="c-form-error" role="alert" style="display:none; margin-bottom: 16px; padding: 12px 16px; border: 1px solid rgba(239,68,68,0.5); border-radius: var(--radius-md); background: rgba(239,68,68,0.08); color: #FCA5A5; font-size: 0.9rem;"></div>
+
                   <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">Залишити заявку та перейти до оплати</button>
                   <p style="margin-top: 16px; font-size: 0.8rem; color: var(--text-muted); text-align: center;">Натискаючи кнопку, ви погоджуєтесь з політикою конфіденційності.</p>
                 </form>
@@ -179,65 +181,87 @@ export const Consultation = {
     const form = document.getElementById('consultation-form');
     if (!form) return;
 
-    // form_start: fires once per session on first interaction with any field
+    const FIELD_IDS = {
+      name: 'c-name', phone: 'c-phone', email: 'c-email', telegram: 'c-telegram',
+      company: 'c-company', niche: 'c-niche', managers: 'c-managers', has_crm: 'c-crm',
+      problem: 'c-problem', goal: 'c-goal', preferred_format: 'c-format',
+      preferred_date: 'c-date', preferred_time: 'c-time', payment_method: 'c-payment'
+    };
+    const readFields = () => {
+      const fields = {};
+      Object.keys(FIELD_IDS).forEach(k => { fields[k] = document.getElementById(FIELD_IDS[k]).value; });
+      fields.website_hp = document.getElementById('c-website-hp').value;
+      return fields;
+    };
+
+    // The event_id is created once per form attempt and reused on retries,
+    // so the server's event_id dedup absorbs double sends.
+    let submitEventId = null;
+
+    import('../marketing/leads-api.js').then(({ loadDraft }) => {
+      // Restore a short-lived draft (sessionStorage, auto-expires) after reload
+      const draft = loadDraft('consultation');
+      if (draft) {
+        Object.keys(FIELD_IDS).forEach(k => {
+          if (draft[k]) { const el = document.getElementById(FIELD_IDS[k]); if (el && !el.value) el.value = draft[k]; }
+        });
+      }
+    }).catch(() => {});
+
     import('../marketing/analytics.js').then(({ trackFormStart }) => {
       form.addEventListener('focusin', () => trackFormStart('consultation', 'consult'), { once: true });
     }).catch(() => {});
 
+    const errorBox = document.getElementById('c-form-error');
+    const showError = (error) => {
+      const messages = {
+        rate_limited: 'Забагато спроб надсилання. Зачекайте, будь ласка, або напишіть напряму: a.zaporozhetswork@gmail.com',
+        validation: 'Перевірте, будь ласка, заповнені поля: потрібне ім\'я та хоча б один спосіб зв\'язку.',
+        network: 'Не вдалося надіслати заявку — схоже, проблема зі з\'єднанням. Спробуйте ще раз.',
+      };
+      errorBox.textContent = (messages[error] || 'Не вдалося надіслати заявку. Спробуйте ще раз або напишіть на a.zaporozhetswork@gmail.com') +
+        ' Ваші дані збережені в цій вкладці.';
+      errorBox.style.display = 'block';
+    };
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = form.querySelector('button[type="submit"]');
-      btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Обробка заявки...';
+      const originalLabel = 'Залишити заявку та перейти до оплати';
+      btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Надсилання заявки...';
       btn.disabled = true;
+      errorBox.style.display = 'none';
       if (window.lucide) window.lucide.createIcons();
 
-      const fields = {
-        name: document.getElementById('c-name').value,
-        phone: document.getElementById('c-phone').value,
-        email: document.getElementById('c-email').value,
-        telegram: document.getElementById('c-telegram').value,
-        company: document.getElementById('c-company').value,
-        niche: document.getElementById('c-niche').value,
-        managers: document.getElementById('c-managers').value,
-        has_crm: document.getElementById('c-crm').value,
-        problem: document.getElementById('c-problem').value,
-        goal: document.getElementById('c-goal').value,
-        preferred_format: document.getElementById('c-format').value,
-        preferred_date: document.getElementById('c-date').value,
-        preferred_time: document.getElementById('c-time').value,
-        payment_method: document.getElementById('c-payment').value,
-        website_hp: document.getElementById('c-website-hp').value
-      };
+      const fields = readFields();
 
       try {
-        const [{ trackGenerateLead }, { submitLead }, { State }] = await Promise.all([
+        const [{ trackGenerateLead, newEventId }, api] = await Promise.all([
           import('../marketing/analytics.js'),
-          import('../marketing/leads-api.js'),
-          import('../state.js')
+          import('../marketing/leads-api.js')
         ]);
 
-        // Local copy always saved first: a lead must never be lost,
-        // even if the server call fails or the migration is not applied yet.
-        State.addLead({
-          name: fields.name, phone: fields.phone, email: fields.email,
-          telegram: fields.telegram, company: fields.company, niche: fields.niche,
-          managers: fields.managers, crm: fields.has_crm, problem: fields.problem,
-          goal: fields.goal, format: fields.preferred_format,
-          bookingDate: fields.preferred_date, bookingTime: fields.preferred_time,
-          payment: fields.payment_method,
-          status: 'очікує оплати',
-          service: 'consultation'
-        });
+        // Keep a short-lived draft so an accidental reload doesn't lose the form
+        api.saveDraft('consultation', fields);
+        if (!submitEventId) submitEventId = newEventId();
 
-        const eventId = trackGenerateLead('consultation', 'consult');
-        const result = await submitLead(fields, 'consultation', 'consult', eventId);
-        if (!result.ok) {
-          console.warn('[Consultation] Server lead capture unavailable (' + result.error + '), local fallback kept.');
+        const result = await api.submitLead(fields, 'consultation', 'consult', submitEventId);
+
+        if (result.ok) {
+          // Server confirmed (result.lead_id) or honeypot fake-success (no lead_id).
+          // generate_lead fires ONLY for a confirmed stored lead.
+          if (result.lead_id) trackGenerateLead('consultation', 'consult', submitEventId);
+          api.clearDraft('consultation');
+          window.location.hash = '#/success';
+          return;
         }
+        showError(result.error);
       } catch (err) {
-        console.error('Error saving lead', err);
+        console.error('Error submitting lead', err);
+        showError('network');
       }
-      window.location.hash = '#/success';
+      btn.innerHTML = originalLabel + ' (повторити)';
+      btn.disabled = false;
     });
   }
 };
