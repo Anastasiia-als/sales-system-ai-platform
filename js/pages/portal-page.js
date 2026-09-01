@@ -21,6 +21,7 @@ import { renderInvoicePrintView, initInvoicePrintEvents } from "../portal/ui/por
 import { renderAnalyticsView, initAnalyticsEvents } from "../portal/ui/portal-analytics-view.js";
 import { renderReportsView, initReportsEvents } from "../portal/ui/portal-reports-view.js";
 import { renderTemplatesView, initTemplatesEvents } from "../portal/ui/portal-templates-view.js";
+import { renderGlobalAutomationView, initGlobalAutomationEvents } from "../portal/ui/portal-global-automation-view.js";
 import { renderTemplateBuilderView, initTemplateBuilderEvents } from "../portal/ui/portal-template-builder-view.js";
 
 export const PortalPage = {
@@ -219,6 +220,22 @@ export async function renderPortalPage() {
                 breadcrumbTitle = "Звіти";
                 childHtml = renderReportsView();
             }
+        } else if (activeSection === "automation") {
+            if (!PortalAuth.isGlobalOwner() && !PortalAuth.isOrgAdmin()) {
+                breadcrumbTitle = "Автоматизації";
+                childHtml = `
+                    <div class="portal-content">
+                        <div class="portal-placeholder-box">
+                            <div class="portal-empty-icon" style="color: var(--color-danger);"><i data-lucide="shield-alert"></i></div>
+                            <div class="portal-empty-title">Доступ обмежено</div>
+                            <div class="portal-empty-desc">Модуль автоматизацій доступний виключно для керівництва.</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                breadcrumbTitle = "Автоматизації";
+                childHtml = renderGlobalAutomationView();
+            }
         } else if (activeSection === "templates") {
             if (PortalAuth.isSpecialist() && !PortalAuth.isGlobalOwner() && !PortalAuth.isOrgAdmin()) {
                 breadcrumbTitle = "Шаблони проєктів";
@@ -320,6 +337,10 @@ export async function renderPortalPage() {
         } else if (activeSection === "reports") {
             if (!PortalAuth.isSpecialist() || PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin()) {
                 await initReportsEvents();
+            }
+        } else if (activeSection === "automation") {
+            if (PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin()) {
+                await initGlobalAutomationEvents();
             }
         } else if (activeSection === "templates") {
             if (!PortalAuth.isSpecialist() || PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin()) {

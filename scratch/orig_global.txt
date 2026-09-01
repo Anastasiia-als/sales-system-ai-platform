@@ -1,0 +1,249 @@
+Set-Content -Path js/portal/ui/portal-global-automation-view.js -Value 'import { DataClient, supabase } from "../api/data-client.js";
+import { PortalAuth } from "../auth/auth-service.js";
+
+export function renderGlobalAutomationView() {
+    return `
+        <div class="portal-content">
+            <div class="portal-view-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="portal-view-title-group">
+                    <h1 class="portal-view-title">Owner Automation Command Center</h1>
+                    <p class="portal-view-subtitle">Глобальне управління правилами автоматизації по всіх проєктах та шаблонах</p>
+                </div>
+                <button class="btn btn-primary" id="btn-global-create-rule">
+                    <i data-lucide="plus"></i> Створити правило
+                </button>
+            </div>
+            
+            <div class="portal-card" style="margin-bottom: 24px;">
+                <div class="portal-card-header">
+                    <h2 class="portal-card-title">Фільтри</h2>
+                </div>
+                <div class="portal-card-body" style="display: flex; gap: 16px; flex-wrap: wrap;">
+                    <input type="text" id="global-rule-search" class="portal-input" placeholder="Пошук за назвою..." style="flex: 1; min-width: 200px;">
+                    <select id="global-rule-filter-scope" class="portal-input" style="width: 200px;">
+                        <option value="all">Всі Scope</option>
+                        <option value="template">Templates (Шаблони)</option>
+                        <option value="project">Projects (Проєкти)</option>
+                    </select>
+                    <select id="global-rule-filter-status" class="portal-input" style="width: 200px;">
+                        <option value="all">Всі статуси</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="portal-card">
+                <div class="portal-table-wrapper">
+                    <table class="portal-table">
+                        <thead>
+                            <tr>
+                                <th>Rule Name</th>
+                                <th>Scope</th>
+                                <th>Trigger</th>
+                                <th>Conditions Summary</th>
+                                <th>Actions Summary</th>
+                                <th>Status</th>
+                                <th style="width: 140px;">Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody id="global-automation-list">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 24px;">
+                                    <div class="portal-spinner" style="margin: 0 auto;"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Execution History Section -->
+        <div class="portal-content" style="margin-top: 32px;">
+            <div class="portal-view-header">
+                <div class="portal-view-title-group">
+                    <h2 class="portal-view-title">Execution History (Глобальний лог)</h2>
+                </div>
+            </div>
+            <div class="portal-card">
+                <div class="portal-table-wrapper">
+                    <table class="portal-table">
+                        <thead>
+                            <tr>
+                                <th>Час</th>
+                                <th>Rule</th>
+                                <th>Project</th>
+                                <th>Trigger Event</th>
+                                <th>Status</th>
+                                <th>Actions Executed</th>
+                                <th>Деталі / Error</th>
+                            </tr>
+                        </thead>
+                        <tbody id="global-execution-list">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 24px;">Завантаження...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+export async function initGlobalAutomationEvents() {
+    if (window.lucide) window.lucide.createIcons();
+    await loadGlobalAutomationData();
+    
+    document.getElementById("global-rule-search")?.addEventListener("input", filterGlobalRules);
+    document.getElementById("global-rule-filter-scope")?.addEventListener("change", filterGlobalRules);
+    document.getElementById("global-rule-filter-status")?.addEventListener("change", filterGlobalRules);
+    
+    // We will hook the Rule Builder modal to the "btn-global-create-rule"
+    const createBtn = document.getElementById("btn-global-create-rule");
+    if (createBtn) {
+        createBtn.addEventListener("click", () => {
+            alert("To be implemented: Structured Rule Builder");
+        });
+    }
+}
+
+let allGlobalRules = [];
+
+async function loadGlobalAutomationData() {
+    const orgId = PortalAuth.getUser()?.org_id;
+    if (!orgId) return;
+    
+    try {
+        // Fetch Rules
+        const { data: rules, error: rulesErr } = await supabase
+            .from("automation_rules")
+            .select("*, projects(name), templates(name)")
+            .eq("organization_id", orgId)
+            .order("created_at", { ascending: false });
+            
+        if (rulesErr) throw rulesErr;
+        allGlobalRules = rules || [];
+        renderGlobalRulesTable(allGlobalRules);
+        
+        // Fetch Execution Logs
+        const { data: logs, error: logsErr } = await supabase
+            .from("automation_execution_events")
+            .select("*, automation_rules(name), projects(name)")
+            .eq("organization_id", orgId)
+            .order("evaluated_at", { ascending: false })
+            .limit(50);
+            
+        if (logsErr) throw logsErr;
+        renderGlobalLogsTable(logs || []);
+        
+    } catch (e) {
+        console.error("Failed to load global automation:", e);
+        document.getElementById("global-automation-list").innerHTML = `<tr><td colspan="7" style="color:red; text-align:center;">Помилка завантаження правил</td></tr>`;
+        document.getElementById("global-execution-list").innerHTML = `<tr><td colspan="7" style="color:red; text-align:center;">Помилка завантаження логів</td></tr>`;
+    }
+}
+
+function filterGlobalRules() {
+    const q = (document.getElementById("global-rule-search")?.value || "").toLowerCase();
+    const scope = document.getElementById("global-rule-filter-scope")?.value || "all";
+    const status = document.getElementById("global-rule-filter-status")?.value || "all";
+    
+    const filtered = allGlobalRules.filter(r => {
+        if (q && !r.name.toLowerCase().includes(q)) return false;
+        
+        const rScope = r.project_id ? "project" : (r.template_id ? "template" : "unknown");
+        if (scope !== "all" && rScope !== scope) return false;
+        
+        const rStatus = r.is_active ? "active" : "inactive";
+        if (status !== "all" && rStatus !== status) return false;
+        
+        return true;
+    });
+    
+    renderGlobalRulesTable(filtered);
+}
+
+function renderGlobalRulesTable(rules) {
+    const tbody = document.getElementById("global-automation-list");
+    if (!tbody) return;
+    
+    if (rules.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 24px;">Правил не знайдено</td></tr>`;
+        return;
+    }
+    
+    let html = "";
+    for (const r of rules) {
+        const scopeLabel = r.project_id ? 
+            `<span class="portal-badge portal-badge-info">Project: ${r.projects?.name || "Unknown"}</span>` : 
+            (r.template_id ? `<span class="portal-badge portal-badge-primary">Template: ${r.templates?.name || "Unknown"}</span>` : "Global");
+            
+        const activeBadge = r.is_active ? 
+            `<span class="portal-badge portal-badge-success">Active</span>` : 
+            `<span class="portal-badge portal-badge-warning">Inactive</span>`;
+            
+        const condSummary = Array.isArray(r.conditions) ? r.conditions.length + " conditions" : "None";
+        const actSummary = Array.isArray(r.actions) ? r.actions.length + " actions" : "None";
+        
+        html += `
+            <tr>
+                <td style="font-weight: 500;">${r.name}</td>
+                <td>${scopeLabel}</td>
+                <td><code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${r.trigger_event}</code></td>
+                <td><span style="font-size:12px; color:#64748b;">${condSummary}</span></td>
+                <td><span style="font-size:12px; color:#64748b;">${actSummary}</span></td>
+                <td>${activeBadge}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline btn-edit-rule" data-id="${r.id}"><i data-lucide="edit-2"></i> Редагувати</button>
+                </td>
+            </tr>
+        `;
+    }
+    tbody.innerHTML = html;
+    if (window.lucide) window.lucide.createIcons();
+    
+    // Bind edit buttons
+    tbody.querySelectorAll(".btn-edit-rule").forEach(btn => {
+        btn.addEventListener("click", () => {
+            alert("To be implemented: Structured Rule Builder Edit Mode for Rule ID: " + btn.dataset.id);
+        });
+    });
+}
+
+function renderGlobalLogsTable(logs) {
+    const tbody = document.getElementById("global-execution-list");
+    if (!tbody) return;
+    
+    if (logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 24px;">Логів не знайдено</td></tr>`;
+        return;
+    }
+    
+    let html = "";
+    for (const l of logs) {
+        const timeStr = new Date(l.evaluated_at).toLocaleString();
+        const statusBadge = l.result === "success" ? 
+            `<span class="portal-badge portal-badge-success">Success</span>` : 
+            `<span class="portal-badge portal-badge-danger">Failed</span>`;
+            
+        const actCount = Array.isArray(l.actions_completed) ? l.actions_completed.length : 0;
+        
+        html += `
+            <tr>
+                <td style="white-space:nowrap; font-size:13px; color:#64748b;">${timeStr}</td>
+                <td><strong>${l.automation_rules?.name || l.rule_id}</strong></td>
+                <td>${l.projects?.name || "N/A"}</td>
+                <td><code style="font-size:12px;">${l.trigger_event}</code></td>
+                <td>${statusBadge}</td>
+                <td>${actCount} executed</td>
+                <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size:12px; color:#ef4444;">
+                    ${l.error_summary || "-"}
+                </td>
+            </tr>
+        `;
+    }
+    tbody.innerHTML = html;
+}
+'

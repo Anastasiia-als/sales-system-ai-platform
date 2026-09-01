@@ -1,0 +1,131 @@
+Set-Content -Path js/portal/ui/portal-rule-builder-ui.js -Value '
+export class RuleBuilderUI {
+    static init() {
+        document.getElementById("btn-add-condition")?.addEventListener("click", () => RuleBuilderUI.addCondition());
+        document.getElementById("btn-add-action")?.addEventListener("click", () => RuleBuilderUI.addAction());
+        
+        // Listen to textarea changes to sync UI (if advanced user types JSON)
+        document.getElementById("rule-conditions")?.addEventListener("change", () => RuleBuilderUI.renderConditionsFromJSON());
+        document.getElementById("rule-actions")?.addEventListener("change", () => RuleBuilderUI.renderActionsFromJSON());
+    }
+
+    static load(conditionsJson, actionsJson) {
+        document.getElementById("rule-conditions").value = typeof conditionsJson === "string" ? conditionsJson : JSON.stringify(conditionsJson || []);
+        document.getElementById("rule-actions").value = typeof actionsJson === "string" ? actionsJson : JSON.stringify(actionsJson || []);
+        RuleBuilderUI.renderConditionsFromJSON();
+        RuleBuilderUI.renderActionsFromJSON();
+    }
+
+    static addCondition(cond = { field: "", operator: "eq", value: "" }) {
+        const list = document.getElementById("conditions-list");
+        const div = document.createElement("div");
+        div.className = "flex gap-2 items-center bg-white p-2 border rounded";
+        div.innerHTML = `
+            <input type="text" class="cond-field border p-1 text-sm rounded flex-1" placeholder="Поле (напр. task_id)" value="${cond.field || ""}">
+            <select class="cond-op border p-1 text-sm rounded">
+                <option value="eq" ${cond.operator === "eq" ? "selected" : ""}>= (Dорівнює)</option>
+                <option value="neq" ${cond.operator === "neq" ? "selected" : ""}>!= (Не дорівнює)</option>
+                <option value="gt" ${cond.operator === "gt" ? "selected" : ""}>&gt; (Більше)</option>
+                <option value="lt" ${cond.operator === "lt" ? "selected" : ""}>&lt; (Менше)</option>
+                <option value="contains" ${cond.operator === "contains" ? "selected" : ""}>Містить</option>
+            </select>
+            <input type="text" class="cond-val border p-1 text-sm rounded flex-1" placeholder="Значення..." value="${cond.value || ""}">
+            <button class="btn-del-cond text-red-500 hover:text-red-700 px-2"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+        `;
+        list.appendChild(div);
+        
+        div.querySelector(".btn-del-cond").addEventListener("click", () => {
+            div.remove();
+            RuleBuilderUI.syncToJSON();
+        });
+        div.querySelectorAll("input, select").forEach(el => el.addEventListener("input", () => RuleBuilderUI.syncToJSON()));
+        
+        if (window.lucide) window.lucide.createIcons();
+        RuleBuilderUI.syncToJSON();
+    }
+
+    static addAction(act = null) {
+        const typeSelect = document.getElementById("action-type-select");
+        const type = act ? act.type : (typeSelect ? typeSelect.value : "start_stage");
+        
+        const list = document.getElementById("actions-list");
+        const div = document.createElement("div");
+        div.className = "flex gap-2 items-center bg-white p-2 border rounded action-row";
+        div.dataset.type = type;
+        
+        let fieldsHtml = "";
+        if (type === "start_stage" || type === "complete_stage") {
+            fieldsHtml = `<input type="text" class="act-target border p-1 text-sm rounded flex-1" placeholder="Назва етапу (Target Stage)" value="${act?.target_name || ""}">`;
+        } else if (type === "create_task" || type === "create_client_action") {
+            fieldsHtml = `<input type="text" class="act-title border p-1 text-sm rounded flex-1" placeholder="Назва задачі" value="${act?.title || ""}">`;
+        } else if (type === "notification") {
+            fieldsHtml = `<input type="text" class="act-msg border p-1 text-sm rounded flex-1" placeholder="Текст сповіщення" value="${act?.message || ""}">`;
+        }
+
+        div.innerHTML = `
+            <span class="text-sm font-semibold bg-gray-200 px-2 py-1 rounded">${type}</span>
+            ${fieldsHtml}
+            <button class="btn-del-act text-red-500 hover:text-red-700 px-2"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+        `;
+        list.appendChild(div);
+        
+        div.querySelector(".btn-del-act").addEventListener("click", () => {
+            div.remove();
+            RuleBuilderUI.syncToJSON();
+        });
+        div.querySelectorAll("input, select").forEach(el => el.addEventListener("input", () => RuleBuilderUI.syncToJSON()));
+        
+        if (window.lucide) window.lucide.createIcons();
+        RuleBuilderUI.syncToJSON();
+    }
+
+    static renderConditionsFromJSON() {
+        const list = document.getElementById("conditions-list");
+        if (!list) return;
+        list.innerHTML = "";
+        try {
+            const arr = JSON.parse(document.getElementById("rule-conditions").value || "[]");
+            arr.forEach(c => RuleBuilderUI.addCondition(c));
+        } catch(e) {}
+    }
+
+    static renderActionsFromJSON() {
+        const list = document.getElementById("actions-list");
+        if (!list) return;
+        list.innerHTML = "";
+        try {
+            const arr = JSON.parse(document.getElementById("rule-actions").value || "[]");
+            arr.forEach(a => RuleBuilderUI.addAction(a));
+        } catch(e) {}
+    }
+
+    static syncToJSON() {
+        const condList = document.getElementById("conditions-list");
+        const actList = document.getElementById("actions-list");
+        if (!condList || !actList) return;
+
+        const conds = Array.from(condList.children).map(div => ({
+            field: div.querySelector(".cond-field").value,
+            operator: div.querySelector(".cond-op").value,
+            value: div.querySelector(".cond-val").value
+        })).filter(c => c.field);
+        
+        document.getElementById("rule-conditions").value = JSON.stringify(conds, null, 2);
+
+        const acts = Array.from(actList.children).map(div => {
+            const type = div.dataset.type;
+            const res = { type };
+            if (type === "start_stage" || type === "complete_stage") {
+                res.target_name = div.querySelector(".act-target")?.value;
+            } else if (type === "create_task" || type === "create_client_action") {
+                res.title = div.querySelector(".act-title")?.value;
+            } else if (type === "notification") {
+                res.message = div.querySelector(".act-msg")?.value;
+            }
+            return res;
+        });
+        
+        document.getElementById("rule-actions").value = JSON.stringify(acts, null, 2);
+    }
+}
+'

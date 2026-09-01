@@ -1,0 +1,25 @@
+node -e "
+const fs = require('fs');
+const lines = fs.readFileSync('C:/Users/UA/.gemini/antigravity/brain/87fdd05b-039b-4dcb-9b04-faa32d097b20/.system_generated/logs/transcript_full.jsonl', 'utf8').split('\n');
+for (let l of lines) {
+    if (!l) continue;
+    try {
+        let obj = JSON.parse(l);
+        if (obj.tool_calls) {
+            for (let t of obj.tool_calls) {
+                if (t.name.includes('run_command')) {
+                    const cmd = t.args.CommandLine;
+                    if (cmd && cmd.includes('portal-global-automation-view.js') && cmd.includes('Set-Content')) {
+                        fs.writeFileSync('scratch/command_global.txt', cmd, 'utf8');
+                        console.log('Found global Set-Content command!');
+                    }
+                    if (cmd && cmd.includes('portal-rule-builder-ui.js') && cmd.includes('Set-Content')) {
+                        fs.writeFileSync('scratch/command_rule_builder.txt', cmd, 'utf8');
+                        console.log('Found rule builder Set-Content command!');
+                    }
+                }
+            }
+        }
+    } catch(e) {}
+}
+"

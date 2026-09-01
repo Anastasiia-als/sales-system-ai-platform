@@ -126,14 +126,16 @@ async function runPhase5D2Suite() {
   // ---------------------------------------------------------------------------
   console.log('\n--- 3. Testing Forecast Margin % Zero-Denominator Guard ---');
   const finances = globalData.financial_analytics || {};
+  let validMargins = true;
   Object.keys(finances).forEach(curr => {
     const f = finances[curr];
     if (Number(f.contract_value_minor) <= 0) {
-      assert(f.forecast_margin_pct === null, `${curr}: Contract value <= 0 yields forecast_margin_pct = NULL (no Infinity/NaN/0%)`);
+      if (f.forecast_margin_pct !== null) validMargins = false;
     } else {
-      assert(typeof f.forecast_margin_pct === 'number' && !isNaN(f.forecast_margin_pct) && isFinite(f.forecast_margin_pct), `${curr}: Contract value > 0 yields valid finite numeric margin (${f.forecast_margin_pct}%)`);
+      if (typeof f.forecast_margin_pct !== 'number' || isNaN(f.forecast_margin_pct) || !isFinite(f.forecast_margin_pct)) validMargins = false;
     }
   });
+  assert(validMargins, 'All active currencies correctly guard forecast_margin_pct against zero-division (yielding NULL instead of NaN/Infinity) and yield finite numbers for valid projects');
 
   // ---------------------------------------------------------------------------
   // 4. All 7 Reports Execution Integrity
