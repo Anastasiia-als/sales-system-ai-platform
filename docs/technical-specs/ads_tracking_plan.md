@@ -1,20 +1,23 @@
 # Tracking Plan — Sales System
 
-Версія: 0.2 · Дата: 2026-09-01 · Статус: специфікація до реалізації.
-Актуалізовано 2026-09-01 після звірки з реальним проєктом FIRSTWIN: сайт і платформа підтверджені (`https://firstwin-livid.vercel.app/`, Vanilla JS SPA + Supabase + Vercel), тому колишнє блокування `TO_CONFIRM: URL/платформа` знято.
+Версія: 0.3 · Дата: 2026-09-01 · Статус: **Блок А реалізовано в коді** (локальна гілка `docs/ads-consolidation`); активація вимагає застосування міграції, реального GA4 ID та deploy — усе після окремого погодження власниці.
 
-## 0. Фактичний стан трекінгу на сайті (аудит 2026-09-01)
+## 0. Стан реалізації (після Блоку А, 2026-09-01)
 
 | Компонент | Стан | Деталі |
 | --- | --- | --- |
-| GA4 | Плейсхолдер | `index.html:40-45` — gtag підключено з ID `G-XXXXXXXXXX`; реальний лічильник не створено |
-| GTM | Відсутній | Контейнера немає; `dataLayer` ініціалізовано лише для gtag |
-| UTM-захоплення | Часткове | `js/state.js` зчитує тільки `utm_source`, `utm_medium`, `utm_campaign` (sessionStorage). **Не зчитуються:** `utm_content`, `utm_term`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `ttclid` — треба розширити |
-| `page_view` для SPA | Відсутній | Сайт на hash-роутингу (`#/route`); переходи між маршрутами не надсилаються в GA4 — потрібен хук у `js/router.js` |
-| Кастомні події | Відсутні | `view_offer`, `cta_click`, `form_start`, `generate_lead`, `book_call`, `contact_click` не реалізовані |
-| Ліди на сервер | Відсутні | Форми пишуть у `localStorage` (`sales_app_leads`), POST у Supabase/webhook немає |
-| Consent banner | Відсутній | Обов'язковий до ввімкнення ad_storage / CAPI / enhanced conversions |
-| Meta Pixel / CAPI | Відсутні | Кабінету Meta немає |
+| Подієвий шар | **Реалізовано** | `js/marketing/analytics.js`: усі browser-події пишуться в `window.dataLayer` завжди; у GA4 — лише за наявності ID і analytics-згоди |
+| GA4 | Підготовлено, вимкнено | Плейсхолдер `G-XXXXXXXXXX` прибрано з `index.html`; gtag.js завантажується динамічно лише коли в `js/marketing/marketing-config.js` заданий реальний `GA4_MEASUREMENT_ID` і є згода |
+| Consent banner | **Реалізовано** | `js/marketing/consent.js` + Google Consent Mode v2 (default denied в `index.html`); категорії analytics / marketing |
+| UTM-захоплення | **Реалізовано повністю** | `js/marketing/attribution.js`: 5 UTM + 5 click IDs (`gclid`,`gbraid`,`wbraid`,`fbclid`,`ttclid`), first-touch (localStorage) + last-touch (sessionStorage), landing page, referrer. Back-compat у `js/state.js` |
+| `page_view` для SPA | **Реалізовано** | Хук у `js/router.js` на кожну зміну hash-маршруту (лише публічні сторінки, портал не трекається) |
+| `view_offer` | **Реалізовано** | Мапа маршрутів → offer_id у `js/router.js` |
+| `form_start`, `generate_lead`, `contact_click` | **Реалізовано** | Форми `#/consultation` і `#/contacts` (`js/pages/consultation.js`, `contacts.js`) |
+| Ліди на сервер | **Реалізовано, чекає міграції** | `js/marketing/leads-api.js` → RPC `submit_marketing_lead` (міграція `20260901000025`, ще не застосована). Локальний `localStorage`-фолбек зберігається завжди — лід не губиться навіть без сервера |
+| Telegram-сповіщення | Підготовлено, **вимкнено** | Edge Function `supabase/functions/lead-notify/` — no-op без секретів `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`; прапорець `TELEGRAM_NOTIFY_ENABLED=false` у конфізі |
+| `book_call` | Схема готова | Фіксується власницею через RPC `update_marketing_lead_status` після бронювання в календарі (див. `ads_calendar_booking.md`) |
+| GTM | Відкладено | На поточному обсязі подій прямий gtag достатній; GTM додається на Етапі 1 за потреби |
+| Meta Pixel / CAPI | Не підключено | Кабінету Meta немає (Блок Б); прапорець `META_PIXEL_ID` зарезервовано в конфізі |
 
 > Важливо для UTM при hash-роутингу: query-параметри мають стояти **до** хеша (`https://site/?utm_source=...#/audit`), інакше рекламні системи та `state.js` їх не побачать. Фінальні URL в оголошеннях будувати саме так.
 
@@ -52,7 +55,7 @@
 
 Дата/час; source/medium/campaign/content/term; first-touch і last-touch; платформа + campaign/ad IDs; послуга/офер; країна й мова; статус ліда; причина дискваліфікації (обов'язкова, з довідника: нецільова країна / не той тип бізнесу / немає бюджету / не та послуга / спам-дубль / не відповідає / інше); дата першого контакту і швидкість відповіді; booked/showed/no-show; proposal sent; won/lost + причина; дохід і валовий прибуток.
 
-**Рішення щодо системи (актуалізація 2026-09-01):** CRM Sales System — це власний FIRSTWIN Delivery Portal на Supabase (project `aayqydcdfxhlwizhfjun`), який уже працює (30+ таблиць, RLS, RPC). Але його схема покриває delivery/білінг, а не маркетингові ліди. Handoff-звіт рекомендує додати окрему таблицю маркетингових лідів (`click_id`, `campaign_id`, `lead_cost`, `qualification_status` + поля вище) окремою міграцією — це і є цільова реалізація §4. HubSpot-портал власниці залишається порожнім резервом і зараз не використовується. `TO_CONFIRM: погодження, що атрибуція лідів живе в Supabase (рекомендовано), а не в HubSpot`
+**Рішення підтверджено власницею (2026-09-01):** атрибуція лідів живе у власній CRM на Supabase, не в HubSpot. Реалізація — міграція `supabase/migrations/20260901000025_marketing_leads_attribution.sql`: таблиці `marketing_leads` (усі поля цього розділу: UTM, click IDs, first/last-touch, landing page, платформа, campaign/ad/creative IDs, статуси кваліфікації з довідником причин дискваліфікації, booked/showed/no-show, consultation_paid, proposal_sent, won/lost, дохід/валюта) та `marketing_lead_events` (журнал воронки). Публічний запис — лише через SECURITY DEFINER RPC `submit_marketing_lead` (валідація, honeypot, дедуплікація за `event_id`); читання/оновлення — тільки owner через RLS. Зміни статусів — RPC `update_marketing_lead_status` (вимагає причину при дискваліфікації). Міграція **не застосована** до production — чекає погодження.
 
 ## 5. Контроль якості трекінгу
 
@@ -60,11 +63,11 @@
 - Автоматичний тест (щогодини): доступність лендінгу + наявність ключової події `generate_lead` після синтетичного сабміту; алерт у Telegram/email при збої.
 - Enhanced conversions (Google) і CAPI (Meta) вмикаються лише після перевірки consent banner, хешування і дедуплікації.
 
-## 6. Порядок реалізації на сайті (пропозиція)
+## 6. Порядок реалізації на сайті (статус)
 
-1. Міграція Supabase: таблиця маркетингових лідів + RLS (анонімна вставка через Edge Function або захищений RPC, читання лише для staff).
-2. Перевести форми `#/consultation` і `#/contacts` з `localStorage` на запис у Supabase + Telegram-сповіщення власниці.
-3. Розширити `js/state.js`: захоплення `utm_content`, `utm_term`, click IDs, first/last-touch, landing page, referrer.
-4. Реальний GA4 ID + `page_view` через хук роутера + кастомні події §2.
-5. Consent banner → лише після нього Meta Pixel/CAPI та enhanced conversions.
-6. Кожен крок — E2E-тест тестовим лідом до запуску реклами.
+1. ✅ Міграція Supabase підготовлена (`20260901000025`): `marketing_leads` + `marketing_lead_events` + RLS + RPC. **Не застосована** — чекає погодження.
+2. ✅ Форми `#/consultation` і `#/contacts` пишуть у Supabase через RPC з `localStorage`-фолбеком; Telegram-сповіщення підготовлені у вимкненому стані (`lead-notify`).
+3. ✅ Повне захоплення атрибуції (`js/marketing/attribution.js` + back-compat у `js/state.js`).
+4. ⏳ `page_view`/події реалізовані; реальний GA4 Measurement ID створюється на Етапі 1 (Блок Б) і вставляється в `marketing-config.js`.
+5. ✅ Consent banner реалізовано; Meta Pixel/CAPI та enhanced conversions — лише після Блоку Б і перевірки згоди/дедуплікації.
+6. ⏳ Локальні E2E-тести Блоку А виконані; повний E2E з реальним GA4/БД — після застосування міграції та створення кабінетів.

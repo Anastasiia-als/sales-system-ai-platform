@@ -1144,3 +1144,62 @@
 .tool-glass-pill:hover i {
     color: #60A5FA;
 }
+
+/* ============================================
+   Consent Banner (js/marketing/consent.js)
+   ============================================ */
+#consent-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: rgba(10, 15, 28, 0.97);
+    border-top: 1px solid var(--border-dark, rgba(255,255,255,0.1));
+    backdrop-filter: blur(12px);
+    padding: 16px 20px;
+}
+
+#consent-banner .consent-banner-inner {
+    max-width: 1140px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+#consent-banner .consent-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #94A3B8);
+    flex: 1 1 320px;
+}
+
+#consent-banner .consent-text a {
+    color: #60A5FA;
+    text-decoration: underline;
+}
+
+#consent-banner .consent-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+#consent-banner .btn-sm {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+    #consent-banner .consent-banner-inner {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+    #consent-banner .consent-actions {
+        justify-content: center;
+    }
+}

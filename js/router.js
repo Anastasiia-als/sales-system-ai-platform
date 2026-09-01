@@ -1,4 +1,5 @@
 /* js/router.js - Client-Side Hash Router */
+import { trackPageView, trackViewOffer } from "./marketing/analytics.js";
 import { Home } from "./pages/home.js";
 import { Services } from "./pages/services.js";
 import { Audit } from "./pages/audit.js";
@@ -41,6 +42,15 @@ const routes = {
   "/admin": Admin,
   "/portal": PortalPage,
   "/client": ClientPage
+};
+
+// Route → advertising offer mapping (docs/technical-specs/ads_utm_naming.md)
+const OFFER_ROUTES = {
+  "/ai-solutions": "aiauto",
+  "/automation": "aiauto",
+  "/audit": "audit",
+  "/support": "salesdept",
+  "/consultation": "consult"
 };
 
 export const Router = {
@@ -92,6 +102,18 @@ export const Router = {
     
     // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: 'instant' });
+
+    // Marketing analytics: SPA page_view + view_offer for public pages only
+    if (!isWorkspace) {
+      try {
+        trackPageView();
+        if (OFFER_ROUTES[hash]) {
+          trackViewOffer(OFFER_ROUTES[hash]);
+        }
+      } catch (e) {
+        console.error("[Router] Analytics tracking failed:", e);
+      }
+    }
 
     const executeRoute = () => {
       try {

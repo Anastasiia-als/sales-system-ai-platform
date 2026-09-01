@@ -280,6 +280,8 @@ export const State = {
             utm_source: sessionStorage.getItem("utm_source") || "direct",
             utm_medium: sessionStorage.getItem("utm_medium") || "none",
             utm_campaign: sessionStorage.getItem("utm_campaign") || "none",
+            utm_content: sessionStorage.getItem("utm_content") || "none",
+            utm_term: sessionStorage.getItem("utm_term") || "none",
             ...leadData
         };
         this.leads.unshift(newLead);
@@ -425,13 +427,19 @@ export const State = {
     }
 };
 
-// Capture UTM search parameters on load
+// Capture UTM search parameters and ad click IDs on load
+// (full first/last-touch attribution lives in js/marketing/attribution.js)
 (() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const utmTags = ["utm_source", "utm_medium", "utm_campaign"];
+    const utmTags = [
+        "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+        "gclid", "gbraid", "wbraid", "fbclid", "ttclid"
+    ];
     utmTags.forEach(tag => {
         if (urlParams.has(tag)) {
-            sessionStorage.setItem(tag, urlParams.get(tag));
+            try {
+                sessionStorage.setItem(tag, urlParams.get(tag));
+            } catch (e) { /* storage unavailable */ }
         }
     });
 })();

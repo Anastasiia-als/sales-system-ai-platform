@@ -2,8 +2,14 @@
 
 import { Router } from "./router.js";
 import { Chat } from "./components/chat.js";
+import { captureAttribution } from "./marketing/attribution.js";
+import { Consent } from "./marketing/consent.js";
 
 function initApp() {
+    // 0. Marketing: capture ad attribution (UTM/click IDs) and show consent banner
+    captureAttribution();
+    Consent.init();
+
     // 1. Initialize Client-Side Router
     Router.init();
 

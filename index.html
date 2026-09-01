@@ -36,13 +36,20 @@
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- Google Tag Manager / GA4 -->
-    <script async src='https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX'></script>
+    <!-- Analytics bootstrap: Consent Mode v2 defaults to DENIED for everything.
+         gtag.js is NOT loaded here — js/marketing/analytics.js loads it only when
+         a real GA4 Measurement ID is set in js/marketing/marketing-config.js AND
+         the visitor granted analytics consent via the banner. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-XXXXXXXXXX');
+      gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        wait_for_update: 500
+      });
     </script>
 </head>
 <body>
@@ -114,11 +121,9 @@
                     <p class="footer-desc">
                         Системний підхід до управління продажами. Знаходимо точки втрати грошей, впроваджуємо CRM, будуємо процеси, навчаємо команди.
                     </p>
+                    <!-- Social links removed: real profiles TO_CONFIRM by owner; placeholder handles must not ship. -->
                     <div class="social-links">
-                        <a href="https://t.me/sales_expert" target="_blank" class="social-icon" title="Telegram"><i data-lucide="send"></i></a>
-                        <a href="https://instagram.com/sales_expert" target="_blank" class="social-icon" title="Instagram"><i data-lucide="instagram"></i></a>
-                        <a href="https://linkedin.com/in/sales-expert" target="_blank" class="social-icon" title="LinkedIn"><i data-lucide="linkedin"></i></a>
-                        <a href="https://youtube.com/@sales_expert" target="_blank" class="social-icon" title="YouTube"><i data-lucide="youtube"></i></a>
+                        <a href="mailto:a.zaporozhetswork@gmail.com" class="social-icon" title="Email"><i data-lucide="mail"></i></a>
                     </div>
                 </div>
 
@@ -154,8 +159,8 @@
                 <div class="footer-contacts">
                     <h4>Контакти</h4>
                     <ul>
-                        <li><i data-lucide="mail"></i> <a href="mailto:contact@example.com">contact@example.com</a></li>
-                        <li><i data-lucide="phone"></i> <a href="tel:+380990000000">+38 (099) 000-00-00</a></li>
+                        <li><i data-lucide="mail"></i> <a href="mailto:a.zaporozhetswork@gmail.com">a.zaporozhetswork@gmail.com</a></li>
+                        <!-- Phone & Telegram TO_CONFIRM: added when the owner provides real contacts. -->
                         <li><i data-lucide="map-pin"></i> Україна, Київ (Онлайн по всьому світу)</li>
                         <li><i data-lucide="clock"></i> Пн-Пт: 10:00 - 19:00</li>
                     </ul>
@@ -187,7 +192,8 @@
     <!-- Mobile Sticky CTA Bar -->
     <div class="mobile-sticky-bar">
         <a href="#/consultation" class="btn btn-primary"><i data-lucide="calendar"></i> Консультація</a>
-        <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline"><i data-lucide="send"></i> Telegram</a>
+        <!-- Telegram button TO_CONFIRM: restored when the owner provides a real username. -->
+        <a href="mailto:a.zaporozhetswork@gmail.com" class="btn btn-outline"><i data-lucide="mail"></i> Email</a>
     </div>
 
     <!-- Excel / OOXML Export Engine -->

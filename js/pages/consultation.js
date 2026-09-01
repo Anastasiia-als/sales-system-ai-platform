@@ -123,6 +123,9 @@ export const Consultation = {
                     </select>
                   </div>
                   
+                  <!-- Honeypot: hidden from humans, catches bots -->
+                  <input type="text" id="c-website-hp" name="website_hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute; left:-9999px; height:0; width:0; opacity:0;">
+
                   <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">Залишити заявку та перейти до оплати</button>
                   <p style="margin-top: 16px; font-size: 0.8rem; color: var(--text-muted); text-align: center;">Натискаючи кнопку, ви погоджуєтесь з політикою конфіденційності.</p>
                 </form>
@@ -174,46 +177,68 @@ export const Consultation = {
   },
   init() {
     const form = document.getElementById('consultation-form');
-    if (form) {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const btn = form.querySelector('button[type="submit"]');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Обробка заявки...';
-        btn.disabled = true;
-        if(window.lucide) window.lucide.createIcons();
-        
-        // Save to state and fake payment redirect
-        setTimeout(() => {
-          import('../../js/state.js').then(module => {
-            const State = module.State;
-            State.addLead({
-              name: document.getElementById('c-name').value,
-              phone: document.getElementById('c-phone').value,
-              email: document.getElementById('c-email').value,
-              telegram: document.getElementById('c-telegram').value,
-              company: document.getElementById('c-company').value,
-              niche: document.getElementById('c-niche').value,
-              managers: document.getElementById('c-managers').value,
-              crm: document.getElementById('c-crm').value,
-              problem: document.getElementById('c-problem').value,
-              goal: document.getElementById('c-goal').value,
-              format: document.getElementById('c-format').value,
-              bookingDate: document.getElementById('c-date').value,
-              bookingTime: document.getElementById('c-time').value,
-              payment: document.getElementById('c-payment').value,
-              status: 'очікує оплати', // Point 25 statuses
-              service: 'consultation'
-            });
-            // Redirect to success page for demo purposes
-            window.location.hash = '#/success';
-          }).catch(err => {
-            console.error('Error saving lead', err);
-            window.location.hash = '#/success';
-          });
-        }, 1200);
-      });
-    }
+    if (!form) return;
+
+    // form_start: fires once per session on first interaction with any field
+    import('../marketing/analytics.js').then(({ trackFormStart }) => {
+      form.addEventListener('focusin', () => trackFormStart('consultation', 'consult'), { once: true });
+    }).catch(() => {});
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button[type="submit"]');
+      btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Обробка заявки...';
+      btn.disabled = true;
+      if (window.lucide) window.lucide.createIcons();
+
+      const fields = {
+        name: document.getElementById('c-name').value,
+        phone: document.getElementById('c-phone').value,
+        email: document.getElementById('c-email').value,
+        telegram: document.getElementById('c-telegram').value,
+        company: document.getElementById('c-company').value,
+        niche: document.getElementById('c-niche').value,
+        managers: document.getElementById('c-managers').value,
+        has_crm: document.getElementById('c-crm').value,
+        problem: document.getElementById('c-problem').value,
+        goal: document.getElementById('c-goal').value,
+        preferred_format: document.getElementById('c-format').value,
+        preferred_date: document.getElementById('c-date').value,
+        preferred_time: document.getElementById('c-time').value,
+        payment_method: document.getElementById('c-payment').value,
+        website_hp: document.getElementById('c-website-hp').value
+      };
+
+      try {
+        const [{ trackGenerateLead }, { submitLead }, { State }] = await Promise.all([
+          import('../marketing/analytics.js'),
+          import('../marketing/leads-api.js'),
+          import('../state.js')
+        ]);
+
+        // Local copy always saved first: a lead must never be lost,
+        // even if the server call fails or the migration is not applied yet.
+        State.addLead({
+          name: fields.name, phone: fields.phone, email: fields.email,
+          telegram: fields.telegram, company: fields.company, niche: fields.niche,
+          managers: fields.managers, crm: fields.has_crm, problem: fields.problem,
+          goal: fields.goal, format: fields.preferred_format,
+          bookingDate: fields.preferred_date, bookingTime: fields.preferred_time,
+          payment: fields.payment_method,
+          status: 'очікує оплати',
+          service: 'consultation'
+        });
+
+        const eventId = trackGenerateLead('consultation', 'consult');
+        const result = await submitLead(fields, 'consultation', 'consult', eventId);
+        if (!result.ok) {
+          console.warn('[Consultation] Server lead capture unavailable (' + result.error + '), local fallback kept.');
+        }
+      } catch (err) {
+        console.error('Error saving lead', err);
+      }
+      window.location.hash = '#/success';
+    });
   }
 };
 
