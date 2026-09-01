@@ -1,7 +1,10 @@
 -- FIRSTWIN — Phase ADS-1: Marketing Leads & Advertising Attribution
 -- Target: PostgreSQL / Supabase with Row-Level Security (RLS)
 -- Spec: docs/technical-specs/ads_tracking_plan.md §4, §6; docs/technical-specs/ads_master_tz.md §13
+-- Hardening: server-side rate limiting, input normalization, submission log without PII,
+--            content-level dedup, JSON error contract (no raw exceptions for expected cases).
 -- NOTE: prepared on branch docs/ads-consolidation; NOT applied to production until owner approval.
+-- Rollback: supabase/rollbacks/20260901000025_down.sql
 
 -- -----------------------------------------------------------------------------
 -- 1. Marketing Leads Table (public-site lead capture with full ad attribution)
@@ -96,6 +99,8 @@ CREATE INDEX IF NOT EXISTS idx_marketing_leads_created ON public.marketing_leads
 CREATE INDEX IF NOT EXISTS idx_marketing_leads_status ON public.marketing_leads(status);
 CREATE INDEX IF NOT EXISTS idx_marketing_leads_campaign ON public.marketing_leads(utm_campaign);
 CREATE INDEX IF NOT EXISTS idx_marketing_leads_form ON public.marketing_leads(form_id);
+CREATE INDEX IF NOT EXISTS idx_marketing_leads_email_recent ON public.marketing_leads(email, created_at);
+CREATE INDEX IF NOT EXISTS idx_marketing_leads_phone_recent ON public.marketing_leads(phone, created_at);
 
 -- -----------------------------------------------------------------------------
 -- 2. Marketing Lead Events (funnel transition / audit log)
@@ -115,12 +120,33 @@ CREATE TABLE IF NOT EXISTS public.marketing_lead_events (
 CREATE INDEX IF NOT EXISTS idx_marketing_lead_events_lead ON public.marketing_lead_events(lead_id, created_at);
 
 -- -----------------------------------------------------------------------------
--- 3. Row-Level Security
+-- 3. Submission Log (rate limiting + technical error journal, NO personal data)
+--    Stores only: hashed client IP, form id, outcome code, timestamp.
+--    Rows older than 7 days are purged opportunistically on every submission.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.marketing_submission_log (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ip_hash TEXT NOT NULL,
+  form_id TEXT,
+  outcome TEXT NOT NULL CHECK (outcome IN (
+    'created', 'duplicate_event', 'duplicate_content', 'honeypot',
+    'rate_limited', 'validation_error', 'server_error'
+  )),
+  error_code TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_submission_log_ip ON public.marketing_submission_log(ip_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_marketing_submission_log_created ON public.marketing_submission_log(created_at);
+
+-- -----------------------------------------------------------------------------
+-- 4. Row-Level Security
 --    Public site NEVER touches these tables directly: inserts go through the
 --    SECURITY DEFINER RPC below; reads/updates are owner-only.
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.marketing_leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.marketing_lead_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.marketing_submission_log ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Marketing leads readable by global owner" ON public.marketing_leads;
 CREATE POLICY "Marketing leads readable by global owner" ON public.marketing_leads
@@ -142,12 +168,56 @@ DROP POLICY IF EXISTS "Marketing lead events insertable by global owner" ON publ
 CREATE POLICY "Marketing lead events insertable by global owner" ON public.marketing_lead_events
   FOR INSERT WITH CHECK (public.is_global_owner());
 
--- No INSERT policy on marketing_leads: anonymous inserts are only possible
--- through public.submit_marketing_lead below.
+DROP POLICY IF EXISTS "Submission log readable by global owner" ON public.marketing_submission_log;
+CREATE POLICY "Submission log readable by global owner" ON public.marketing_submission_log
+  FOR SELECT USING (public.is_global_owner());
+
+-- No INSERT policy on marketing_leads / marketing_submission_log for clients:
+-- anonymous writes are only possible through public.submit_marketing_lead below.
 
 -- -----------------------------------------------------------------------------
--- 4. Public lead submission RPC (SECURITY DEFINER, callable by anon)
---    Validates, deduplicates by event_id, inserts lead + generate_lead event.
+-- 5. Internal helpers (not exposed to clients)
+-- -----------------------------------------------------------------------------
+
+-- Pseudonymized client IP from PostgREST request headers. Never stores raw IP.
+CREATE OR REPLACE FUNCTION public.marketing_client_ip_hash()
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_headers JSONB;
+  v_ip TEXT;
+BEGIN
+  BEGIN
+    v_headers := NULLIF(current_setting('request.headers', TRUE), '')::JSONB;
+  EXCEPTION WHEN OTHERS THEN
+    v_headers := NULL;
+  END;
+  IF v_headers IS NOT NULL THEN
+    v_ip := COALESCE(
+      split_part(v_headers->>'x-forwarded-for', ',', 1),
+      v_headers->>'x-real-ip'
+    );
+  END IF;
+  IF v_ip IS NULL OR TRIM(v_ip) = '' THEN
+    RETURN 'unknown';
+  END IF;
+  RETURN md5('fw-leads:' || TRIM(v_ip));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.marketing_client_ip_hash() FROM PUBLIC;
+
+-- -----------------------------------------------------------------------------
+-- 6. Public lead submission RPC (SECURITY DEFINER, callable by anon)
+--    Contract: ALWAYS returns JSONB {ok, ...} for expected outcomes:
+--      success:    {ok:true,  lead_id, event_id, duplicate:false}
+--      duplicate:  {ok:true,  lead_id, event_id, duplicate:true}
+--      honeypot:   {ok:true,  lead_id:null, duplicate:false}   (bots learn nothing)
+--      rate limit: {ok:false, error:'rate_limited'}
+--      validation: {ok:false, error:'validation', field:'...'}
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.submit_marketing_lead(p JSONB)
 RETURNS JSONB
@@ -161,33 +231,94 @@ DECLARE
   v_lead_id UUID;
   v_name TEXT;
   v_form_id TEXT;
+  v_email TEXT;
+  v_phone TEXT;
+  v_telegram TEXT;
+  v_ip_hash TEXT;
+  v_count_hour INT;
+  v_count_day INT;
+  v_count_global_hour INT;
 BEGIN
-  -- Honeypot: bots fill hidden fields; humans never see them
+  v_ip_hash := public.marketing_client_ip_hash();
+  v_form_id := COALESCE(p->>'form_id', 'other');
+
+  -- Opportunistic retention cleanup: the log keeps at most 7 days of rows
+  DELETE FROM public.marketing_submission_log WHERE created_at < NOW() - INTERVAL '7 days';
+
+  -- Payload size cap (before any parsing work)
+  IF length(p::text) > 20000 THEN
+    INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome, error_code)
+    VALUES (v_ip_hash, v_form_id, 'validation_error', 'payload_too_large');
+    RETURN jsonb_build_object('ok', FALSE, 'error', 'validation', 'field', 'payload');
+  END IF;
+
+  -- Honeypot: bots fill hidden fields; humans never see them. Pretend success.
   IF COALESCE(p->>'website_hp', '') <> '' THEN
-    -- Pretend success so bots learn nothing
+    INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome)
+    VALUES (v_ip_hash, v_form_id, 'honeypot');
     RETURN jsonb_build_object('ok', TRUE, 'lead_id', NULL, 'duplicate', FALSE);
   END IF;
 
-  v_name := NULLIF(TRIM(COALESCE(p->>'name', '')), '');
-  v_form_id := COALESCE(p->>'form_id', 'other');
+  -- Server-side rate limiting (per pseudonymized IP + global spike guard)
+  SELECT COUNT(*) INTO v_count_hour FROM public.marketing_submission_log
+    WHERE ip_hash = v_ip_hash AND outcome = 'created' AND created_at > NOW() - INTERVAL '1 hour';
+  SELECT COUNT(*) INTO v_count_day FROM public.marketing_submission_log
+    WHERE ip_hash = v_ip_hash AND outcome = 'created' AND created_at > NOW() - INTERVAL '24 hours';
+  SELECT COUNT(*) INTO v_count_global_hour FROM public.marketing_submission_log
+    WHERE outcome = 'created' AND created_at > NOW() - INTERVAL '1 hour';
 
+  IF v_count_hour >= 5 OR v_count_day >= 20 OR v_count_global_hour >= 100 THEN
+    INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome)
+    VALUES (v_ip_hash, v_form_id, 'rate_limited');
+    RETURN jsonb_build_object('ok', FALSE, 'error', 'rate_limited');
+  END IF;
+
+  -- Normalization
+  v_name := NULLIF(TRIM(COALESCE(p->>'name', '')), '');
+  v_email := LOWER(NULLIF(TRIM(COALESCE(p->>'email', '')), ''));
+  v_phone := NULLIF(regexp_replace(COALESCE(p->>'phone', ''), '[^0-9+]', '', 'g'), '');
+  v_telegram := NULLIF(TRIM(COALESCE(p->>'telegram', '')), '');
+
+  -- Malformed email is dropped (not stored as junk), unless it is the only contact
+  IF v_email IS NOT NULL AND v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' THEN
+    v_email := NULL;
+  END IF;
+
+  -- Validation
   IF v_name IS NULL THEN
-    RAISE EXCEPTION 'name is required' USING ERRCODE = '22023';
+    INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome, error_code)
+    VALUES (v_ip_hash, v_form_id, 'validation_error', 'name_required');
+    RETURN jsonb_build_object('ok', FALSE, 'error', 'validation', 'field', 'name');
   END IF;
-  IF NULLIF(TRIM(COALESCE(p->>'phone', '')), '') IS NULL
-     AND NULLIF(TRIM(COALESCE(p->>'email', '')), '') IS NULL
-     AND NULLIF(TRIM(COALESCE(p->>'telegram', '')), '') IS NULL THEN
-    RAISE EXCEPTION 'at least one contact channel is required' USING ERRCODE = '22023';
-  END IF;
-  IF length(p::text) > 20000 THEN
-    RAISE EXCEPTION 'payload too large' USING ERRCODE = '22023';
+  IF v_phone IS NULL AND v_email IS NULL AND v_telegram IS NULL THEN
+    INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome, error_code)
+    VALUES (v_ip_hash, v_form_id, 'validation_error', 'contact_required');
+    RETURN jsonb_build_object('ok', FALSE, 'error', 'validation', 'field', 'contact');
   END IF;
 
   v_event_id := COALESCE(NULLIF(p->>'event_id', '')::UUID, gen_random_uuid());
 
-  -- Dedup: same browser event_id submitted twice (retry, double click)
+  -- Dedup level 1: same browser event_id submitted twice (retry, double click)
   SELECT id INTO v_existing FROM public.marketing_leads WHERE event_id = v_event_id;
   IF v_existing IS NOT NULL THEN
+    INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome)
+    VALUES (v_ip_hash, v_form_id, 'duplicate_event');
+    RETURN jsonb_build_object('ok', TRUE, 'lead_id', v_existing, 'event_id', v_event_id, 'duplicate', TRUE);
+  END IF;
+
+  -- Dedup level 2: same contact re-submitted on the same form within 10 minutes
+  SELECT id INTO v_existing FROM public.marketing_leads
+    WHERE form_id = CASE WHEN v_form_id IN ('consultation', 'contacts', 'chat') THEN v_form_id ELSE 'other' END
+      AND created_at > NOW() - INTERVAL '10 minutes'
+      AND (
+        (v_email IS NOT NULL AND email = v_email)
+        OR (v_phone IS NOT NULL AND phone = v_phone)
+      )
+    ORDER BY created_at DESC
+    LIMIT 1;
+  IF v_existing IS NOT NULL THEN
+    INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome)
+    VALUES (v_ip_hash, v_form_id, 'duplicate_content');
     RETURN jsonb_build_object('ok', TRUE, 'lead_id', v_existing, 'event_id', v_event_id, 'duplicate', TRUE);
   END IF;
 
@@ -202,9 +333,9 @@ BEGIN
     event_id, consent_analytics, consent_marketing
   ) VALUES (
     LEFT(v_name, 200),
-    LEFT(NULLIF(TRIM(COALESCE(p->>'phone', '')), ''), 50),
-    LEFT(NULLIF(TRIM(COALESCE(p->>'email', '')), ''), 200),
-    LEFT(NULLIF(TRIM(COALESCE(p->>'telegram', '')), ''), 100),
+    LEFT(v_phone, 50),
+    LEFT(v_email, 200),
+    LEFT(v_telegram, 100),
     LEFT(NULLIF(TRIM(COALESCE(p->>'company', '')), ''), 300),
     LEFT(NULLIF(TRIM(COALESCE(p->>'niche', '')), ''), 300),
     LEFT(NULLIF(TRIM(COALESCE(p->>'managers', '')), ''), 50),
@@ -252,7 +383,15 @@ BEGIN
     'event_id', v_event_id
   ));
 
+  INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome)
+  VALUES (v_ip_hash, v_form_id, 'created');
+
   RETURN jsonb_build_object('ok', TRUE, 'lead_id', v_lead_id, 'event_id', v_event_id, 'duplicate', FALSE);
+EXCEPTION WHEN OTHERS THEN
+  -- Unexpected failure: log the error class only (no payload, no personal data)
+  INSERT INTO public.marketing_submission_log (ip_hash, form_id, outcome, error_code)
+  VALUES (v_ip_hash, v_form_id, 'server_error', SQLSTATE);
+  RETURN jsonb_build_object('ok', FALSE, 'error', 'server_error');
 END;
 $$;
 
@@ -260,7 +399,7 @@ REVOKE ALL ON FUNCTION public.submit_marketing_lead(JSONB) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.submit_marketing_lead(JSONB) TO anon, authenticated;
 
 -- -----------------------------------------------------------------------------
--- 5. Owner funnel-status RPC (records timestamped transition + event row)
+-- 7. Owner funnel-status RPC (records timestamped transition + event row)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.update_marketing_lead_status(
   p_lead_id UUID,
@@ -281,7 +420,16 @@ BEGIN
   IF NOT public.is_global_owner() THEN
     RAISE EXCEPTION 'not authorized' USING ERRCODE = '42501';
   END IF;
-  IF p_status = 'disqualified' AND p_disqual_reason IS NULL THEN
+  IF p_status IS NULL OR p_status NOT IN (
+    'new', 'contacted', 'qualified', 'disqualified',
+    'booked', 'consultation_paid', 'proposal_sent', 'won', 'lost'
+  ) THEN
+    RAISE EXCEPTION 'invalid status' USING ERRCODE = '22023';
+  END IF;
+  IF p_status = 'disqualified' AND (p_disqual_reason IS NULL OR p_disqual_reason NOT IN (
+    'wrong_country', 'wrong_business_type', 'no_budget', 'wrong_service',
+    'spam_duplicate', 'no_response', 'other'
+  )) THEN
     RAISE EXCEPTION 'disqual_reason is required for disqualified status' USING ERRCODE = '22023';
   END IF;
 
