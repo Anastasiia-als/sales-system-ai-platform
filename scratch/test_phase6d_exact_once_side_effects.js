@@ -12,7 +12,7 @@ function assert(condition, message) {
 }
 
 async function run() {
-    console.log("=== Starting Phase 6D.1.2 Exact-Once Side Effects, Downstream Tasks & Notifications Suite ===");
+    console.log("=== Starting Phase 6D.1.3 Exact-Once Side Effects & Notification Cardinality Suite ===");
     let exitCode = 0;
     const createdOrgIds = [];
     const createdProjectIds = [];
@@ -25,7 +25,7 @@ async function run() {
         const ownerId = ownerRes.rows[0].id;
 
         // Setup Org & Project
-        const orgRes = await pool.query("INSERT INTO public.organizations (name, status) VALUES ('Org Exact Once Side Effects', 'active') RETURNING id");
+        const orgRes = await pool.query("INSERT INTO public.organizations (name, status) VALUES ('Org Exact Once Cardinality', 'active') RETURNING id");
         const orgId = orgRes.rows[0].id;
         createdOrgIds.push(orgId);
 
@@ -75,7 +75,9 @@ async function run() {
         // ==========================================
         // Scenario A: Parallel Public Submissions Race
         // ==========================================
-        console.log("1. Executing Scenario A: Concurrent Public Link Submissions Race...");
+        console.log("\n==========================================");
+        console.log("1. Executing Scenario A: Concurrent Public Link Submissions Race (Promise.all([public, public]))...");
+        console.log("==========================================");
         const t1Res = await pool.query(
             "INSERT INTO public.tasks (organization_id, project_id, title, status, responsibility_type, is_client_visible) VALUES ($1, $2, 'Scenario A Public Race Action', 'todo', 'client', true) RETURNING id",
             [orgId, projectId]
@@ -122,22 +124,34 @@ async function run() {
             "SELECT id FROM public.tasks WHERE project_id = $1 AND title = 'Verify Client Submission Assets' AND created_at >= $2",
             [projectId, eventsA.rows[0].evaluated_at]
         );
-        assert(createdFollowupTasksA.rows.length === 1, `Scenario A: downstream automation-created tasks = exactly expected once`);
+        assert(createdFollowupTasksA.rows.length === 1, `Scenario A: downstream automation-created tasks = exactly expected once (Found: ${createdFollowupTasksA.rows.length})`);
         assert(createdFollowupTasksA.rows.length - 1 === 0, `Scenario A: duplicate downstream tasks = 0`);
         createdFollowupTasksA.rows.forEach(r => createdTaskIds.push(r.id));
 
-        const ownerNotifA = await pool.query(
-            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
-            [projectId, task1Id, ownerId]
+        // Persisted Notifications Breakdown for Scenario A
+        const allNotifsA = await pool.query(
+            "SELECT id, recipient_user_id, event_type, entity_id, project_id, created_at, dedupe_key FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed'",
+            [projectId, task1Id]
         );
-        assert(ownerNotifA.rows.length === 1, `Scenario A: completion notifications = exactly expected once (Owner count: ${ownerNotifA.rows.length})`);
-        assert(ownerNotifA.rows.length - 1 === 0, `Scenario A: duplicate completion notifications = 0`);
+        console.log("Scenario A Persisted Notification Records:", allNotifsA.rows.map(r => ({
+            id: r.id,
+            event_type: r.event_type,
+            recipient_role: r.recipient_user_id === ownerId ? 'Owner' : (r.recipient_user_id === pmUserId ? 'PM' : 'Unknown'),
+            task_id: r.entity_id,
+            project_id: r.project_id,
+            created_at: r.created_at
+        })));
 
-        const pmNotifA = await pool.query(
-            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
-            [projectId, task1Id, pmUserId]
-        );
-        assert(pmNotifA.rows.length === 1, `Scenario A: PM completion notification = 1 (Found: ${pmNotifA.rows.length})`);
+        assert(allNotifsA.rows.length === 2, `Scenario A: persisted notification rows = 2 (Found: ${allNotifsA.rows.length})`);
+
+        const ownerNotifsA = allNotifsA.rows.filter(r => r.recipient_user_id === ownerId);
+        assert(ownerNotifsA.length === 1, `Scenario A: Owner recipient notifications = 1 (Found: ${ownerNotifsA.length})`);
+
+        const pmNotifsA = allNotifsA.rows.filter(r => r.recipient_user_id === pmUserId);
+        assert(pmNotifsA.length === 1, `Scenario A: PM recipient notifications = 1 (Found: ${pmNotifsA.length})`);
+
+        assert(ownerNotifsA.length - 1 === 0, "Scenario A: duplicate Owner notifications = 0");
+        assert(pmNotifsA.length - 1 === 0, "Scenario A: duplicate PM notifications = 0");
 
         const activeTokensA = await pool.query("SELECT COUNT(*) as c FROM public.client_action_tokens WHERE task_id = $1 AND status = 'active'", [task1Id]);
         assert(parseInt(activeTokensA.rows[0].c, 10) === 0, "Scenario A: active tokens after completion = 0");
@@ -145,7 +159,9 @@ async function run() {
         // ==========================================
         // Scenario B: Cross-Channel Concurrent Race (Public vs Authenticated)
         // ==========================================
-        console.log("2. Executing Scenario B: Cross-Channel Concurrent Race (Public vs Auth)...");
+        console.log("\n==========================================");
+        console.log("2. Executing Scenario B: Cross-Channel Concurrent Race (Promise.all([public, auth]))...");
+        console.log("==========================================");
         const t2Res = await pool.query(
             "INSERT INTO public.tasks (organization_id, project_id, title, status, responsibility_type, is_client_visible, client_contact_id) VALUES ($1, $2, 'Scenario B Cross-Channel Action', 'todo', 'client', true, $3) RETURNING id",
             [orgId, projectId, contactId]
@@ -195,27 +211,39 @@ async function run() {
             "SELECT id FROM public.tasks WHERE project_id = $1 AND title = 'Verify Client Submission Assets' AND created_at >= $2",
             [projectId, eventsB.rows[0].evaluated_at]
         );
-        assert(createdFollowupTasksB.rows.length === 1, `Scenario B: downstream automation-created tasks = exactly expected once`);
+        assert(createdFollowupTasksB.rows.length === 1, `Scenario B: downstream automation-created tasks = exactly expected once (Found: ${createdFollowupTasksB.rows.length})`);
         assert(createdFollowupTasksB.rows.length - 1 === 0, `Scenario B: duplicate downstream tasks = 0`);
         createdFollowupTasksB.rows.forEach(r => createdTaskIds.push(r.id));
 
-        const ownerNotifB = await pool.query(
-            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
-            [projectId, task2Id, ownerId]
+        // Persisted Notifications Breakdown for Scenario B
+        const allNotifsB = await pool.query(
+            "SELECT id, recipient_user_id, event_type, entity_id, project_id, created_at, dedupe_key FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed'",
+            [projectId, task2Id]
         );
-        assert(ownerNotifB.rows.length === 1, `Scenario B: completion notifications = exactly expected once (Owner count: ${ownerNotifB.rows.length})`);
-        assert(ownerNotifB.rows.length - 1 === 0, `Scenario B: duplicate completion notifications = 0`);
+        console.log("Scenario B Persisted Notification Records:", allNotifsB.rows.map(r => ({
+            id: r.id,
+            event_type: r.event_type,
+            recipient_role: r.recipient_user_id === ownerId ? 'Owner' : (r.recipient_user_id === pmUserId ? 'PM' : 'Unknown'),
+            task_id: r.entity_id,
+            project_id: r.project_id,
+            created_at: r.created_at
+        })));
 
-        const pmNotifB = await pool.query(
-            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
-            [projectId, task2Id, pmUserId]
-        );
-        assert(pmNotifB.rows.length === 1, `Scenario B: PM completion notification = 1 (Found: ${pmNotifB.rows.length})`);
+        assert(allNotifsB.rows.length === 2, `Scenario B: persisted notification rows = 2 (Found: ${allNotifsB.rows.length})`);
+
+        const ownerNotifsB = allNotifsB.rows.filter(r => r.recipient_user_id === ownerId);
+        assert(ownerNotifsB.length === 1, `Scenario B: Owner recipient notifications = 1 (Found: ${ownerNotifsB.length})`);
+
+        const pmNotifsB = allNotifsB.rows.filter(r => r.recipient_user_id === pmUserId);
+        assert(pmNotifsB.length === 1, `Scenario B: PM recipient notifications = 1 (Found: ${pmNotifsB.length})`);
+
+        assert(ownerNotifsB.length - 1 === 0, "Scenario B: duplicate Owner notifications = 0");
+        assert(pmNotifsB.length - 1 === 0, "Scenario B: duplicate PM notifications = 0");
 
         const activeTokensB = await pool.query("SELECT COUNT(*) as c FROM public.client_action_tokens WHERE task_id = $1 AND status = 'active'", [task2Id]);
         assert(parseInt(activeTokensB.rows[0].c, 10) === 0, "Scenario B: active tokens after completion = 0");
 
-        console.log("PASS: Phase 6D.1.2 Exact-Once Side Effects, Downstream Tasks & Notifications Suite passed 100%!");
+        console.log("\nPASS: Phase 6D.1.3 Exact-Once Side Effects & Notification Cardinality Suite passed 100%!");
     } catch(e) {
         console.error("FATAL ERROR in Exact-Once Suite:", e);
         exitCode = 1;
