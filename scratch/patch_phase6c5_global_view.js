@@ -1,4 +1,6 @@
-import { DataClient } from "../api/data-client.js";
+const fs = require('fs');
+
+const globalViewContent = `import { DataClient } from "../api/data-client.js";
 import { getSupabase } from "../api/supabase-client.js";
 import { PortalAuth } from "../auth/auth-service.js";
 import { openRuleBuilderModal, TRIGGER_REGISTRY, FIELD_DEFINITIONS, ACTION_DEFINITIONS } from "./portal-rule-builder-ui.js";
@@ -24,7 +26,7 @@ function escapeHtmlAttr(str) {
 }
 
 export function renderGlobalAutomationView() {
-    return `
+    return \`
         <div class="portal-content">
             <div class="portal-view-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="portal-view-title-group">
@@ -107,7 +109,7 @@ export function renderGlobalAutomationView() {
                 </div>
             </div>
         </div>
-    `;
+    \`;
 }
 
 export async function initGlobalAutomationEvents() {
@@ -134,13 +136,13 @@ export async function loadGlobalAutomationData() {
     
     const rulesList = document.getElementById("global-automation-list");
     const logsList = document.getElementById("global-execution-list");
-    if (rulesList) rulesList.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 24px;"><div class="portal-spinner" style="margin: 0 auto;"></div></td></tr>`;
-    if (logsList) logsList.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 24px;"><div class="portal-spinner" style="margin: 0 auto;"></div></td></tr>`;
+    if (rulesList) rulesList.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding: 24px;"><div class="portal-spinner" style="margin: 0 auto;"></div></td></tr>\`;
+    if (logsList) logsList.innerHTML = \`<tr><td colspan="6" style="text-align:center; padding: 24px;"><div class="portal-spinner" style="margin: 0 auto;"></div></td></tr>\`;
 
     try {
         const { data: rules, error: rulesErr } = await supabase
             .from('automation_rules')
-            .select(`id, name, project_id, template_id, trigger_event, conditions, is_active, actions, created_at, projects(name), project_templates(name)`)
+            .select(\`id, name, project_id, template_id, trigger_event, conditions, is_active, actions, created_at, projects(name), project_templates(name)\`)
             .order('created_at', { ascending: false });
             
         if (rulesErr) {
@@ -152,7 +154,7 @@ export async function loadGlobalAutomationData() {
         
         const { data: logs, error: logsErr } = await supabase
             .from('automation_execution_events')
-            .select(`id, rule_id, project_id, trigger_event, result, error_summary, evaluated_at, automation_rules(name), projects(name)`)
+            .select(\`id, rule_id, project_id, trigger_event, result, error_summary, evaluated_at, automation_rules(name), projects(name)\`)
             .order('evaluated_at', { ascending: false })
             .limit(50);
             
@@ -162,11 +164,11 @@ export async function loadGlobalAutomationData() {
     } catch (e) {
         console.error("Failed to load global automation:", e);
         if (e.message === '403') {
-            if(rulesList) rulesList.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 24px;"><div class="portal-empty-title" style="color:var(--color-danger);"><i data-lucide="shield-alert"></i> У вас немає доступу до цих правил</div></td></tr>`;
-            if(logsList) logsList.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 24px;"><div class="portal-empty-title" style="color:var(--color-danger);"><i data-lucide="shield-alert"></i> Доступ обмежено</div></td></tr>`;
+            if(rulesList) rulesList.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding: 24px;"><div class="portal-empty-title" style="color:var(--color-danger);"><i data-lucide="shield-alert"></i> У вас немає доступу до цих правил</div></td></tr>\`;
+            if(logsList) logsList.innerHTML = \`<tr><td colspan="6" style="text-align:center; padding: 24px;"><div class="portal-empty-title" style="color:var(--color-danger);"><i data-lucide="shield-alert"></i> Доступ обмежено</div></td></tr>\`;
         } else {
-            if(rulesList) rulesList.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 24px; color:var(--color-danger);">Помилка завантаження правил: ${e.message}</td></tr>`;
-            if(logsList) logsList.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 24px; color:var(--color-danger);">Помилка завантаження логів: ${e.message}</td></tr>`;
+            if(rulesList) rulesList.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding: 24px; color:var(--color-danger);">Помилка завантаження правил: \${e.message}</td></tr>\`;
+            if(logsList) logsList.innerHTML = \`<tr><td colspan="6" style="text-align:center; padding: 24px; color:var(--color-danger);">Помилка завантаження логів: \${e.message}</td></tr>\`;
         }
     } finally {
         if (window.lucide) window.lucide.createIcons();
@@ -195,7 +197,7 @@ function filterGlobalRules() {
 
 function formatConditionsSummary(conditions) {
     if (!Array.isArray(conditions) || conditions.length === 0) {
-        return `<span style="color: #64748B; font-size: 12px; font-style: italic;">Завжди</span>`;
+        return \`<span style="color: #64748B; font-size: 12px; font-style: italic;">Завжди</span>\`;
     }
     const items = conditions.map(c => {
         const fieldDef = FIELD_DEFINITIONS[c.field];
@@ -228,21 +230,21 @@ function formatConditionsSummary(conditions) {
             else if (c.value === "red") valLabel = "🔴 Критичний";
         }
         
-        return `${fieldLabel} ${opSymbol} ${valLabel}`;
+        return \`\${fieldLabel} \${opSymbol} \${valLabel}\`;
     });
     
     const fullText = items.join(' ТА ');
     const escapedFullText = escapeHtmlAttr(fullText);
     
     if (items.length === 1) {
-        return `<span class="portal-table-chip" style="font-size: 12px; color: #94A3B8; background: #141C31; border: 1px solid rgba(148,163,184,0.15); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="${escapedFullText}">${items[0]}</span>`;
+        return \`<span class="portal-table-chip" style="font-size: 12px; color: #94A3B8; background: #141C31; border: 1px solid rgba(148,163,184,0.15); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="\${escapedFullText}">\${items[0]}</span>\`;
     }
-    return `<span class="portal-table-chip" style="font-size: 12px; color: #94A3B8; background: #141C31; border: 1px solid rgba(148,163,184,0.15); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="${escapedFullText}">${items.length} умови: ${items[0]}...</span>`;
+    return \`<span class="portal-table-chip" style="font-size: 12px; color: #94A3B8; background: #141C31; border: 1px solid rgba(148,163,184,0.15); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="\${escapedFullText}">\${items.length} умови: \${items[0]}...</span>\`;
 }
 
 function formatActionsSummary(actions) {
     if (!Array.isArray(actions) || actions.length === 0) {
-        return `<span style="color: #EF4444; font-size: 12px; font-style: italic;">Немає дій</span>`;
+        return \`<span style="color: #EF4444; font-size: 12px; font-style: italic;">Немає дій</span>\`;
     }
     const items = actions.map(a => {
         const type = a.type || "create_task";
@@ -251,42 +253,42 @@ function formatActionsSummary(actions) {
         
         if (type === "notify_owner") {
             const title = a.title || a.payload?.title;
-            return title ? `Сповістити власника / PM — ${title}` : `Сповістити власника / PM`;
+            return title ? \`Сповістити власника / PM — \${title}\` : \`Сповістити власника / PM\`;
         } else if (type === "create_task") {
             const title = a.title || a.payload?.title;
-            return title ? `Створити завдання: "${title}"` : `Створити завдання для команди`;
+            return title ? \`Створити завдання: "\${title}"\` : \`Створити завдання для команди\`;
         } else if (type === "create_client_action") {
             const title = a.title || a.payload?.title;
-            return title ? `Створити дію для клієнта: "${title}"` : `Створити дію для клієнта`;
+            return title ? \`Створити дію для клієнта: "\${title}"\` : \`Створити дію для клієнта\`;
         } else if (type === "start_stage") {
             const name = a.target_name || a.payload?.target_name;
-            return name ? `Розпочати етап: "${name}"` : `Розпочати етап проєкту`;
+            return name ? \`Розпочати етап: "\${name}"\` : \`Розпочати етап проєкту\`;
         } else if (type === "complete_stage") {
             const name = a.target_name || a.payload?.target_name;
-            return name ? `Завершити етап: "${name}"` : `Завершити етап проєкту`;
+            return name ? \`Завершити етап: "\${name}"\` : \`Завершити етап проєкту\`;
         } else if (type === "update_project_health") {
             const health = a.health || a.payload?.health;
             let healthLabel = health;
             if (health === "green") healthLabel = "🟢 Здоровий";
             else if (health === "yellow") healthLabel = "🟡 Під ризиком";
             else if (health === "red") healthLabel = "🔴 Критичний";
-            return healthLabel ? `Оновити стан проєкту: ${healthLabel}` : `Оновити стан здоров'я проєкту`;
+            return healthLabel ? \`Оновити стан проєкту: \${healthLabel}\` : \`Оновити стан здоров'я проєкту\`;
         } else if (type === "webhook") {
             const url = a.url || a.payload?.url;
-            return url ? `Вебхук: ${url}` : `Надіслати вебхук (Інтеграція)`;
+            return url ? \`Вебхук: \${url}\` : \`Надіслати вебхук (Інтеграція)\`;
         }
         
         const title = a.title || a.target_name || a.payload?.title || a.payload?.target_name || "";
-        return title ? `${actLabel}: "${title}"` : actLabel;
+        return title ? \`\${actLabel}: "\${title}"\` : actLabel;
     });
     
     const fullText = items.join('; ');
     const escapedFullText = escapeHtmlAttr(fullText);
     
     if (items.length === 1) {
-        return `<span class="portal-table-chip" style="font-size: 12px; color: #60A5FA; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="${escapedFullText}">${items[0]}</span>`;
+        return \`<span class="portal-table-chip" style="font-size: 12px; color: #60A5FA; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="\${escapedFullText}">\${items[0]}</span>\`;
     }
-    return `<span class="portal-table-chip" style="font-size: 12px; color: #60A5FA; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="${escapedFullText}">${items.length} дії: ${items[0]}...</span>`;
+    return \`<span class="portal-table-chip" style="font-size: 12px; color: #60A5FA; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;" title="\${escapedFullText}">\${items.length} дії: \${items[0]}...</span>\`;
 }
 
 function renderGlobalRulesTable(rules) {
@@ -294,7 +296,7 @@ function renderGlobalRulesTable(rules) {
     if (!tbody) return;
     
     if (rules.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 24px; color: #94A3B8;">Правил не знайдено</td></tr>`;
+        tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding: 24px; color: #94A3B8;">Правил не знайдено</td></tr>\`;
         return;
     }
     
@@ -302,33 +304,33 @@ function renderGlobalRulesTable(rules) {
     for (const r of rules) {
         let scopeLabel = "Глобально";
         if (r.project_id) {
-            scopeLabel = r.projects?.name ? `<span class="portal-badge portal-badge-info" style="color:#0369a1; background:#e0f2fe;">Проєкт: ${r.projects.name}</span>` : `<span class="portal-badge portal-badge-danger" style="color:#b91c1c; background:#fee2e2;">Проєкт видалено</span>`;
+            scopeLabel = r.projects?.name ? \`<span class="portal-badge portal-badge-info" style="color:#0369a1; background:#e0f2fe;">Проєкт: \${r.projects.name}</span>\` : \`<span class="portal-badge portal-badge-danger" style="color:#b91c1c; background:#fee2e2;">Проєкт видалено</span>\`;
         } else if (r.template_id) {
-            scopeLabel = r.project_templates?.name ? `<span class="portal-badge portal-badge-primary" style="color:#4338ca; background:#e0e7ff;">Шаблон: ${r.project_templates.name}</span>` : `<span class="portal-badge portal-badge-danger" style="color:#b91c1c; background:#fee2e2;">Шаблон видалено</span>`;
+            scopeLabel = r.project_templates?.name ? \`<span class="portal-badge portal-badge-primary" style="color:#4338ca; background:#e0e7ff;">Шаблон: \${r.project_templates.name}</span>\` : \`<span class="portal-badge portal-badge-danger" style="color:#b91c1c; background:#fee2e2;">Шаблон видалено</span>\`;
         }
             
         const activeBadge = r.is_active ? 
-            `<span class="portal-badge portal-badge-success" style="color:#15803d; background:#dcfce7;">Активне</span>` : 
-            `<span class="portal-badge portal-badge-warning" style="color:#b45309; background:#fef3c7;">Неактивне</span>`;
+            \`<span class="portal-badge portal-badge-success" style="color:#15803d; background:#dcfce7;">Активне</span>\` : 
+            \`<span class="portal-badge portal-badge-warning" style="color:#b45309; background:#fef3c7;">Неактивне</span>\`;
             
         const condSummary = formatConditionsSummary(r.conditions);
         const actSummary = formatActionsSummary(r.actions);
         
         const triggerLoc = TRIGGER_REGISTRY[r.trigger_event]?.label || dict[r.trigger_event] || r.trigger_event;
         
-        html += `
+        html += \`
             <tr>
-                <td style="font-weight: 600; color: #F8FAFC;">${r.name || 'Безіменне правило'}</td>
-                <td>${scopeLabel}</td>
-                <td><code style="background:#141C31; color:#F8FAFC; border: 1px solid rgba(148, 163, 184, 0.15); padding:3px 8px; border-radius:4px; font-size:12px;">${triggerLoc}</code></td>
-                <td>${condSummary}</td>
-                <td>${actSummary}</td>
-                <td>${activeBadge}</td>
+                <td style="font-weight: 600; color: #F8FAFC;">\${r.name || 'Безіменне правило'}</td>
+                <td>\${scopeLabel}</td>
+                <td><code style="background:#141C31; color:#F8FAFC; border: 1px solid rgba(148, 163, 184, 0.15); padding:3px 8px; border-radius:4px; font-size:12px;">\${triggerLoc}</code></td>
+                <td>\${condSummary}</td>
+                <td>\${actSummary}</td>
+                <td>\${activeBadge}</td>
                 <td style="text-align:right;">
-                    <button class="btn btn-sm btn-outline btn-edit-rule" data-id="${r.id}"><i data-lucide="edit-2"></i> Редагувати</button>
+                    <button class="btn btn-sm btn-outline btn-edit-rule" data-id="\${r.id}"><i data-lucide="edit-2"></i> Редагувати</button>
                 </td>
             </tr>
-        `;
+        \`;
     }
     tbody.innerHTML = html;
     if (window.lucide) window.lucide.createIcons();
@@ -346,7 +348,7 @@ function renderGlobalLogsTable(logs) {
     if (!tbody) return;
     
     if (logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 24px; color: #94A3B8;">Журнал виконань порожній</td></tr>`;
+        tbody.innerHTML = \`<tr><td colspan="6" style="text-align:center; padding: 24px; color: #94A3B8;">Журнал виконань порожній</td></tr>\`;
         return;
     }
     
@@ -354,30 +356,34 @@ function renderGlobalLogsTable(logs) {
     for (const l of logs) {
         const timeStr = new Date(l.evaluated_at).toLocaleString('uk-UA');
         const statusBadge = l.result === "success" ? 
-            `<span class="portal-badge portal-badge-success" style="color:#15803d; background:#dcfce7;">Успішно</span>` : 
+            \`<span class="portal-badge portal-badge-success" style="color:#15803d; background:#dcfce7;">Успішно</span>\` : 
             (l.result === "condition_not_met" ?
-                `<span class="portal-badge portal-badge-secondary" style="color:#64748B; background:#1E293B;">Умови не зійшлися</span>` :
-                `<span class="portal-badge portal-badge-danger" style="color:#b91c1c; background:#fee2e2;">Помилка</span>`
+                \`<span class="portal-badge portal-badge-secondary" style="color:#64748B; background:#1E293B;">Умови не зійшлися</span>\` :
+                \`<span class="portal-badge portal-badge-danger" style="color:#b91c1c; background:#fee2e2;">Помилка</span>\`
             );
             
         const triggerLoc = TRIGGER_REGISTRY[l.trigger_event]?.label || dict[l.trigger_event] || l.trigger_event;
         const actCount = Array.isArray(l.actions_completed) ? l.actions_completed.length : 0;
         
-        const ruleName = l.automation_rules?.name || `<span style="color:#94A3B8; font-size:11px;">Видалено (${l.rule_id ? l.rule_id.substring(0,8) + '...' : '—'})</span>`;
-        const scopeLabel = l.projects?.name ? `Проєкт: ${l.projects.name}` : (l.project_id ? "Видалений проєкт" : "Глобально");
+        const ruleName = l.automation_rules?.name || \`<span style="color:#94A3B8; font-size:11px;">Видалено (\${l.rule_id ? l.rule_id.substring(0,8) + '...' : '—'})</span>\`;
+        const scopeLabel = l.projects?.name ? \`Проєкт: \${l.projects.name}\` : (l.project_id ? "Видалений проєкт" : "Глобально");
         
-        html += `
+        html += \`
             <tr>
-                <td style="white-space:nowrap; font-size:13px; color:#94A3B8;">${timeStr}</td>
-                <td><strong>${ruleName}</strong></td>
-                <td><span style="font-size:12px; color:#94A3B8;">${scopeLabel}</span></td>
-                <td><code style="font-size:12px; background:#141C31; color:#F8FAFC; border: 1px solid rgba(148, 163, 184, 0.15); padding:2px 6px; border-radius:4px;">${triggerLoc}</code></td>
-                <td>${statusBadge} <span style="font-size:11px; color:#94a3b8; margin-left:4px;">(${actCount} дій)</span></td>
+                <td style="white-space:nowrap; font-size:13px; color:#94A3B8;">\${timeStr}</td>
+                <td><strong>\${ruleName}</strong></td>
+                <td><span style="font-size:12px; color:#94A3B8;">\${scopeLabel}</span></td>
+                <td><code style="font-size:12px; background:#141C31; color:#F8FAFC; border: 1px solid rgba(148, 163, 184, 0.15); padding:2px 6px; border-radius:4px;">\${triggerLoc}</code></td>
+                <td>\${statusBadge} <span style="font-size:11px; color:#94a3b8; margin-left:4px;">(\${actCount} дій)</span></td>
                 <td style="font-size:12px;">
-                    ${l.result === 'failed' ? `<div style="color:#ef4444; max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${l.error_summary || 'Unknown'}">${l.error_summary || 'Помилка виконання'}</div>` : (l.result === 'condition_not_met' ? `<div style="color:#94A3B8;">Умови не виконано</div>` : `<div style="color:#10b981;">Успішне завершення</div>`)}
+                    \${l.result === 'failed' ? \`<div style="color:#ef4444; max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="\${l.error_summary || 'Unknown'}">\${l.error_summary || 'Помилка виконання'}</div>\` : (l.result === 'condition_not_met' ? \`<div style="color:#94A3B8;">Умови не виконано</div>\` : \`<div style="color:#10b981;">Успішне завершення</div>\`)}
                 </td>
             </tr>
-        `;
+        \`;
     }
     tbody.innerHTML = html;
 }
+`;
+
+fs.writeFileSync('js/portal/ui/portal-global-automation-view.js', globalViewContent, 'utf8');
+console.log("Wrote updated portal-global-automation-view.js with escaped tooltips");
