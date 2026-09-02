@@ -11,4 +11,5 @@
 - [x] **Phase 5D**: Executive Analytics, Delivery Performance, Financial Insights, Reports & Saved Views.
 - [x] **Phase 6A**: Project Templates, Delivery Playbooks & One-Click Project Creation
 - [x] **Phase 6B**: Template Cloning & Advanced Delivery Orchestration
-- [x] **Phase 6C**: Advanced Process Automation & API Hooks
+- [x] **Phase 6C**: Advanced Process Automation & API Hooks (CLOSED / Approved)
+- [ ] **Phase 6D**: Client Action Portal & Public Submissions (Upcoming)
