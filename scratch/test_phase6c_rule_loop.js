@@ -1,7 +1,4 @@
-const fs = require('fs');
-const cp = require('child_process');
 const { Pool } = require('pg');
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
 });
@@ -9,6 +6,8 @@ const pool = new Pool({
 async function run() {
     console.log("Starting Phase 6C Rule Engine Infinite Loop Protection Test...");
     let exitCode = 0;
+    const createdRuleIds = [];
+    const createdProjectIds = [];
     try {
         const orgRes = await pool.query(`SELECT id FROM public.organizations LIMIT 1`);
         const orgId = orgRes.rows[0].id;
@@ -18,6 +17,7 @@ async function run() {
             VALUES ($1, 'Loop Protection Test Project', 'active') RETURNING id
         `, [orgId]);
         const projectId = pRes.rows[0].id;
+        createdProjectIds.push(projectId);
 
         const st1Res = await pool.query(`
             INSERT INTO public.project_stages (project_id, organization_id, name, sort_order, status)
@@ -29,10 +29,8 @@ async function run() {
             INSERT INTO public.project_stages (project_id, organization_id, name, sort_order, status)
             VALUES ($1, $2, 'Stage 2', 2, 'not_started') RETURNING id
         `, [projectId, orgId]);
-        const stage2Id = st2Res.rows[0].id;
 
-        // Rule 1: When Stage 1 is completed -> Start Stage 2
-        await pool.query(`
+        const r1Res = await pool.query(`
             INSERT INTO public.automation_rules (
                 organization_id, project_id, name, trigger_event, conditions, actions, is_active
             ) VALUES (
@@ -40,12 +38,11 @@ async function run() {
                 '[{"field": "name", "operator": "eq", "value": "Stage 1"}]'::jsonb,
                 '[{"type": "start_stage", "target_name": "Stage 2"}]'::jsonb,
                 true
-            )
+            ) RETURNING id
         `, [orgId, projectId]);
+        createdRuleIds.push(r1Res.rows[0].id);
 
-        // Rule 2: When Stage 2 is started -> Complete Stage 1 (Oops, loop!)
-        // Wait, completing Stage 1 triggers Rule 1.
-        await pool.query(`
+        const r2Res = await pool.query(`
             INSERT INTO public.automation_rules (
                 organization_id, project_id, name, trigger_event, conditions, actions, is_active
             ) VALUES (
@@ -53,34 +50,38 @@ async function run() {
                 '[{"field": "name", "operator": "eq", "value": "Stage 2"}]'::jsonb,
                 '[{"type": "complete_stage", "target_name": "Stage 1"}]'::jsonb,
                 true
-            )
+            ) RETURNING id
         `, [orgId, projectId]);
+        createdRuleIds.push(r2Res.rows[0].id);
 
         console.log("Triggering the loop...");
-        // Complete Stage 1 manually to kick off the loop.
-        // Stage 1 completed -> Starts Stage 2 -> Stage 2 started -> Completes Stage 1 -> Starts Stage 2...
-        // But since we have v_depth > 5 check, AND idempotency, it should safely terminate.
-        
         await pool.query(`SELECT public.workflow_transition_stage($1, 'completed')`, [stage1Id]);
         
-        console.log("?\" PASS: Transaction did not hang, loop was broken safely.");
+        console.log("PASS: Transaction did not hang, loop was broken safely.");
 
     } catch (e) {
         if (e.message.includes('stack depth limit exceeded')) {
-            console.error("?? FAIL: Postgres stack overflowed! Loop protection did not work.");
+            console.error("FAIL: Postgres stack overflowed! Loop protection did not work.");
             exitCode = 1;
         } else {
-            // Check if it's our own custom abort, wait, in evaluate_automation_rules I just have RAISE WARNING and RETURN, not RAISE EXCEPTION. So it should not throw an error here, it should just succeed.
-            console.log("?\" PASS (with warning exception):", e.message);
+            console.log("PASS (with warning exception):", e.message);
         }
     } finally {
         try {
             await pool.query("SET session_replication_role = 'replica';");
-            await pool.query("DELETE FROM automation_execution_events WHERE rule_id IN (SELECT id FROM automation_rules WHERE name ILIKE '%Test%' OR name ILIKE '%Loop%' OR name ILIKE '%Auto%' OR name ILIKE '%SLA%' OR name ILIKE '%Escalation%') OR project_id IN (SELECT id FROM projects WHERE name ILIKE '%Test%' OR name ILIKE '%Rule%' OR name ILIKE '%Loop%' OR name ILIKE '%SLA%');");
-            await pool.query("DELETE FROM automation_rules WHERE name ILIKE '%Test%' OR name ILIKE '%Loop%' OR name ILIKE '%Auto%' OR name ILIKE '%SLA%' OR name ILIKE '%Escalation%' OR name = 'Rule1' OR name = 'Rule2' OR name = 'Rule3';");
-            await pool.query("DELETE FROM projects WHERE name ILIKE '%Test%' OR name ILIKE '%Rule%' OR name ILIKE '%Loop%' OR name ILIKE '%SLA%';");
+            if (createdRuleIds.length > 0) {
+                await pool.query("DELETE FROM public.automation_execution_events WHERE rule_id = ANY($1::uuid[])", [createdRuleIds]);
+                await pool.query("DELETE FROM public.automation_rules WHERE id = ANY($1::uuid[])", [createdRuleIds]);
+            }
+            if (createdProjectIds.length > 0) {
+                await pool.query("DELETE FROM public.automation_execution_events WHERE project_id = ANY($1::uuid[])", [createdProjectIds]);
+                await pool.query("DELETE FROM public.project_stages WHERE project_id = ANY($1::uuid[])", [createdProjectIds]);
+                await pool.query("DELETE FROM public.projects WHERE id = ANY($1::uuid[])", [createdProjectIds]);
+            }
             await pool.query("SET session_replication_role = 'origin';");
-        } catch(e) {}
+        } catch(e) {
+            console.error("Cleanup error:", e);
+        }
 
         pool.end();
         process.exit(exitCode);

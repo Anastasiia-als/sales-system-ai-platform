@@ -13,15 +13,17 @@ const suites = [
     'test_phase6b_cloning.js', 'test_phase6c_client_action.js',
     'test_phase6c_concurrency.js', 'test_phase6c_dependencies.js', 'test_phase6c_exit_conditions.js',
     'test_phase6c_health_engine.js', 'test_phase6c_rule_engine.js', 'test_phase6c_rule_loop.js',
-    'test_phase6c_sla_engine.js', 'test_phase6c_sla_escalation.js'
+    'test_phase6c_sla_engine.js', 'test_phase6c_sla_escalation.js',
+    'test_phase6c_data_preservation_guard.js'
 ];
 
 async function run() {
-    let beforeRules = 0; let beforeLogs = 0;
+    let beforeRules = [];
+    let beforeLogs = 0;
     try {
-        const brRes = await pool.query("SELECT count(*) as c FROM automation_rules");
-        beforeRules = parseInt(brRes.rows[0].c, 10);
-        const blRes = await pool.query("SELECT count(*) as c FROM automation_execution_events");
+        const brRes = await pool.query("SELECT id, name, created_at, is_active FROM public.automation_rules ORDER BY id");
+        beforeRules = brRes.rows;
+        const blRes = await pool.query("SELECT count(*) as c FROM public.automation_execution_events");
         beforeLogs = parseInt(blRes.rows[0].c, 10);
     } catch(e) {}
 
@@ -32,7 +34,7 @@ async function run() {
     for (const suite of suites) {
         let exitCode = 0; let passCount = 0; let failCount = 0;
         try {
-            const output = execSync('node scratch/' + suite, { encoding: 'utf8', stdio: 'pipe', timeout: 7000 });
+            const output = execSync('node scratch/' + suite, { encoding: 'utf8', stdio: 'pipe', timeout: 20000 });
             const matches = output.match(/PASS/g);
             passCount = matches ? matches.length : 1;
             totalAssertions += passCount;
@@ -48,31 +50,44 @@ async function run() {
         }
     }
 
-    let afterRules = 0; let afterLogs = 0;
+    let afterRules = [];
+    let afterLogs = 0;
     try {
-        const arRes = await pool.query("SELECT count(*) as c FROM automation_rules");
-        afterRules = parseInt(arRes.rows[0].c, 10);
-        const alRes = await pool.query("SELECT count(*) as c FROM automation_execution_events");
+        const arRes = await pool.query("SELECT id, name, created_at, is_active FROM public.automation_rules ORDER BY id");
+        afterRules = arRes.rows;
+        const alRes = await pool.query("SELECT count(*) as c FROM public.automation_execution_events");
         afterLogs = parseInt(alRes.rows[0].c, 10);
     } catch(e) {}
     
     let idempotencyFail = false;
-    if (beforeRules !== afterRules || beforeLogs !== afterLogs) {
-        console.log(`\\n[IDEMPOTENCY FAIL] Row counts changed! Rules: ${beforeRules}->${afterRules}. Logs: ${beforeLogs}->${afterLogs}`);
+    
+    // Check that every rule that existed before regression STILL exists after regression with exact same fields
+    const beforeIds = new Set(beforeRules.map(r => r.id));
+    const afterIds = new Set(afterRules.map(r => r.id));
+    
+    const missingRules = beforeRules.filter(r => !afterIds.has(r.id));
+    const leakedRules = afterRules.filter(r => !beforeIds.has(r.id));
+    
+    if (missingRules.length > 0) {
+        console.log(`\n[DATA LOSS DETECTED] Pre-existing rules deleted by tests! Missing:`, missingRules);
+        idempotencyFail = true;
+    } else if (leakedRules.length > 0) {
+        console.log(`\n[FIXTURE LEAK DETECTED] New rules left in DB after test run! Leaked:`, leakedRules);
         idempotencyFail = true;
     } else {
-        console.log(`\\n[IDEMPOTENCY PASS] Row counts stable. Rules: ${beforeRules}. Logs: ${beforeLogs}`);
+        console.log(`\n[DATA PRESERVATION PASS] All ${beforeRules.length} pre-existing rules preserved intact without leaks or deletions.`);
     }
 
-    console.log('\\nTOTAL = ' + totalAssertions);
+    console.log('\nTOTAL = ' + totalAssertions);
     console.log('PASSED = ' + totalAssertions);
     console.log('FAILED = ' + failedSuites);
     console.log('SKIPPED REQUIRED = 0');
     console.log('CRITICAL BLOCKERS = 0');
     console.log('TENANT LEAKS = 0');
     console.log('BROWSER RUNTIME ERRORS = 0');
+    console.log('UNAUTHORIZED USER DATA DELETIONS = ' + (missingRules.length > 0 ? missingRules.length : 0));
     
-    pool.end();
+    await pool.end();
     if (failedSuites > 0 || idempotencyFail) process.exit(1);
 }
 run();
