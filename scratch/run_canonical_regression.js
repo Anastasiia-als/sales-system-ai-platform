@@ -15,7 +15,7 @@ const suites = [
     'test_phase6c_health_engine.js', 'test_phase6c_rule_engine.js', 'test_phase6c_rule_loop.js',
     'test_phase6c_sla_engine.js', 'test_phase6c_sla_escalation.js',
     'test_phase6c_data_preservation_guard.js',
-    'test_phase6d_tokens.js', 'test_phase6d_lifecycle.js',
+    'test_phase6d_tokens.js', 'test_phase6d_leakage_evidence.js', 'test_phase6d_lifecycle.js',
     'test_phase6d_concurrency.js', 'test_phase6d_cross_channel.js',
     'test_phase6d_data_minimization.js', 'test_phase6d_tenant_invariant.js',
     'test_phase6d_rls_tokens.js', 'test_phase6d_client_isolation.js',

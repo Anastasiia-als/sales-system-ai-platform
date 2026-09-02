@@ -12,7 +12,7 @@ function assert(condition, message) {
 }
 
 async function run() {
-    console.log("=== Starting Phase 6D.1.1 Exact-Once Side Effects & Automation Execution Suite ===");
+    console.log("=== Starting Phase 6D.1.2 Exact-Once Side Effects, Downstream Tasks & Notifications Suite ===");
     let exitCode = 0;
     const createdOrgIds = [];
     const createdProjectIds = [];
@@ -29,15 +29,23 @@ async function run() {
         const orgId = orgRes.rows[0].id;
         createdOrgIds.push(orgId);
 
+        const pmUserRes = await pool.query(`INSERT INTO auth.users (id, email) VALUES (gen_random_uuid(), 'pm_exact_once_${Date.now()}@example.com') RETURNING id`);
+        const pmUserId = pmUserRes.rows[0].id;
+        createdUserIds.push(pmUserId);
+        await pool.query("UPDATE public.profiles SET global_role = 'specialist' WHERE id = $1", [pmUserId]);
+
         const pRes = await pool.query(
-            "INSERT INTO public.projects (organization_id, name, status, title) VALUES ($1, 'Exact Once Project', 'active', 'Exact Once Project') RETURNING id",
-            [orgId]
+            "INSERT INTO public.projects (organization_id, name, status, title, responsible_pm_id) VALUES ($1, 'Exact Once Project', 'active', 'Exact Once Project', $2) RETURNING id",
+            [orgId, pmUserId]
         );
         const projectId = pRes.rows[0].id;
         createdProjectIds.push(projectId);
 
+        await pool.query("INSERT INTO public.organization_memberships (organization_id, user_id, org_role, is_active) VALUES ($1, $2, 'pm', true)", [orgId, pmUserId]);
+        await pool.query("INSERT INTO public.project_memberships (project_id, user_id, project_role) VALUES ($1, $2, 'pm')", [projectId, pmUserId]);
+
         // Setup Client User
-        const userRes = await pool.query("INSERT INTO auth.users (id, email) VALUES (gen_random_uuid(), 'client_exact_once@example.com') RETURNING id");
+        const userRes = await pool.query(`INSERT INTO auth.users (id, email) VALUES (gen_random_uuid(), 'client_exact_once_${Date.now()}@example.com') RETURNING id`);
         const clientUserId = userRes.rows[0].id;
         createdUserIds.push(clientUserId);
         await pool.query("UPDATE public.profiles SET global_role = 'client' WHERE id = $1", [clientUserId]);
@@ -96,29 +104,43 @@ async function run() {
         const succA = resultsA.filter(r => r.status === 'fulfilled');
         const failA = resultsA.filter(r => r.status === 'rejected');
 
-        assert(succA.length === 1, "Scenario A: Exactly 1 public submission succeeded");
+        assert(succA.length === 1, "Scenario A: successful submissions = 1");
         assert(failA.length === 1, "Scenario A: Exactly 1 public submission rejected");
 
         // Assert Database State & Exact-Once Side Effects for Scenario A
         const subsA = await pool.query("SELECT * FROM public.task_submissions WHERE task_id = $1", [task1Id]);
-        assert(subsA.rows.length === 1, `Scenario A: Exactly 1 task_submissions row created (Found: ${subsA.rows.length})`);
+        assert(subsA.rows.length === 1, `Scenario A: task_submissions = 1 (Found: ${subsA.rows.length})`);
 
         const task1Check = await pool.query("SELECT status, completed_at FROM public.tasks WHERE id = $1", [task1Id]);
-        assert(task1Check.rows[0].status === 'done', "Scenario A: Task marked done");
+        assert(task1Check.rows[0].status === 'done', "Scenario A: task completion mutation = 1");
         assert(task1Check.rows[0].completed_at !== null, "Scenario A: Task completed_at set");
 
         const eventsA = await pool.query("SELECT * FROM public.automation_execution_events WHERE rule_id = $1 AND (matched_conditions->>'task_id') = $2", [ruleId, task1Id]);
-        assert(eventsA.rows.length === 1, `Scenario A: evaluate_automation_rules executed EXACTLY ONCE (Found: ${eventsA.rows.length})`);
+        assert(eventsA.rows.length === 1, `Scenario A: evaluate_automation_rules executions = 1 (Found: ${eventsA.rows.length})`);
 
         const createdFollowupTasksA = await pool.query(
             "SELECT id FROM public.tasks WHERE project_id = $1 AND title = 'Verify Client Submission Assets' AND created_at >= $2",
             [projectId, eventsA.rows[0].evaluated_at]
         );
-        assert(createdFollowupTasksA.rows.length === 1, `Scenario A: Exactly 1 downstream task created by automation rule (Duplicate tasks = 0)`);
+        assert(createdFollowupTasksA.rows.length === 1, `Scenario A: downstream automation-created tasks = exactly expected once`);
+        assert(createdFollowupTasksA.rows.length - 1 === 0, `Scenario A: duplicate downstream tasks = 0`);
         createdFollowupTasksA.rows.forEach(r => createdTaskIds.push(r.id));
 
+        const ownerNotifA = await pool.query(
+            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
+            [projectId, task1Id, ownerId]
+        );
+        assert(ownerNotifA.rows.length === 1, `Scenario A: completion notifications = exactly expected once (Owner count: ${ownerNotifA.rows.length})`);
+        assert(ownerNotifA.rows.length - 1 === 0, `Scenario A: duplicate completion notifications = 0`);
+
+        const pmNotifA = await pool.query(
+            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
+            [projectId, task1Id, pmUserId]
+        );
+        assert(pmNotifA.rows.length === 1, `Scenario A: PM completion notification = 1 (Found: ${pmNotifA.rows.length})`);
+
         const activeTokensA = await pool.query("SELECT COUNT(*) as c FROM public.client_action_tokens WHERE task_id = $1 AND status = 'active'", [task1Id]);
-        assert(parseInt(activeTokensA.rows[0].c, 10) === 0, "Scenario A: Active tokens after completion = 0");
+        assert(parseInt(activeTokensA.rows[0].c, 10) === 0, "Scenario A: active tokens after completion = 0");
 
         // ==========================================
         // Scenario B: Cross-Channel Concurrent Race (Public vs Authenticated)
@@ -156,36 +178,53 @@ async function run() {
         const succB = resultsB.filter(r => r.status === 'fulfilled');
         const failB = resultsB.filter(r => r.status === 'rejected');
 
-        assert(succB.length === 1, "Scenario B: Exactly 1 channel succeeded");
+        assert(succB.length === 1, "Scenario B: successful submissions = 1");
         assert(failB.length === 1, "Scenario B: Exactly 1 channel rejected");
 
         // Assert Database State & Exact-Once Side Effects for Scenario B
         const subsB = await pool.query("SELECT * FROM public.task_submissions WHERE task_id = $1", [task2Id]);
-        assert(subsB.rows.length === 1, `Scenario B: Exactly 1 task_submissions row created (Found: ${subsB.rows.length})`);
+        assert(subsB.rows.length === 1, `Scenario B: task_submissions = 1 (Found: ${subsB.rows.length})`);
 
         const task2Check = await pool.query("SELECT status, completed_at FROM public.tasks WHERE id = $1", [task2Id]);
-        assert(task2Check.rows[0].status === 'done', "Scenario B: Task marked done");
+        assert(task2Check.rows[0].status === 'done', "Scenario B: task completion mutation = 1");
 
         const eventsB = await pool.query("SELECT * FROM public.automation_execution_events WHERE rule_id = $1 AND (matched_conditions->>'task_id') = $2", [ruleId, task2Id]);
-        assert(eventsB.rows.length === 1, `Scenario B: evaluate_automation_rules executed EXACTLY ONCE (Found: ${eventsB.rows.length})`);
+        assert(eventsB.rows.length === 1, `Scenario B: evaluate_automation_rules executions = 1 (Found: ${eventsB.rows.length})`);
 
         const createdFollowupTasksB = await pool.query(
             "SELECT id FROM public.tasks WHERE project_id = $1 AND title = 'Verify Client Submission Assets' AND created_at >= $2",
             [projectId, eventsB.rows[0].evaluated_at]
         );
-        assert(createdFollowupTasksB.rows.length === 1, `Scenario B: Exactly 1 downstream task created by automation rule (Duplicate tasks = 0)`);
+        assert(createdFollowupTasksB.rows.length === 1, `Scenario B: downstream automation-created tasks = exactly expected once`);
+        assert(createdFollowupTasksB.rows.length - 1 === 0, `Scenario B: duplicate downstream tasks = 0`);
         createdFollowupTasksB.rows.forEach(r => createdTaskIds.push(r.id));
 
-        const activeTokensB = await pool.query("SELECT COUNT(*) as c FROM public.client_action_tokens WHERE task_id = $1 AND status = 'active'", [task2Id]);
-        assert(parseInt(activeTokensB.rows[0].c, 10) === 0, "Scenario B: Active tokens after completion = 0");
+        const ownerNotifB = await pool.query(
+            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
+            [projectId, task2Id, ownerId]
+        );
+        assert(ownerNotifB.rows.length === 1, `Scenario B: completion notifications = exactly expected once (Owner count: ${ownerNotifB.rows.length})`);
+        assert(ownerNotifB.rows.length - 1 === 0, `Scenario B: duplicate completion notifications = 0`);
 
-        console.log("PASS: Phase 6D.1.1 Exact-Once Side Effects & Automation Suite passed 100%!");
+        const pmNotifB = await pool.query(
+            "SELECT * FROM public.notifications WHERE project_id = $1 AND entity_id = $2 AND event_type = 'client_action_completed' AND recipient_user_id = $3",
+            [projectId, task2Id, pmUserId]
+        );
+        assert(pmNotifB.rows.length === 1, `Scenario B: PM completion notification = 1 (Found: ${pmNotifB.rows.length})`);
+
+        const activeTokensB = await pool.query("SELECT COUNT(*) as c FROM public.client_action_tokens WHERE task_id = $1 AND status = 'active'", [task2Id]);
+        assert(parseInt(activeTokensB.rows[0].c, 10) === 0, "Scenario B: active tokens after completion = 0");
+
+        console.log("PASS: Phase 6D.1.2 Exact-Once Side Effects, Downstream Tasks & Notifications Suite passed 100%!");
     } catch(e) {
         console.error("FATAL ERROR in Exact-Once Suite:", e);
         exitCode = 1;
     } finally {
         try {
             await pool.query("SET session_replication_role = 'replica';");
+            if (createdProjectIds.length > 0) {
+                await pool.query("DELETE FROM public.notifications WHERE project_id = ANY($1::uuid[])", [createdProjectIds]);
+            }
             if (createdRuleIds.length > 0) {
                 await pool.query("DELETE FROM public.automation_execution_events WHERE rule_id = ANY($1::uuid[])", [createdRuleIds]);
                 await pool.query("DELETE FROM public.automation_rules WHERE id = ANY($1::uuid[])", [createdRuleIds]);
