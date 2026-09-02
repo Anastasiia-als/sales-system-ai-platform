@@ -1,26 +1,31 @@
-# Current Task: Phase 6C — Process Automation, Rule Engine & API Hooks
+# Current Task: Phase 6D — Client Action Portal & Public Submissions
 
-**Status**: CLOSED / Production-Ready / Manual Acceptance Passed.
+## Active Step: Phase 6D.1 Completed — Awaiting Gate Approval for Phase 6D.2
 
-## Phase 6C Deliverables Completed:
-- **Core Workflow Engine**: Advanced trigger system (`stage_started`, `stage_completed`, `client_action_added`, `client_action_completed`, `document_approved`, `document_changes_requested`, `task_completed`), cyclic dependency blocker, stage transition enforcement, exit condition checks.
-- **Rule Builder Architecture**:
-  - Modal overlay with `position: fixed` viewport centering across Desktop, Laptop, Tablet, and Mobile.
-  - Background page scroll-locking and overscroll containment with restoration of exact scroll coordinates.
-  - Dark theme styling with zero white-on-white contrast issues.
-  - Pure Ukrainian localization for all business terminology.
-- **Structured Business Builder**:
-  - Business field selector (no raw DB column names or UUIDs).
-  - Dynamic typed condition value controls (localized enum dropdowns, text, numeric).
-  - Business action forms for `create_task`, `create_client_action`, `start_stage`, `complete_stage`, `notify_owner`, `update_project_health`, `webhook` (no raw JSON `{}`).
-  - Dependency-Aware Registry (`TRIGGER_REGISTRY`).
-- **Owner Automation Command Center Presentation**:
-  - Human-readable summary presentation for conditions and actions (e.g., `Категорія документа = Договір`, `Сповістити власника / PM — ...`).
-  - Multi-condition and multi-action summary badges with native tooltips and controlled ellipsis overflow.
-- **Non-Destructive Test Isolation & Data Preservation**:
-  - Permanent data preservation guard (`test_phase6c_data_preservation_guard.js`).
-  - Zero blanket/pattern deletions in all automated tests.
-  - Exact-ID parameterized cleanup (`WHERE id = ANY($1::uuid[])`).
-  - 100% Canonical Master Regression pass (26 suites, 271 assertions, 0 leaks, 0 data losses).
+### Accomplishments in Phase 6D.1:
+1. **Database Schema & Data Model**:
+   - Created `public.client_action_tokens` with SHA-256 `token_hash VARCHAR(64) UNIQUE`.
+   - Created partial unique index `uq_client_action_single_active_token` for strictly 1 active token per task.
+   - Created `public.task_submissions` append-only audit and response storage.
+   - Created `enforce_task_tenant_consistency()` triggers guaranteeing tenant ownership cannot be spoofed.
+2. **Unified Atomic Submission Core & RPCs**:
+   - `generate_action_token(p_task_id)`: 256-bit entropy token generation, SHA-256 hash insert, single active token guarantee.
+   - `revoke_action_token`, `regenerate_action_token`.
+   - `get_public_client_action(p_raw_token)`: Safe projection with strict allowlist and zero internal leaks.
+   - `_execute_client_action_submission_core`: Pessimistic locking (`FOR UPDATE`), task status transition, token invalidation, single automation event dispatch.
+   - `submit_public_client_action` and `submit_authenticated_client_action`.
+   - `reopen_client_action`: Preserves submission audit logs without resurrecting dead tokens.
+3. **Automated Verification**:
+   - 6 new automated test suites in `scratch/`:
+     - `test_phase6d_tokens.js` (15/15 PASS)
+     - `test_phase6d_lifecycle.js` (21/21 PASS)
+     - `test_phase6d_concurrency.js` (8/8 PASS)
+     - `test_phase6d_cross_channel.js` (12/12 PASS)
+     - `test_phase6d_data_minimization.js` (34/34 PASS)
+     - `test_phase6d_tenant_invariant.js` (10/10 PASS)
+   - Canonical Master Regression: **32 suites, 371 assertions, 0 failures (100% PASS)**.
+4. **Documentation**:
+   - Updated `DATABASE.md`, `PERMISSIONS.md`, `DECISIONS.md` (ADR-008), `ROADMAP.md`, `CURRENT_TASK.md`, `walkthrough.md`.
 
-**Next Step**: Ready for Phase 6D scope alignment upon user instruction.
+### Next Gate:
+- Await user review and approval before proceeding to **Phase 6D.2: Public Action UI (`#/action/:token`)**.

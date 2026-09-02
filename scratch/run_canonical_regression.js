@@ -14,7 +14,10 @@ const suites = [
     'test_phase6c_concurrency.js', 'test_phase6c_dependencies.js', 'test_phase6c_exit_conditions.js',
     'test_phase6c_health_engine.js', 'test_phase6c_rule_engine.js', 'test_phase6c_rule_loop.js',
     'test_phase6c_sla_engine.js', 'test_phase6c_sla_escalation.js',
-    'test_phase6c_data_preservation_guard.js'
+    'test_phase6c_data_preservation_guard.js',
+    'test_phase6d_tokens.js', 'test_phase6d_lifecycle.js',
+    'test_phase6d_concurrency.js', 'test_phase6d_cross_channel.js',
+    'test_phase6d_data_minimization.js', 'test_phase6d_tenant_invariant.js'
 ];
 
 async function run() {
@@ -75,19 +78,12 @@ async function run() {
         console.log(`\n[FIXTURE LEAK DETECTED] New rules left in DB after test run! Leaked:`, leakedRules);
         idempotencyFail = true;
     } else {
-        console.log(`\n[DATA PRESERVATION PASS] All ${beforeRules.length} pre-existing rules preserved intact without leaks or deletions.`);
+        console.log(`\n[DATA PRESERVATION PASS] Total pre-existing rules preserved: ${beforeRules.length} (0 missing, 0 leaked fixtures).`);
     }
 
-    console.log('\nTOTAL = ' + totalAssertions);
-    console.log('PASSED = ' + totalAssertions);
-    console.log('FAILED = ' + failedSuites);
-    console.log('SKIPPED REQUIRED = 0');
-    console.log('CRITICAL BLOCKERS = 0');
-    console.log('TENANT LEAKS = 0');
-    console.log('BROWSER RUNTIME ERRORS = 0');
-    console.log('UNAUTHORIZED USER DATA DELETIONS = ' + (missingRules.length > 0 ? missingRules.length : 0));
-    
+    console.log(`\nTotal Assertions: ${totalAssertions}, Failed Suites: ${failedSuites}`);
     await pool.end();
     if (failedSuites > 0 || idempotencyFail) process.exit(1);
 }
+
 run();
