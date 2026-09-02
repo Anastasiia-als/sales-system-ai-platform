@@ -113,8 +113,8 @@ Defines project-scoped event-driven automated workflows.
 - `organization_id` (UUID FK -> organizations)
 - `project_id` (UUID FK -> projects)
 - `name` (TEXT NOT NULL)
-- `event_type` (TEXT NOT NULL CHECK stage_transition/document_approved/client_action_completed/sla_breached)
-- `conditions` (JSONB NOT NULL DEFAULT '{}')
+- `trigger_event` (TEXT NOT NULL)
+- `conditions` (JSONB NOT NULL DEFAULT '[]')
 - `actions` (JSONB NOT NULL DEFAULT '[]')
 - `is_active` (BOOLEAN NOT NULL DEFAULT TRUE)
 
@@ -122,10 +122,12 @@ Defines project-scoped event-driven automated workflows.
 Append-only execution telemetry for automation workflows.
 - `id` (UUID PK)
 - `rule_id` (UUID FK -> automation_rules)
-- `event_type` (TEXT NOT NULL)
-- `status` (TEXT NOT NULL CHECK success/failed/skipped)
-- `context_snapshot` (JSONB)
-- `executed_actions` (JSONB)
+- `trigger_event` (TEXT NOT NULL)
+- `result` (TEXT NOT NULL CHECK success/failed/condition_not_met)
+- `matched_conditions` (JSONB)
+- `actions_attempted` (JSONB)
+- `actions_completed` (JSONB)
+- `idempotency_key` (TEXT UNIQUE)
 - `created_at` (TIMESTAMPTZ)
 
 ---
@@ -133,7 +135,7 @@ Append-only execution telemetry for automation workflows.
 ## Client Action Portal & Public Submissions (Phase 6D)
 
 ### 11. `public.client_action_tokens`
-Cryptographically secure action tokens with SHA-256 hash-only storage.
+Cryptographically secure action tokens with 256-bit CSPRNG randomness and SHA-256 hash-only storage.
 - `id` (UUID PK)
 - `organization_id` (UUID NOT NULL FK -> organizations)
 - `task_id` (UUID NOT NULL FK -> tasks)
@@ -148,7 +150,8 @@ Cryptographically secure action tokens with SHA-256 hash-only storage.
   - `uq_client_action_single_active_token` UNIQUE ON `(task_id) WHERE (status = 'active' AND used_at IS NULL)`
   - `idx_client_action_tokens_hash` ON `token_hash`
   - `idx_client_action_tokens_task_id` ON `task_id`
-- **Triggers**: `trg_client_action_tokens_tenant_guard` enforces `organization_id = tasks.organization_id`.
+- **Triggers**: `trg_client_action_tokens_tenant_guard` (SECURITY DEFINER) enforces `organization_id = tasks.organization_id`.
+- **RLS**: Direct table Default Deny for Authenticated Clients, Specialists, Anonymous, and Foreign Tenants.
 
 ### 12. `public.task_submissions`
 Permanent, append-only client action submissions from public links and authenticated portal.
@@ -163,14 +166,15 @@ Permanent, append-only client action submissions from public links and authentic
 - `attachments` (JSONB NOT NULL DEFAULT '[]')
 - `created_at` (TIMESTAMPTZ NOT NULL DEFAULT NOW())
 - **Indexes**: `idx_task_submissions_task_id` ON `task_id`
-- **Triggers**: `trg_task_submissions_tenant_guard` enforces `organization_id = tasks.organization_id`.
+- **Triggers**: `trg_task_submissions_tenant_guard` (SECURITY DEFINER) enforces `organization_id = tasks.organization_id`.
+- **RLS**: Strict Client-to-Client isolation within the same organization (`tasks.client_contact_id = contacts.id`).
 
 ### 13. Phase 6D Core RPCs
-- `generate_action_token(p_task_id)`: Generates 256-bit raw token, stores SHA-256 hash only, revokes prior active tokens, returns raw URL once.
+- `generate_action_token(p_task_id)`: Generates exact 256-bit cryptographically secure random token from 32 random bytes (`fwa_` prefix), stores SHA-256 hash only, revokes prior active tokens, returns raw URL once.
 - `revoke_action_token(p_task_id, p_token_id)`: Atomically sets token status to 'revoked'.
-- `regenerate_action_token(p_task_id)`: Revokes existing token and generates a new one.
+- `regenerate_action_token(p_task_id)`: Revokes existing token and generates a new 256-bit token.
 - `get_public_client_action(p_raw_token)`: Hashes raw token, returns safe projection with zero internal leakages and differentiated privacy status (`active`, `expired`, `revoked`, `already_used`, `not_found`).
 - `submit_public_client_action(p_raw_token, p_payload)`: Validates token and invokes atomic submission core.
 - `submit_authenticated_client_action(p_task_id, p_payload)`: Validates client user permissions and invokes atomic submission core.
 - `_execute_client_action_submission_core(...)`: Shared internal core; row locks task FOR UPDATE; marks task done; invalidates active tokens; creates submission record; fires automation engine exactly once.
-- `reopen_client_action(p_task_id)`: Resets task to todo without resurrecting old tokens.
+- `reopen_client_action(p_task_id)`: Resets task to todo without resurrecting dead tokens.

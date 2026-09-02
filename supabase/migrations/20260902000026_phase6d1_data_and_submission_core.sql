@@ -1,6 +1,8 @@
 -- ==============================================================================
 -- Migration: 20260902000026_phase6d1_data_and_submission_core.sql
 -- Phase 6D.1: Secure Data & Unified Submission Core
+-- Hardened in Phase 6D.1.1: Strict 256-bit CSPRNG, Client-to-Client Isolation,
+-- Direct Token Table Default Deny for Clients/Specialists/Anonymous
 -- ==============================================================================
 
 -- 1. Table: public.client_action_tokens
@@ -48,7 +50,11 @@ ALTER TABLE public.task_submissions ENABLE ROW LEVEL SECURITY;
 
 -- 3. Tenant Ownership Invariant Protection Trigger
 CREATE OR REPLACE FUNCTION public.enforce_task_tenant_consistency()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 DECLARE
     v_expected_org_id UUID;
 BEGIN
@@ -64,7 +70,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trg_client_action_tokens_tenant_guard ON public.client_action_tokens;
 CREATE TRIGGER trg_client_action_tokens_tenant_guard
@@ -175,7 +181,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 5. Token Generation RPC
+-- 5. Token Generation RPC (Strict 256-bit CSPRNG Entropy Contract)
 CREATE OR REPLACE FUNCTION public.generate_action_token(p_task_id UUID)
 RETURNS JSONB AS $$
 DECLARE
@@ -232,8 +238,8 @@ BEGIN
       AND status = 'active' 
       AND used_at IS NULL;
 
-    -- 4. Generate 256-bit Cryptographic Token & Hash
-    v_raw_token := 'fwa_' || encode(gen_random_bytes(24), 'hex');
+    -- 4. Generate EXACT 256-bit (32 CSPRNG bytes) Cryptographic Token & Hash
+    v_raw_token := 'fwa_' || encode(gen_random_bytes(32), 'hex');
     v_token_hash := encode(digest(v_raw_token, 'sha256'), 'hex');
     v_expires_at := NOW() + INTERVAL '14 days';
 
@@ -507,7 +513,7 @@ BEGIN
         SELECT 1 FROM public.organization_memberships 
         WHERE organization_id = v_task.organization_id AND user_id = auth.uid() AND org_role IN ('pm', 'org_admin')
     ) OR EXISTS (
-        SELECT 1 FROM public.project_memberships
+        SELECT 1 FROM public.project_memberships 
         WHERE project_id = v_task.project_id AND user_id = auth.uid() AND project_role = 'pm'
     ) INTO v_is_authorized;
   END IF;
@@ -538,8 +544,9 @@ BEGIN
 END;
 $$;
 
--- 11. RLS Policies
+-- 11. Hardened Row Level Security (RLS) Policies
 -- client_action_tokens
+-- STRICT DEFAULT DENY for Authenticated Clients, Specialists, Anonymous, and Foreign Tenants
 DROP POLICY IF EXISTS "Owner manage client action tokens" ON public.client_action_tokens;
 CREATE POLICY "Owner manage client action tokens" ON public.client_action_tokens
 FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND global_role = 'owner'));
@@ -555,9 +562,8 @@ FOR ALL USING (
     )
 );
 
+-- Drop previous client read policy on tokens table:
 DROP POLICY IF EXISTS "Client read own org client action tokens" ON public.client_action_tokens;
-CREATE POLICY "Client read own org client action tokens" ON public.client_action_tokens
-FOR SELECT USING (public.is_active_client_user(organization_id));
 
 -- task_submissions
 DROP POLICY IF EXISTS "Owner manage task submissions" ON public.task_submissions;
@@ -576,5 +582,23 @@ FOR ALL USING (
 );
 
 DROP POLICY IF EXISTS "Client manage own org task submissions" ON public.task_submissions;
-CREATE POLICY "Client manage own org task submissions" ON public.task_submissions
-FOR ALL USING (public.is_active_client_user(organization_id));
+DROP POLICY IF EXISTS "Client view assigned task submissions" ON public.task_submissions;
+CREATE POLICY "Client view assigned task submissions" ON public.task_submissions
+FOR SELECT USING (
+    public.is_active_client_user(organization_id)
+    AND EXISTS (
+        SELECT 1 FROM public.tasks t
+        WHERE t.id = task_submissions.task_id
+          AND t.responsibility_type = 'client'
+          AND t.is_client_visible = TRUE
+          AND public.can_client_access_project(t.project_id)
+          AND (
+              t.client_contact_id IS NULL 
+              OR t.client_contact_id = public.get_client_contact_id_for_user(t.organization_id)
+          )
+    )
+    AND (
+        task_submissions.submitted_by_contact_id IS NULL 
+        OR task_submissions.submitted_by_contact_id = public.get_client_contact_id_for_user(task_submissions.organization_id)
+    )
+);

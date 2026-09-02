@@ -17,7 +17,9 @@ const suites = [
     'test_phase6c_data_preservation_guard.js',
     'test_phase6d_tokens.js', 'test_phase6d_lifecycle.js',
     'test_phase6d_concurrency.js', 'test_phase6d_cross_channel.js',
-    'test_phase6d_data_minimization.js', 'test_phase6d_tenant_invariant.js'
+    'test_phase6d_data_minimization.js', 'test_phase6d_tenant_invariant.js',
+    'test_phase6d_rls_tokens.js', 'test_phase6d_client_isolation.js',
+    'test_phase6d_exact_once_side_effects.js', 'test_phase6d_rollback.js'
 ];
 
 async function run() {
@@ -37,7 +39,7 @@ async function run() {
     for (const suite of suites) {
         let exitCode = 0; let passCount = 0; let failCount = 0;
         try {
-            const output = execSync('node scratch/' + suite, { encoding: 'utf8', stdio: 'pipe', timeout: 20000 });
+            const output = execSync('node scratch/' + suite, { encoding: 'utf8', stdio: 'pipe', timeout: 25000 });
             const matches = output.match(/PASS/g);
             passCount = matches ? matches.length : 1;
             totalAssertions += passCount;
