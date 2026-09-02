@@ -1,35 +1,70 @@
-# Walkthrough: Phase 6D.1.3 — Notification Cardinality Reconciliation
+# Walkthrough: Phase 6D.2 — Public Action Page UI & Submission Integration
 
 ## Overview
-Phase 6D.1.3 has reconciled the notification data model and verified exact-once delivery across distinct recipient roles:
-1. **Notification Data Model**: Each record in `public.notifications` is bound to a single recipient via `recipient_user_id UUID NOT NULL REFERENCES auth.users(id)`.
-2. **Notification Creation Mechanism**: On client action completion (`tasks.status` transitioned to `'done'`), the database trigger `handle_task_mutation_notifications()` executes exactly once. It evaluates the project's assigned staff and creates separate recipient notification rows with unique deduplication keys:
-   - 1 notification row for the Project Manager (`dedupe_key = 'client_action_done_pm:' || task_id || ':' || pm_id || ':' || timestamp`)
-   - 1 notification row for the Platform Owner (`dedupe_key = 'client_action_done_owner:' || task_id || ':' || timestamp`)
-3. **Exact-Once Delivery & Zero Duplicates**: For both **Scenario A** (`Promise.all([public, public])`) and **Scenario B** (`Promise.all([public, auth])`), the race loser is rejected with zero side-effects. The single completion business event produces **exactly 2 persisted recipient rows** (1 Owner, 1 PM). Duplicate notifications for Owner = 0, duplicate notifications for PM = 0.
-4. **Master Regression & Data Preservation**: 37 test suites, 458 assertions passed with 0 failures and 100% data preservation.
+Phase 6D.2 implements the public client action portal route `#/action/:token`, providing external clients with a secure, responsive, and deterministic action experience without requiring authentication or account creation.
 
 ---
 
-## Canonical 18-Point Final Acceptance Matrix
+## Key Deliverables & Implemented Features
 
-| # | Acceptance Criterion | Canonical Contract / Requirement | Executable Test Suite | Executed Assertion & Observed Result | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **1** | Exact 256-bit entropy | 32 CSPRNG random bytes (`gen_random_bytes(32)`) | [`test_phase6d_tokens.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_tokens.js) | Decoded 32 random bytes (64 hex chars); 1,000 unique raw tokens & hashes generated with 0 collisions | **PASS** |
-| **2** | Plaintext token in DB = 0 | Zero raw tokens stored in database tables | [`test_phase6d_leakage_evidence.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_leakage_evidence.js) | Audited 5 system tables; found `0` plaintext occurrences | **PASS** |
-| **3** | Plaintext token in logs = 0 | Zero raw tokens in error logs or event execution logs | [`test_phase6d_leakage_evidence.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_leakage_evidence.js) | Audited `automation_execution_events`; found `0` occurrences | **PASS** |
-| **4** | Plaintext token in DOM/reload lifecycle = 0 | Discarded on modal dismiss and absent on reload | [`test_phase6d_leakage_evidence.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_leakage_evidence.js) | Transient state reset to `undefined`; reload query returns safe projection | **PASS** |
-| **5** | Client direct token-table access | Direct SELECT, INSERT, UPDATE, DELETE denied | [`test_phase6d_rls_tokens.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_rls_tokens.js) | SELECT = 0 rows; INSERT blocked by RLS; UPDATE = 0 rows; DELETE = 0 rows | **DENY** |
-| **6** | Anonymous token-table access | Direct SELECT denied | [`test_phase6d_rls_tokens.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_rls_tokens.js) | Anonymous direct SELECT returned 0 rows | **DENY** |
-| **7** | Specialist token management | Direct SELECT and token RPCs denied | [`test_phase6d_rls_tokens.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_rls_tokens.js) | SELECT = 0 rows; `generate`, `revoke`, `regenerate` RPCs throw `Access denied` | **DENY** |
-| **8** | Same-org Client A → Client B submission access | Client A cannot read Client B's submissions in same org | [`test_phase6d_client_isolation.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_client_isolation.js) | Client A sees only 1 assigned submission; query on Task B returns 0 rows | **DENY** |
-| **9** | Foreign tenant access | Foreign client in Org Gamma sees zero rows | [`test_phase6d_client_isolation.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_client_isolation.js) | Foreign client query returned 0 rows across all `task_submissions` | **DENY** |
-| **10** | Generate vs Generate concurrency | Concurrency safe; exactly 1 active token per task | [`test_phase6d_concurrency.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_concurrency.js) | Concurrent generate resolved with partial unique index; active tokens = `1` | **PASS** |
-| **11** | Public vs Public submit | Exactly 1 winner in parallel race | [`test_phase6d_exact_once_side_effects.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_exact_once_side_effects.js) | Scenario A: 1 fulfilled, 1 rejected; `task_submissions` count = `1` | **PASS** |
-| **12** | Public vs Auth submit | Exactly 1 winner in cross-channel race | [`test_phase6d_exact_once_side_effects.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_exact_once_side_effects.js) | Scenario B: 1 fulfilled, 1 rejected; `task_submissions` count = `1` | **PASS** |
-| **13** | Duplicate automation executions = 0 | `evaluate_automation_rules` runs exactly once | [`test_phase6d_exact_once_side_effects.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_exact_once_side_effects.js) | Scenario A: executions = `1`, Scenario B: executions = `1`; duplicate executions = `0` | **PASS** |
-| **14** | Duplicate downstream tasks = 0 | Followup task created exactly once | [`test_phase6d_exact_once_side_effects.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_exact_once_side_effects.js) | Scenario A: followup task = `1`, Scenario B: followup task = `1`; duplicate tasks = `0` | **PASS** |
-| **15** | Duplicate notifications = 0 | Exact-once delivery per recipient role | [`test_phase6d_exact_once_side_effects.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_exact_once_side_effects.js) | Scenario A & B: Owner = `1`, PM = `1`; duplicate notifications per recipient = `0` | **PASS** |
-| **16** | Atomic rollback partial records = 0 | Injected failure cleanly aborts transaction | [`test_phase6d_rollback.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d_rollback.js) | Submissions = 0, task status = 'todo', token status = 'active', events = 0, notifications = 0, orphan rows = 0 | **PASS** |
-| **17** | Unauthorized user-data deletions = 0 | Pre-existing user data completely intact | [`test_phase6c_data_preservation_guard.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6c_data_preservation_guard.js) | Sentinel record intact with identical UUID, created_at, name, trigger_event, conditions, actions | **PASS** |
-| **18** | Canonical Regression | 100% PASS across full suite | [`run_canonical_regression.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/run_canonical_regression.js) | 37 suites executed, 458 assertions passed, 0 failed, 0 skipped | **PASS** |
+### 1. Public Route & Layout Isolation (`#/action/:token`)
+- **Route Handler**: Registered `#/action/:token` in `js/router.js` pointing to `PublicActionPage`.
+- **Layout Isolation**: Automatically sets `portal-active` and `public-action-active` on `<html>` and `<body>`, suppressing all marketing headers, footers, sticky bars, and chat widgets.
+- **Privacy & Telemetry**: Marketing analytics (`trackPageView`, `trackViewOffer`) explicitly bypassed on `#/action` routes to prevent raw token transmission to external trackers.
+
+### 2. Strict 10-State Deterministic State Machine
+1. **`LOADING`**: Clean spinner with security link validation indicator.
+2. **`ACTIVE`**: Full action screen with title, description, company, project, due date, structured text response, file dropzone, and submit CTA.
+3. **`SUBMITTING`**: Disabled inputs, spinner on CTA, and double-click block.
+4. **`SUCCESS`**: Branded confirmation screen with checkmark, project reference, and security stamp.
+5. **`ALREADY_COMPLETED`**: Informative card stating the action has already been completed with one-time token security notice.
+6. **`EXPIRED`**: Guidance stating the 14-day token validity has ended with instructions to contact the PM.
+7. **`REVOKED`**: Notice that the link was replaced or revoked by the manager.
+8. **`NOT_FOUND`**: Notice that the link or token key is invalid.
+9. **`RATE_LIMITED`**: Security rate limit notice with retry timer.
+10. **`NETWORK_ERROR`**: Connection failure state with "Спробувати знову" button.
+
+### 3. File Restrictions & Validation Engine
+- **Max Files**: 5 files maximum.
+- **Max File Size**: 25 MB per file.
+- **Allowed Extensions**: `.pdf`, `.docx`, `.xlsx`, `.csv`, `.png`, `.jpg`, `.jpeg`, `.zip`, `.txt`.
+- **Forbidden Extensions**: `.exe`, `.bat`, `.cmd`, `.sh`, `.js`, `.py`, `.vbs`, `.php`, `.jar`, `.msi`, `.bin`, `.dll`.
+- **Extension Spoofing Protection**: Rejection of double extensions (e.g. `file.pdf.exe`).
+- **File Queue UI**: Display of selected files with sizes, single-click removal button before submit.
+
+### 4. Security & Data Minimization
+- Zero exposure of internal IDs (`organization_id`, `project_id`, `task_id`) in public responses.
+- Zero plaintext raw token persistence in DOM, `data-*` attributes, or local storage.
+- Immediate clearance of raw token from transient JS memory upon submission.
+- Full XSS escaping on all user-supplied content and metadata.
+
+### 5. Responsive Multi-Viewport Support
+- Tested and verified on real Chromium browser across:
+  - **Desktop (1920×1080)**: Zero horizontal overflow.
+  - **Laptop (1366×768)**: Zero horizontal overflow.
+  - **Tablet (768×1024)**: Zero horizontal overflow.
+  - **Mobile (375×812)**: Zero horizontal overflow.
+
+---
+
+## Requirements Traceability Matrix (Phase 6D.2)
+
+| Requirement Code | Description | Implementation File | Verification Test Suite | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **RTM-6D2-01** | Public route `#/action/:token` loading | [`js/router.js`](file:///d:/AI%20ALL/FIRSTWIN/js/router.js) | [`test_phase6d2_e2e_browser.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_e2e_browser.js) | **PASS** |
+| **RTM-6D2-02** | Layout isolation (hide marketing chrome) | [`css/public-action.css`](file:///d:/AI%20ALL/FIRSTWIN/css/public-action.css) | [`test_phase6d2_e2e_browser.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_e2e_browser.js) | **PASS** |
+| **RTM-6D2-03** | 10 Deterministic UI States | [`js/pages/public-action-page.js`](file:///d:/AI%20ALL/FIRSTWIN/js/pages/public-action-page.js) | [`test_phase6d2_ui_states.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_ui_states.js) | **PASS** |
+| **RTM-6D2-04** | File validation (max 5, 25MB, extensions) | [`js/pages/public-action-page.js`](file:///d:/AI%20ALL/FIRSTWIN/js/pages/public-action-page.js) | [`test_phase6d2_validation.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_validation.js) | **PASS** |
+| **RTM-6D2-05** | Double-click / duplicate submit guard | [`js/pages/public-action-page.js`](file:///d:/AI%20ALL/FIRSTWIN/js/pages/public-action-page.js) | [`test_phase6d2_submission.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_submission.js) | **PASS** |
+| **RTM-6D2-06** | F5 reload transition to Already Completed | [`js/pages/public-action-page.js`](file:///d:/AI%20ALL/FIRSTWIN/js/pages/public-action-page.js) | [`test_phase6d2_e2e_browser.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_e2e_browser.js) | **PASS** |
+| **RTM-6D2-07** | Data Minimization in public RPC response | [`20260902000026_phase6d1...sql`](file:///d:/AI%20ALL/FIRSTWIN/supabase/migrations/20260902000026_phase6d1_data_and_submission_core.sql) | [`test_phase6d2_validation.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_validation.js) | **PASS** |
+| **RTM-6D2-08** | XSS sanitization of dynamic fields | [`js/pages/public-action-page.js`](file:///d:/AI%20ALL/FIRSTWIN/js/pages/public-action-page.js) | [`test_phase6d2_validation.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_validation.js) | **PASS** |
+| **RTM-6D2-09** | Automation exact-once integration | [`20260902000026_phase6d1...sql`](file:///d:/AI%20ALL/FIRSTWIN/supabase/migrations/20260902000026_phase6d1_data_and_submission_core.sql) | [`test_phase6d2_submission.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_submission.js) | **PASS** |
+| **RTM-6D2-10** | Multi-viewport responsive rendering | [`css/public-action.css`](file:///d:/AI%20ALL/FIRSTWIN/css/public-action.css) | [`test_phase6d2_e2e_browser.js`](file:///d:/AI%20ALL/FIRSTWIN/scratch/test_phase6d2_e2e_browser.js) | **PASS** |
+
+---
+
+## Canonical Master Regression & Data Preservation
+
+- **Canonical Regression**: **41 suites, 535 assertions, 0 failed, 0 skipped (100% PASS)**.
+- **Permanent Data Preservation Guard**: **100% PASS** (all pre-existing records intact, 0 unauthorized deletions).

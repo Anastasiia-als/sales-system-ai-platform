@@ -20,6 +20,7 @@ import { AiSolutions } from "./pages/ai-solutions.js";
 import { Admin } from "./pages/admin.js";
 import { PortalPage } from "./pages/portal-page.js";
 import { ClientPage } from "./pages/client-page.js";
+import { PublicActionPage } from "./pages/public-action-page.js";
 
 const routes = {
   "/": Home,
@@ -41,7 +42,8 @@ const routes = {
   "/contacts": Contacts,
   "/admin": Admin,
   "/portal": PortalPage,
-  "/client": ClientPage
+  "/client": ClientPage,
+  "/action": PublicActionPage
 };
 
 // Route → advertising offer mapping (docs/technical-specs/ads_utm_naming.md)
@@ -64,7 +66,8 @@ export const Router = {
     let hash = window.location.hash.slice(1) || "/";
     const isPortal = hash.startsWith('/portal');
     const isClient = hash.startsWith('/client');
-    const isWorkspace = isPortal || isClient;
+    const isAction = hash.startsWith('/action');
+    const isWorkspace = isPortal || isClient || isAction;
     
     if (isWorkspace) {
       document.documentElement.classList.add('portal-active');
@@ -80,6 +83,14 @@ export const Router = {
     } else {
       document.documentElement.classList.remove('client-active');
       document.body.classList.remove('client-active');
+    }
+
+    if (isAction) {
+      document.documentElement.classList.add('public-action-active');
+      document.body.classList.add('public-action-active');
+    } else {
+      document.documentElement.classList.remove('public-action-active');
+      document.body.classList.remove('public-action-active');
     }
 
     const app = document.getElementById("app-content");
@@ -103,7 +114,7 @@ export const Router = {
     // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: 'instant' });
 
-    // Marketing analytics: SPA page_view + view_offer for public pages only
+    // Marketing analytics: SPA page_view + view_offer for public pages only (NEVER for /action or workspace)
     if (!isWorkspace) {
       try {
         trackPageView();
@@ -123,6 +134,9 @@ export const Router = {
         }
         if (!page && hash.startsWith("/client")) {
           page = ClientPage;
+        }
+        if (!page && hash.startsWith("/action")) {
+          page = PublicActionPage;
         }
         if (!page) {
           page = Home;

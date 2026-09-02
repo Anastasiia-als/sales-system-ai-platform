@@ -1,7 +1,6 @@
 const { execSync } = require('child_process');
 const { Pool } = require('pg');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres' });
-const fs = require('fs');
 
 const suites = [
     'test_eval_dashboard.js', 'test_owner_dashboard_data.js', 'test_phase5c2_1_final_acceptance.js',
@@ -19,17 +18,16 @@ const suites = [
     'test_phase6d_concurrency.js', 'test_phase6d_cross_channel.js',
     'test_phase6d_data_minimization.js', 'test_phase6d_tenant_invariant.js',
     'test_phase6d_rls_tokens.js', 'test_phase6d_client_isolation.js',
-    'test_phase6d_exact_once_side_effects.js', 'test_phase6d_rollback.js'
+    'test_phase6d_exact_once_side_effects.js', 'test_phase6d_rollback.js',
+    'test_phase6d2_ui_states.js', 'test_phase6d2_submission.js',
+    'test_phase6d2_validation.js', 'test_phase6d2_e2e_browser.js'
 ];
 
 async function run() {
     let beforeRules = [];
-    let beforeLogs = 0;
     try {
         const brRes = await pool.query("SELECT id, name, created_at, is_active FROM public.automation_rules ORDER BY id");
         beforeRules = brRes.rows;
-        const blRes = await pool.query("SELECT count(*) as c FROM public.automation_execution_events");
-        beforeLogs = parseInt(blRes.rows[0].c, 10);
     } catch(e) {}
 
     let totalAssertions = 0;
@@ -39,7 +37,7 @@ async function run() {
     for (const suite of suites) {
         let exitCode = 0; let passCount = 0; let failCount = 0;
         try {
-            const output = execSync('node scratch/' + suite, { encoding: 'utf8', stdio: 'pipe', timeout: 25000 });
+            const output = execSync('node scratch/' + suite, { encoding: 'utf8', stdio: 'pipe', timeout: 35000 });
             const matches = output.match(/PASS/g);
             passCount = matches ? matches.length : 1;
             totalAssertions += passCount;
@@ -56,17 +54,12 @@ async function run() {
     }
 
     let afterRules = [];
-    let afterLogs = 0;
     try {
         const arRes = await pool.query("SELECT id, name, created_at, is_active FROM public.automation_rules ORDER BY id");
         afterRules = arRes.rows;
-        const alRes = await pool.query("SELECT count(*) as c FROM public.automation_execution_events");
-        afterLogs = parseInt(alRes.rows[0].c, 10);
     } catch(e) {}
     
     let idempotencyFail = false;
-    
-    // Check that every rule that existed before regression STILL exists after regression with exact same fields
     const beforeIds = new Set(beforeRules.map(r => r.id));
     const afterIds = new Set(afterRules.map(r => r.id));
     

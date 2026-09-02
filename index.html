@@ -19,13 +19,17 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/pages.css">
     <link rel="stylesheet" href="css/portal.css">
+    <link rel="stylesheet" href="css/public-action.css">
 
-    <!-- Instant Portal & Client Workspace Layout Isolation Guard -->
+    <!-- Instant Portal, Client & Public Action Layout Isolation Guard -->
     <script>
         (function() {
             var hash = window.location.hash || '';
-            if (hash.indexOf('#/portal') === 0 || hash.indexOf('#/client') === 0) {
+            if (hash.indexOf('#/portal') === 0 || hash.indexOf('#/client') === 0 || hash.indexOf('#/action') === 0) {
                 document.documentElement.classList.add('portal-active');
+            }
+            if (hash.indexOf('#/action') === 0) {
+                document.documentElement.classList.add('public-action-active');
             }
             if (hash.indexOf('#/client') === 0) {
                 document.documentElement.classList.add('client-active');

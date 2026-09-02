@@ -1,31 +1,24 @@
 # Current Task: Phase 6D — Client Action Portal & Public Submissions
 
-## Active Step: Phase 6D.1 Completed — Awaiting Gate Approval for Phase 6D.2
+## Active Step: Phase 6D.2 Implemented — Ready for Manual Acceptance
 
-### Accomplishments in Phase 6D.1:
-1. **Database Schema & Data Model**:
-   - Created `public.client_action_tokens` with SHA-256 `token_hash VARCHAR(64) UNIQUE`.
-   - Created partial unique index `uq_client_action_single_active_token` for strictly 1 active token per task.
-   - Created `public.task_submissions` append-only audit and response storage.
-   - Created `enforce_task_tenant_consistency()` triggers guaranteeing tenant ownership cannot be spoofed.
-2. **Unified Atomic Submission Core & RPCs**:
-   - `generate_action_token(p_task_id)`: 256-bit entropy token generation, SHA-256 hash insert, single active token guarantee.
-   - `revoke_action_token`, `regenerate_action_token`.
-   - `get_public_client_action(p_raw_token)`: Safe projection with strict allowlist and zero internal leaks.
-   - `_execute_client_action_submission_core`: Pessimistic locking (`FOR UPDATE`), task status transition, token invalidation, single automation event dispatch.
-   - `submit_public_client_action` and `submit_authenticated_client_action`.
-   - `reopen_client_action`: Preserves submission audit logs without resurrecting dead tokens.
-3. **Automated Verification**:
-   - 6 new automated test suites in `scratch/`:
-     - `test_phase6d_tokens.js` (15/15 PASS)
-     - `test_phase6d_lifecycle.js` (21/21 PASS)
-     - `test_phase6d_concurrency.js` (8/8 PASS)
-     - `test_phase6d_cross_channel.js` (12/12 PASS)
-     - `test_phase6d_data_minimization.js` (34/34 PASS)
-     - `test_phase6d_tenant_invariant.js` (10/10 PASS)
-   - Canonical Master Regression: **32 suites, 371 assertions, 0 failures (100% PASS)**.
-4. **Documentation**:
-   - Updated `DATABASE.md`, `PERMISSIONS.md`, `DECISIONS.md` (ADR-008), `ROADMAP.md`, `CURRENT_TASK.md`, `walkthrough.md`.
+### Accomplishments in Phase 6D.2:
+1. **Public Action Page UI (`#/action/:token`)**:
+   - Implemented `PublicActionPage` component in `js/pages/public-action-page.js`.
+   - Layout isolation (`portal-active`, `public-action-active`) to hide marketing chrome.
+   - Deterministic 10-state machine (`LOADING`, `ACTIVE`, `SUBMITTING`, `SUCCESS`, `ALREADY_COMPLETED`, `EXPIRED`, `REVOKED`, `NOT_FOUND`, `RATE_LIMITED`, `NETWORK_ERROR`).
+   - Structured response input & Drag-and-drop / file picker attachment handling.
+   - Client-side validation for file count (max 5), file size (max 25MB), allowed extensions, and executable rejection.
+   - Atomic submission UX with double-click guard and automatic transition to `Already Completed` on reload.
+   - Full Ukrainian localization and XSS sanitization.
+2. **Automated Verification**:
+   - 4 new test suites in `scratch/`:
+     - `test_phase6d2_ui_states.js` (12/12 PASS)
+     - `test_phase6d2_submission.js` (15/15 PASS)
+     - `test_phase6d2_validation.js` (35/35 PASS)
+     - `test_phase6d2_e2e_browser.js` (15/15 PASS)
+   - Canonical Master Regression: **41 suites, 535 assertions, 0 failures (100% PASS)**.
+   - Permanent Data Preservation Guard: **100% PASS (0 deletions, 0 data loss)**.
 
-### Next Gate:
-- Await user review and approval before proceeding to **Phase 6D.2: Public Action UI (`#/action/:token`)**.
+### Next Step:
+- Manual Acceptance review by user for Phase 6D.2.
