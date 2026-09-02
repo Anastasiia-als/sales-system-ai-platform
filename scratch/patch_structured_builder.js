@@ -1,4 +1,6 @@
-import { getSupabase } from "../api/supabase-client.js";
+const fs = require('fs');
+
+const ruleBuilderContent = `import { getSupabase } from "../api/supabase-client.js";
 import { PortalAuth } from "../auth/auth-service.js";
 
 // ==========================================================================
@@ -350,15 +352,15 @@ export async function openRuleBuilderModal(ruleId = null) {
         else orgId = "mock-org";
     }
     
-    let projectsHtml = `<option value="">-- Оберіть проєкт --</option>`;
-    let templatesHtml = `<option value="">-- Оберіть шаблон --</option>`;
+    let projectsHtml = \`<option value="">-- Оберіть проєкт --</option>\`;
+    let templatesHtml = \`<option value="">-- Оберіть шаблон --</option>\`;
     
     try {
         const { data: pData } = await supabase.from('projects').select('id, name').eq('organization_id', orgId);
-        if (pData) pData.forEach(p => { projectsHtml += `<option value="${p.id}" ${scopeId === p.id ? 'selected' : ''}>${p.name}</option>`; });
+        if (pData) pData.forEach(p => { projectsHtml += \`<option value="\${p.id}" \${scopeId === p.id ? 'selected' : ''}>\${p.name}</option>\`; });
         
         const { data: tData } = await supabase.from('project_templates').select('id, name').eq('organization_id', orgId);
-        if (tData) tData.forEach(t => { templatesHtml += `<option value="${t.id}" ${scopeId === t.id ? 'selected' : ''}>${t.name}</option>`; });
+        if (tData) tData.forEach(t => { templatesHtml += \`<option value="\${t.id}" \${scopeId === t.id ? 'selected' : ''}>\${t.name}</option>\`; });
     } catch (e) {
         console.error("Failed to load scope entities:", e);
     }
@@ -366,15 +368,15 @@ export async function openRuleBuilderModal(ruleId = null) {
     // Build trigger options
     let triggerOptionsHtml = "";
     Object.keys(TRIGGER_REGISTRY).forEach(k => {
-        triggerOptionsHtml += `<option value="${k}" ${currentTrigger === k ? 'selected' : ''}>${TRIGGER_REGISTRY[k].label}</option>`;
+        triggerOptionsHtml += \`<option value="\${k}" \${currentTrigger === k ? 'selected' : ''}>\${TRIGGER_REGISTRY[k].label}</option>\`;
     });
 
-    const html = `
+    const html = \`
     <div class="portal-modal" id="automation-rule-modal" style="position: relative !important; width: 100% !important; max-width: 860px !important; max-height: 90vh !important; display: flex !important; flex-direction: column !important; background: #0E1526 !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 16px !important; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7) !important; overflow: hidden !important; color: #F8FAFC !important; margin: auto !important;">
         
         <!-- Header -->
         <div class="portal-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid rgba(148, 163, 184, 0.15); background: #0E1526; flex-shrink: 0;">
-            <h2 class="portal-modal-title" style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #F8FAFC;">${isEditing ? 'Редагувати правило' : 'Створити правило автоматизації'}</h2>
+            <h2 class="portal-modal-title" style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #F8FAFC;">\${isEditing ? 'Редагувати правило' : 'Створити правило автоматизації'}</h2>
             <button type="button" class="btn-modal-close" aria-label="Закрити" style="background: transparent; border: none; font-size: 24px; color: #94A3B8; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; transition: color 0.15s;">&times;</button>
         </div>
         
@@ -384,7 +386,7 @@ export async function openRuleBuilderModal(ruleId = null) {
             <!-- Rule Name -->
             <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 6px;">
                 <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #94A3B8;">Назва правила</label>
-                <input type="text" id="arb-name" class="portal-input" value="${name}" placeholder="Наприклад: Автоматичний запуск наступного етапу при завершенні" style="width: 100%; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
+                <input type="text" id="arb-name" class="portal-input" value="\${name}" placeholder="Наприклад: Автоматичний запуск наступного етапу при завершенні" style="width: 100%; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
             </div>
             
             <!-- Trigger & Scope Row -->
@@ -392,26 +394,26 @@ export async function openRuleBuilderModal(ruleId = null) {
                 <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 6px;">
                     <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #94A3B8;">Тригер події</label>
                     <select id="arb-trigger" class="portal-input" style="width: 100%; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
-                        ${triggerOptionsHtml}
+                        \${triggerOptionsHtml}
                     </select>
                 </div>
                 
                 <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 6px;">
                     <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #94A3B8;">Область дії</label>
                     <select id="arb-scope-type" class="portal-input" style="width: 100%; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
-                        <option value="global" ${scopeType === 'global' ? 'selected' : ''}>Глобально (всі проєкти)</option>
-                        <option value="project" ${scopeType === 'project' ? 'selected' : ''}>Конкретний проєкт</option>
-                        <option value="template" ${scopeType === 'template' ? 'selected' : ''}>Конкретний шаблон</option>
+                        <option value="global" \${scopeType === 'global' ? 'selected' : ''}>Глобально (всі проєкти)</option>
+                        <option value="project" \${scopeType === 'project' ? 'selected' : ''}>Конкретний проєкт</option>
+                        <option value="template" \${scopeType === 'template' ? 'selected' : ''}>Конкретний шаблон</option>
                     </select>
                 </div>
                 
-                <div class="portal-form-group" id="arb-scope-id-wrapper" style="display: ${scopeType === 'global' ? 'none' : 'flex'}; flex-direction: column; gap: 6px;">
+                <div class="portal-form-group" id="arb-scope-id-wrapper" style="display: \${scopeType === 'global' ? 'none' : 'flex'}; flex-direction: column; gap: 6px;">
                     <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #94A3B8;">Оберіть об'єкт</label>
-                    <select id="arb-scope-project" class="portal-input" style="width: 100%; display: ${scopeType === 'project' ? 'block' : 'none'}; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
-                        ${projectsHtml}
+                    <select id="arb-scope-project" class="portal-input" style="width: 100%; display: \${scopeType === 'project' ? 'block' : 'none'}; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
+                        \${projectsHtml}
                     </select>
-                    <select id="arb-scope-template" class="portal-input" style="width: 100%; display: ${scopeType === 'template' ? 'block' : 'none'}; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
-                        ${templatesHtml}
+                    <select id="arb-scope-template" class="portal-input" style="width: 100%; display: \${scopeType === 'template' ? 'block' : 'none'}; background: #141C31 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 8px; padding: 10px 14px; font-size: 0.9rem;">
+                        \${templatesHtml}
                     </select>
                 </div>
             </div>
@@ -419,7 +421,7 @@ export async function openRuleBuilderModal(ruleId = null) {
             <!-- Active checkbox -->
             <div class="portal-form-group">
                 <label style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;">
-                    <input type="checkbox" id="arb-active" ${isActive ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #3B82F6; cursor: pointer;">
+                    <input type="checkbox" id="arb-active" \${isActive ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #3B82F6; cursor: pointer;">
                     <span style="font-weight: 600; font-size: 0.9rem; color: #F8FAFC;">Активне правило</span>
                 </label>
             </div>
@@ -464,7 +466,7 @@ export async function openRuleBuilderModal(ruleId = null) {
             <button type="button" class="btn btn-primary" id="arb-save-btn" style="background: #3B82F6; color: #FFFFFF; font-weight: 600; min-width: 130px; padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer;">Зберегти</button>
         </div>
     </div>
-    `;
+    \`;
     
     overlay.innerHTML = html;
     document.body.appendChild(overlay);
@@ -529,7 +531,7 @@ export async function openRuleBuilderModal(ruleId = null) {
             availableFieldKeys.forEach(fk => {
                 const fd = FIELD_DEFINITIONS[fk];
                 if (fd) {
-                    fieldOptionsHtml += `<option value="${fk}" ${fk === fieldName ? 'selected' : ''}>${fd.label}</option>`;
+                    fieldOptionsHtml += \`<option value="\${fk}" \${fk === fieldName ? 'selected' : ''}>\${fd.label}</option>\`;
                 }
             });
             
@@ -537,7 +539,7 @@ export async function openRuleBuilderModal(ruleId = null) {
             let opOptionsHtml = "";
             const activeOp = opVal || fieldDef.operators[0].value;
             fieldDef.operators.forEach(op => {
-                opOptionsHtml += `<option value="${op.value}" ${op.value === activeOp ? 'selected' : ''}>${op.label}</option>`;
+                opOptionsHtml += \`<option value="\${op.value}" \${op.value === activeOp ? 'selected' : ''}>\${op.label}</option>\`;
             });
             
             // Build Value Control (Enum dropdown or typed input)
@@ -547,47 +549,47 @@ export async function openRuleBuilderModal(ruleId = null) {
             if (fieldDef.type === "enum" && fieldDef.options) {
                 let enumOptsHtml = "";
                 fieldDef.options.forEach(opt => {
-                    enumOptsHtml += `<option value="${opt.value}" ${opt.value === curVal ? 'selected' : ''}>${opt.label}</option>`;
+                    enumOptsHtml += \`<option value="\${opt.value}" \${opt.value === curVal ? 'selected' : ''}>\${opt.label}</option>\`;
                 });
-                valueControlHtml = `
+                valueControlHtml = \`
                     <select class="portal-input cond-val" style="flex: 1; min-width: 140px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
-                        ${enumOptsHtml}
+                        \${enumOptsHtml}
                     </select>
-                `;
+                \`;
             } else if (fieldDef.type === "number") {
-                valueControlHtml = `
-                    <input type="number" class="portal-input cond-val" placeholder="${fieldDef.placeholder || 'Значення'}" value="${curVal}" style="flex: 1; min-width: 120px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
-                `;
+                valueControlHtml = \`
+                    <input type="number" class="portal-input cond-val" placeholder="\${fieldDef.placeholder || 'Значення'}" value="\${curVal}" style="flex: 1; min-width: 120px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
+                \`;
             } else {
-                valueControlHtml = `
-                    <input type="text" class="portal-input cond-val" placeholder="${fieldDef.placeholder || 'Значення'}" value="${curVal}" style="flex: 1; min-width: 140px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
-                `;
+                valueControlHtml = \`
+                    <input type="text" class="portal-input cond-val" placeholder="\${fieldDef.placeholder || 'Значення'}" value="\${curVal}" style="flex: 1; min-width: 140px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
+                \`;
             }
             
-            row.innerHTML = `
+            row.innerHTML = \`
                 <div style="display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 160px;">
                     <span style="font-size: 0.72rem; color: #94A3B8; font-weight: 600;">Поле умови</span>
                     <select class="portal-input cond-field" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 10px; font-size: 0.85rem;">
-                        ${fieldOptionsHtml}
+                        \${fieldOptionsHtml}
                     </select>
                 </div>
                 
                 <div style="display: flex; flex-direction: column; gap: 2px; width: 140px;">
                     <span style="font-size: 0.72rem; color: #94A3B8; font-weight: 600;">Оператор</span>
                     <select class="portal-input cond-op" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 10px; font-size: 0.85rem;">
-                        ${opOptionsHtml}
+                        \${opOptionsHtml}
                     </select>
                 </div>
                 
                 <div style="display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 160px;">
                     <span style="font-size: 0.72rem; color: #94A3B8; font-weight: 600;">Значення</span>
-                    ${valueControlHtml}
+                    \${valueControlHtml}
                 </div>
                 
                 <div style="display: flex; align-items: flex-end; height: 100%; padding-top: 18px;">
                     <button type="button" class="btn btn-sm btn-outline btn-del-cond" style="color: #F87171; border-color: rgba(248, 113, 113, 0.3); background: rgba(239, 68, 68, 0.1); padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; white-space: nowrap;">Видалити</button>
                 </div>
-            `;
+            \`;
             
             // Rebind field change
             row.querySelector(".cond-field").addEventListener("change", (e) => {
@@ -637,7 +639,7 @@ export async function openRuleBuilderModal(ruleId = null) {
             availableActionKeys.forEach(ak => {
                 const ad = ACTION_DEFINITIONS[ak];
                 if (ad) {
-                    typeOptionsHtml += `<option value="${ak}" ${ak === actionType ? 'selected' : ''}>${ad.label}</option>`;
+                    typeOptionsHtml += \`<option value="\${ak}" \${ak === actionType ? 'selected' : ''}>\${ad.label}</option>\`;
                 }
             });
             
@@ -646,58 +648,58 @@ export async function openRuleBuilderModal(ruleId = null) {
             actDef.fields.forEach(f => {
                 const val = payloadData[f.name] !== undefined ? payloadData[f.name] : (f.defaultValue || "");
                 if (f.type === "textarea") {
-                    fieldsHtml += `
+                    fieldsHtml += \`
                         <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 4px; grid-column: span 2;">
-                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">${f.label} ${f.required ? '<span style="color:#EF4444;">*</span>' : ''}</label>
-                            <textarea class="portal-input act-field-input" data-param="${f.name}" placeholder="${f.placeholder || ''}" style="width: 100%; min-height: 60px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem; resize: vertical;">${val}</textarea>
+                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">\${f.label} \${f.required ? '<span style=\"color:#EF4444;\">*</span>' : ''}</label>
+                            <textarea class="portal-input act-field-input" data-param="\${f.name}" placeholder="\${f.placeholder || ''}" style="width: 100%; min-height: 60px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem; resize: vertical;">\${val}</textarea>
                         </div>
-                    `;
+                    \`;
                 } else if (f.type === "select") {
                     let selectOptsHtml = "";
                     f.options.forEach(opt => {
-                        selectOptsHtml += `<option value="${opt.value}" ${opt.value === val ? 'selected' : ''}>${opt.label}</option>`;
+                        selectOptsHtml += \`<option value="\${opt.value}" \${opt.value === val ? 'selected' : ''}>\${opt.label}</option>\`;
                     });
-                    fieldsHtml += `
+                    fieldsHtml += \`
                         <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 4px;">
-                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">${f.label}</label>
-                            <select class="portal-input act-field-input" data-param="${f.name}" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
-                                ${selectOptsHtml}
+                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">\${f.label}</label>
+                            <select class="portal-input act-field-input" data-param="\${f.name}" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
+                                \${selectOptsHtml}
                             </select>
                         </div>
-                    `;
+                    \`;
                 } else if (f.type === "number") {
-                    fieldsHtml += `
+                    fieldsHtml += \`
                         <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 4px;">
-                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">${f.label}</label>
-                            <input type="number" class="portal-input act-field-input" data-param="${f.name}" placeholder="${f.placeholder || ''}" value="${val}" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
+                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">\${f.label}</label>
+                            <input type="number" class="portal-input act-field-input" data-param="\${f.name}" placeholder="\${f.placeholder || ''}" value="\${val}" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
                         </div>
-                    `;
+                    \`;
                 } else {
-                    fieldsHtml += `
-                        <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 4px; ${actDef.fields.length === 1 ? 'grid-column: span 2;' : ''}">
-                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">${f.label} ${f.required ? '<span style="color:#EF4444;">*</span>' : ''}</label>
-                            <input type="text" class="portal-input act-field-input" data-param="${f.name}" placeholder="${f.placeholder || ''}" value="${val}" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
+                    fieldsHtml += \`
+                        <div class="portal-form-group" style="display: flex; flex-direction: column; gap: 4px; \${actDef.fields.length === 1 ? 'grid-column: span 2;' : ''}">
+                            <label style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">\${f.label} \${f.required ? '<span style=\"color:#EF4444;\">*</span>' : ''}</label>
+                            <input type="text" class="portal-input act-field-input" data-param="\${f.name}" placeholder="\${f.placeholder || ''}" value="\${val}" style="width: 100%; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.85rem;">
                         </div>
-                    `;
+                    \`;
                 }
             });
             
-            card.innerHTML = `
+            card.innerHTML = \`
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(148, 163, 184, 0.1); padding-bottom: 10px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                         <span style="font-size: 0.78rem; font-weight: 700; color: #60A5FA; text-transform: uppercase;">Дія:</span>
                         <select class="portal-input act-type-select" style="min-width: 260px; background: #0E1526 !important; color: #F8FAFC !important; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 8px 12px; font-size: 0.88rem; font-weight: 600;">
-                            ${typeOptionsHtml}
+                            \${typeOptionsHtml}
                         </select>
-                        <span style="font-size: 0.78rem; color: #94A3B8; font-style: italic;">${actDef.description || ''}</span>
+                        <span style="font-size: 0.78rem; color: #94A3B8; font-style: italic;">\${actDef.description || ''}</span>
                     </div>
                     <button type="button" class="btn btn-sm btn-outline btn-del-act" style="color: #F87171; border-color: rgba(248, 113, 113, 0.3); background: rgba(239, 68, 68, 0.1); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; white-space: nowrap;">Видалити</button>
                 </div>
                 
                 <div class="act-params-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    ${fieldsHtml}
+                    \${fieldsHtml}
                 </div>
-            `;
+            \`;
             
             // Rebind type select
             card.querySelector(".act-type-select").addEventListener("change", (e) => {
@@ -828,7 +830,7 @@ export async function openRuleBuilderModal(ruleId = null) {
                 // Check required fields
                 const fieldConfig = actDef?.fields?.find(f => f.name === paramName);
                 if (fieldConfig?.required && !paramVal) {
-                    validationError = `Заповніть обов'язкове поле "${fieldConfig.label}" у дії "${actDef.label}".`;
+                    validationError = \`Заповніть обов'язкове поле "\${fieldConfig.label}" у дії "\${actDef.label}".\`;
                 }
             });
             
@@ -896,3 +898,7 @@ export async function openRuleBuilderModal(ruleId = null) {
         }
     });
 }
+`;
+
+fs.writeFileSync('js/portal/ui/portal-rule-builder-ui.js', ruleBuilderContent, 'utf8');
+console.log("Wrote structured portal-rule-builder-ui.js");
