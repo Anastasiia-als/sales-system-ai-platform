@@ -16,4 +16,6 @@
   - [x] **Phase 6D.1**: Secure Data Model, Hash-Only Storage & Atomic Submission Core (CLOSED)
   - [x] **Phase 6D.2**: Public Action Page UI (`#/action/:token`) & Submission Integration (CLOSED)
   - [x] **Phase 6D.3**: PM Management UI & Magic Link Lifecycle (CLOSED)
-  - [ ] **Phase 6D.4**: Client Portal Integration & Authenticated Actions (Next)
+  - [/] **Phase 6D.4**: Client Portal Integration & Authenticated Actions (Implementation Complete / Awaiting Manual Acceptance)
+  - [ ] **Phase 6D.5**: Production Hardening, Edge-Case Auditing & Full E2E Verification (Upcoming)
+

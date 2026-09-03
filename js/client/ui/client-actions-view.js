@@ -259,27 +259,42 @@ export function initClientActionsEvents(actions = [], projects = [], onFilterCha
     });
 }
 
-// Action Detail Modal
-window.openActionDetailModal = (taskId) => {
-    const actions = window._clientActionsData || [];
-    const action = actions.find(a => a.id === taskId);
+let modalSelectedFiles = [];
+
+export async function openActionDetailModal(taskIdOrAction) {
+    window.openActionDetailModal = openActionDetailModal;
+    let action = null;
+    let taskId = null;
+    if (typeof taskIdOrAction === 'object' && taskIdOrAction !== null) {
+        action = taskIdOrAction;
+        taskId = action.id;
+    } else {
+        taskId = taskIdOrAction;
+        const actions = window._clientActionsData || [];
+        action = actions.find(a => a.id === taskId);
+    }
     if (!action) return;
 
-    const container = document.getElementById("client-action-modal-container");
-    if (!container) return;
+    let container = document.getElementById("client-action-modal-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "client-action-modal-container";
+        document.body.appendChild(container);
+    }
 
+    modalSelectedFiles = [];
     const isDone = action.status === "done";
     const projectName = action.project?.name || action.project?.title || "Проєкт";
 
     container.innerHTML = `
         <div class="portal-modal-overlay" id="modal-action-detail-overlay">
-            <div class="portal-modal-card" style="max-width: 540px;">
+            <div class="portal-modal-card" id="action-detail-modal" style="max-width: 600px; width: 100%;">
                 <div class="portal-modal-header">
                     <div>
                         <span class="client-badge client-badge-neutral" style="font-size: 0.75rem; margin-bottom: 4px;">
                             ${escapeHtml(projectName)}
                         </span>
-                        <h3 class="portal-modal-title">${escapeHtml(action.title)}</h3>
+                        <h3 class="portal-modal-title" style="margin-top: 2px;">${escapeHtml(action.title)}</h3>
                     </div>
                     <button class="portal-modal-close" onclick="closeActionDetailModal()">&times;</button>
                 </div>
@@ -287,8 +302,8 @@ window.openActionDetailModal = (taskId) => {
                 <div class="portal-modal-body">
                     ${action.description ? `
                         <div style="margin-bottom: 16px;">
-                            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Опис дії</label>
-                            <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6; margin-top: 4px; white-space: pre-wrap;">${escapeHtml(action.description)}</div>
+                            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Опис завдання від команди</label>
+                            <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6; margin-top: 4px; white-space: pre-wrap; background: var(--bg-card-subtle); padding: 12px; border-radius: var(--radius-sm);">${escapeHtml(action.description)}</div>
                         </div>
                     ` : ''}
 
@@ -296,7 +311,7 @@ window.openActionDetailModal = (taskId) => {
                         <div>
                             <span style="font-size: 0.75rem; color: var(--text-muted);">Статус</span>
                             <div style="font-size: 0.88rem; font-weight: 600; margin-top: 2px;">
-                                ${isDone ? '<span style="color: var(--color-success);">Виконано</span>' : '<span style="color: var(--color-warning);">До виконання</span>'}
+                                ${isDone ? '<span class="client-badge client-badge-success">Виконано</span>' : '<span class="client-badge client-badge-warning">До виконання</span>'}
                             </div>
                         </div>
                         <div>
@@ -305,30 +320,67 @@ window.openActionDetailModal = (taskId) => {
                                 ${action.due_date ? formatDate(action.due_date) : 'Не вказано'}
                             </div>
                         </div>
-                        ${action.stage ? `
-                            <div>
-                                <span style="font-size: 0.75rem; color: var(--text-muted);">Етап проєкту</span>
-                                <div style="font-size: 0.88rem; margin-top: 2px;">${escapeHtml(action.stage.name)}</div>
-                            </div>
-                        ` : ''}
-                        ${action.meeting ? `
-                            <div>
-                                <span style="font-size: 0.75rem; color: var(--text-muted);">Пов'язана зустріч</span>
-                                <div style="font-size: 0.88rem; margin-top: 2px;">${escapeHtml(action.meeting.title)}</div>
-                            </div>
-                        ` : ''}
                     </div>
+
+                    ${!isDone ? `
+                        <!-- Submission Form -->
+                        <div class="client-action-submission-box" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                            <label for="client-action-text-input" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">
+                                Ваша відповідь / коментар:
+                            </label>
+                            <textarea 
+                                id="client-action-text-input" 
+                                class="client-form-textarea" 
+                                rows="3" 
+                                placeholder="Вкажіть коментар або відповідь на запит команди..."
+                                style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 12px; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit;"
+                            ></textarea>
+
+                            <div style="margin-bottom: 12px;">
+                                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">
+                                    Прикріпити матеріали (до 5 файлів, до 25 MB кожен):
+                                </label>
+                                <div 
+                                    id="client-action-dropzone" 
+                                    style="border: 2px dashed var(--border-color); border-radius: var(--radius-sm); padding: 16px; text-align: center; cursor: pointer; transition: background 0.2s;"
+                                    onclick="document.getElementById('client-action-file-input').click()"
+                                >
+                                    <i data-lucide="upload-cloud" style="width: 24px; height: 24px; color: var(--text-muted); margin-bottom: 4px;"></i>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                        Натисніть або перетягніть файли сюди (.pdf, .png, .jpg, .docx, .xlsx, .zip, .csv)
+                                    </div>
+                                    <input 
+                                        type="file" 
+                                        id="client-action-file-input" 
+                                        multiple 
+                                        accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.zip,.csv" 
+                                        style="display: none;" 
+                                        onchange="handleClientActionFileSelect(event)"
+                                    />
+                                </div>
+                                <div id="client-action-selected-files" style="margin-top: 8px;"></div>
+                                <div id="client-action-form-error" style="color: var(--color-danger, #ef4444); font-size: 0.82rem; margin-top: 6px; display: none;"></div>
+                            </div>
+                        </div>
+                    ` : `
+                        <!-- Completed Review Section -->
+                        <div id="client-action-review-section" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                            <div style="text-align: center; padding: 12px; color: var(--text-muted);">
+                                <span>Завантаження деталей відповіді...</span>
+                            </div>
+                        </div>
+                    `}
                 </div>
 
-                <div class="portal-modal-footer" style="display: flex; justify-content: space-between;">
+                <div class="portal-modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
                     <button class="btn btn-outline" onclick="closeActionDetailModal()">Закрити</button>
                     ${isDone ? `
-                        <button class="btn btn-outline" onclick="triggerReopenModalAction('${action.id}')">
+                        <button class="btn btn-outline" id="btn-reopen-client-action" onclick="triggerReopenModalAction('${action.id}')">
                             <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Повернути до виконання
                         </button>
                     ` : `
-                        <button class="btn btn-primary" onclick="triggerCompleteModalAction('${action.id}')">
-                            <i data-lucide="check" style="width: 14px; height: 14px;"></i> Позначити виконаним
+                        <button class="btn btn-primary" id="btn-submit-client-action" onclick="triggerSubmitModalAction('${action.id}')">
+                            <i data-lucide="send" style="width: 14px; height: 14px;"></i> Надіслати відповідь
                         </button>
                     `}
                 </div>
@@ -337,31 +389,224 @@ window.openActionDetailModal = (taskId) => {
     `;
 
     if (window.lucide) window.lucide.createIcons();
+
+    if (isDone) {
+        await loadClientActionSubmissionHistory(action.id);
+    }
 };
 
-window.closeActionDetailModal = () => {
-    const container = document.getElementById("client-action-modal-container");
-    if (container) container.innerHTML = "";
-};
+window.handleClientActionFileSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    const errorEl = document.getElementById("client-action-form-error");
+    if (errorEl) errorEl.style.display = "none";
 
-window.triggerCompleteModalAction = async (taskId) => {
-    const { error } = await DataClient.completeClientAction(taskId);
-    if (error) {
-        alert(error.message || "Помилка оновлення статусу.");
+    const ALLOWED = ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'xlsx', 'zip', 'csv'];
+    for (const f of files) {
+        const ext = f.name.split('.').pop().toLowerCase();
+        if (!ALLOWED.includes(ext)) {
+            if (errorEl) {
+                errorEl.textContent = `Формат файлу «${f.name}» не дозволено. Дозволено: ${ALLOWED.join(', ')}.`;
+                errorEl.style.display = "block";
+            }
+            return;
+        }
+        if (f.size > 25 * 1024 * 1024) {
+            if (errorEl) {
+                errorEl.textContent = `Файл «${f.name}» перевищує ліміт 25 MB.`;
+                errorEl.style.display = "block";
+            }
+            return;
+        }
+    }
+
+    if (modalSelectedFiles.length + files.length > 5) {
+        if (errorEl) {
+            errorEl.textContent = "Максимальна кількість файлів — 5.";
+            errorEl.style.display = "block";
+        }
         return;
     }
-    closeActionDetailModal();
-    if (window._clientActionsRefresh) window._clientActionsRefresh();
+
+    modalSelectedFiles = [...modalSelectedFiles, ...files];
+    renderSelectedFilesList();
+};
+
+function renderSelectedFilesList() {
+    const container = document.getElementById("client-action-selected-files");
+    if (!container) return;
+    if (modalSelectedFiles.length === 0) {
+        container.innerHTML = "";
+        return;
+    }
+    container.innerHTML = modalSelectedFiles.map((f, idx) => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: var(--bg-card-subtle); border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 0.82rem;">
+            <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <i data-lucide="file" style="width: 14px; height: 14px; flex-shrink: 0;"></i>
+                <span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(f.name)}</span>
+                <span style="color: var(--text-muted); font-size: 0.75rem;">(${(f.size / 1024).toFixed(0)} KB)</span>
+            </div>
+            <button type="button" onclick="removeSelectedFile(${idx})" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px;">&times;</button>
+        </div>
+    `).join("");
+    if (window.lucide) window.lucide.createIcons();
+}
+
+window.removeSelectedFile = (idx) => {
+    modalSelectedFiles.splice(idx, 1);
+    renderSelectedFilesList();
+};
+
+async function loadClientActionSubmissionHistory(taskId) {
+    const section = document.getElementById("client-action-review-section");
+    if (!section) return;
+
+    const { data: subs, error } = await DataClient.getClientActionSubmissions(taskId);
+    if (error || !subs || subs.length === 0) {
+        section.innerHTML = `
+            <div style="font-size: 0.88rem; color: var(--text-muted); padding: 8px 0;">
+                Дію виконано. Деталі відповіді відсутні або зафіксовані в системі.
+            </div>
+        `;
+        return;
+    }
+
+    const latestSub = subs[subs.length - 1];
+    const payload = latestSub.payload || {};
+    const attachments = latestSub.attachments || payload.attachments || [];
+
+    section.innerHTML = `
+        <div style="background: var(--bg-card-subtle); padding: 14px; border-radius: var(--radius-sm);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="client-badge client-badge-success" style="font-size: 0.75rem;">
+                    ${latestSub.submission_type === 'authenticated_portal' ? 'Авторизований портал' : 'Публічне посилання'}
+                </span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">
+                    ${formatDate(latestSub.created_at)}
+                </span>
+            </div>
+            ${payload.text ? `
+                <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; white-space: pre-wrap;">
+                    ${escapeHtml(payload.text)}
+                </div>
+            ` : '<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Відповідь без додаткового тексту</div>'}
+
+            ${attachments.length > 0 ? `
+                <div style="border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 8px;">
+                    <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+                        Прикріплені файли (${attachments.length}):
+                    </span>
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        ${attachments.map(att => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; padding: 4px 8px; background: var(--bg-card); border-radius: var(--radius-sm);">
+                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(att.name)}</span>
+                                ${att.path ? `
+                                    <button class="btn btn-outline btn-xs" onclick="downloadAttachmentFile('${escapeHtml(att.path)}')" style="padding: 2px 8px; font-size: 0.75rem;">
+                                        Завантажити
+                                    </button>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+}
+
+window.downloadAttachmentFile = async (storagePath) => {
+    const { data: url, error } = await DataClient.getClientActionAttachmentUrl(storagePath);
+    if (error || !url) {
+        alert("Не вдалося сформувати посилання на завантаження.");
+        return;
+    }
+    window.open(url, "_blank");
+};
+
+window.triggerSubmitModalAction = async (taskId) => {
+    const btn = document.getElementById("btn-submit-client-action");
+    const errorEl = document.getElementById("client-action-form-error");
+    const textInput = document.getElementById("client-action-text-input");
+    const text = textInput ? textInput.value.trim() : "";
+
+    if (!text && modalSelectedFiles.length === 0) {
+        if (errorEl) {
+            errorEl.textContent = "Будь ласка, введіть відповідь або прикріпіть хоча б один файл.";
+            errorEl.style.display = "block";
+        }
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Надсилання...';
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    try {
+        // Upload attachments
+        const uploadedAttachments = [];
+        for (const f of modalSelectedFiles) {
+            const { data: attData, error: uploadErr } = await DataClient.uploadClientActionAttachment(taskId, f);
+            if (uploadErr) {
+                throw new Error(uploadErr.message || `Не вдалося завантажити файл «${f.name}».`);
+            }
+            uploadedAttachments.push(attData);
+        }
+
+        // Submit via authenticated RPC
+        const { error: submitErr } = await DataClient.submitAuthenticatedClientAction(taskId, {
+            text,
+            attachments: uploadedAttachments,
+            submitted_at: new Date().toISOString()
+        });
+
+        if (submitErr) {
+            throw new Error(submitErr.message || "Помилка збереження відповіді.");
+        }
+
+        closeActionDetailModal();
+        if (window._clientActionsRefresh) window._clientActionsRefresh();
+    } catch (err) {
+        if (errorEl) {
+            errorEl.textContent = err.message || "Помилка виконання дії.";
+            errorEl.style.display = "block";
+        }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="send" style="width: 14px; height: 14px;"></i> Надіслати відповідь';
+            if (window.lucide) window.lucide.createIcons();
+        }
+    }
 };
 
 window.triggerReopenModalAction = async (taskId) => {
+    const btn = document.getElementById("btn-reopen-client-action");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Оновлення...';
+        if (window.lucide) window.lucide.createIcons();
+    }
+
     const { error } = await DataClient.reopenClientAction(taskId);
     if (error) {
         alert(error.message || "Помилка оновлення статусу.");
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Повернути до виконання';
+            if (window.lucide) window.lucide.createIcons();
+        }
         return;
     }
+
     closeActionDetailModal();
     if (window._clientActionsRefresh) window._clientActionsRefresh();
+};
+
+window.closeActionDetailModal = () => {
+    modalSelectedFiles = [];
+    const container = document.getElementById("client-action-modal-container");
+    if (container) container.innerHTML = "";
 };
 
 function formatDate(dateStr) {

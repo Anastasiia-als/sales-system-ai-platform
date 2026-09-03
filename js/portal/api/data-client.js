@@ -4363,11 +4363,135 @@ export const DataClient = {
         if (!supabase) return { data: null, error: new Error("Database not connected") };
         const { data, error } = await supabase.storage
             .from("project-documents")
-            .createSignedUrl(storagePath, 60);
+            .createSignedUrl(storagePath, 300);
         if (error || !data?.signedUrl) {
             return { data: null, error: error || new Error("Не вдалося сформувати посилання на файл") };
         }
         return { data: data.signedUrl, error: null };
+    },
+
+    async getClientActions(orgIdOrProjectId = null, filters = {}) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: new Error("Database not connected") };
+        let query = supabase
+            .from("tasks")
+            .select(`
+                id,
+                organization_id,
+                project_id,
+                title,
+                description,
+                status,
+                due_date,
+                responsibility_type,
+                is_client_visible,
+                client_contact_id,
+                created_at,
+                updated_at,
+                completed_at,
+                project:projects(id, name, title)
+            `)
+            .eq("responsibility_type", "client")
+            .eq("is_client_visible", true)
+            .order("due_date", { ascending: true, nullsFirst: false });
+
+        if (filters && filters.projectId && filters.projectId !== "all") {
+            query = query.eq("project_id", filters.projectId);
+        } else if (orgIdOrProjectId && orgIdOrProjectId !== "all") {
+            query = query.or(`organization_id.eq.${orgIdOrProjectId},project_id.eq.${orgIdOrProjectId}`);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            console.error("[DataClient] getClientActions error:", error);
+            return { data: [], error };
+        }
+        return { data: data || [], error: null };
+    },
+
+    async getClientActionSubmissions(taskId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: new Error("Database not connected") };
+        const { data, error } = await supabase
+            .from("task_submissions")
+            .select("id, task_id, submission_type, payload, attachments, created_at")
+            .eq("task_id", taskId)
+            .order("created_at", { ascending: true });
+
+        if (error) {
+            console.error("[DataClient] getClientActionSubmissions error:", error);
+            return { data: [], error };
+        }
+        return { data: data || [], error: null };
+    },
+
+    async generateClientActionStoragePath(taskId, filename) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("generate_client_action_storage_path", {
+            p_task_id: taskId,
+            p_filename: filename
+        });
+        if (error) {
+            console.error("[DataClient] generateClientActionStoragePath error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async uploadClientActionAttachment(taskId, file) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const ALLOWED_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'xlsx', 'zip', 'csv'];
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!ALLOWED_EXTS.includes(ext)) {
+            return { data: null, error: new Error(`Формат файлу «${file.name}» не підтримується. Дозволено: ${ALLOWED_EXTS.join(', ')}.`) };
+        }
+        if (file.size > 25 * 1024 * 1024) {
+            return { data: null, error: new Error(`Файл «${file.name}» перевищує ліміт 25 MB.`) };
+        }
+
+        const { data: pathData, error: pathError } = await this.generateClientActionStoragePath(taskId, file.name);
+        if (pathError || !pathData?.storage_path) {
+            return { data: null, error: pathError || new Error("Не вдалося отримати шлях для збереження") };
+        }
+
+        const { error: uploadError } = await supabase.storage
+            .from("project-documents")
+            .upload(pathData.storage_path, file, {
+                cacheControl: "3600",
+                upsert: false
+            });
+
+        if (uploadError) {
+            console.error("[DataClient] uploadClientActionAttachment error:", uploadError);
+            return { data: null, error: uploadError };
+        }
+
+        return {
+            data: {
+                name: pathData.filename,
+                size: file.size,
+                type: file.type || "application/octet-stream",
+                path: pathData.storage_path
+            },
+            error: null
+        };
+    },
+
+    async submitAuthenticatedClientAction(taskId, payload) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("submit_authenticated_client_action", {
+            p_task_id: taskId,
+            p_payload: payload || {}
+        });
+        if (error) {
+            console.error("[DataClient] submitAuthenticatedClientAction error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
     }
 };
 

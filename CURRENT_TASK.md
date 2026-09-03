@@ -1,20 +1,25 @@
 # Current Task: Phase 6D — Client Action Portal & Public Submissions
 
-## Active Step: Phase 6D.3 ACCEPTED / CLOSED — Ready for Phase 6D.4 Scope & DoD
+## Active Step: Phase 6D.4 IMPLEMENTATION COMPLETE — STOPPED AT MANUAL ACCEPTANCE GATE
 
-### Phase 6D.3 Status:
-- **Status**: **ACCEPTED / CLOSED** (Manual Acceptance Passed on 2026-09-03).
+### Phase 6D.4 Status:
+- **Status**: **IMPLEMENTATION COMPLETE / STOPPED AT MANUAL ACCEPTANCE GATE**
 - **Deliverables Verified**:
-  1. Integrated PM Client Action management into existing UI surfaces (`#client-action-management-container` in Task Modal) with zero duplicate task surfaces.
-  2. Server-derived PM authorization enforced authoritatively across all roles.
-  3. Strict 5-state badge display («Не згенеровано», «Активне», «Прострочено», «Відкликано», «Виконано») with reactive transitions.
-  4. One-time raw-token reveal modal with transient memory wiping (`transientToken = null`), clipboard copy, and zero persistent storage in DB/localStorage/cookies/DOM attributes.
-  5. Submission Review component displaying multi-iteration history, channel attribution (`public_link` vs `authenticated_portal`), XSS escaping, and secure short-lived signed URLs for attachment downloads.
-  6. Reopen canonical sequence (`Виконано → Reopen → Не згенеровано → Generate → Активне`) strictly enforced, resetting `status = 'todo'` and `completed_at = NULL` while preserving 100% of historic submissions.
-  7. Dev-server resilience and error architecture hardened against stream errors, client aborts, and socket closures during rapid F5 reloads, with fatal programming exceptions remaining strictly visible (no blanket swallowing).
-  8. Exhaustive test matrix (Tests A–T) executed with 100% pass rate.
-  9. Permanent Data Preservation Guard: **100% PASS (0 deletions, 0 data loss)**.
-  10. Canonical Master Regression: **50 suites, 952 assertions, 0 failures (100% PASS)**.
+  1. **Strict Same-Org Client A vs Client B Contact Isolation**: Hardened `tasks_client_select` RLS and `submit_authenticated_client_action` RPC to ensure `tasks.client_contact_id` matches caller's contact ID derived from `client_portal_access`. Client B from the same organization receives `Access denied` and 0 rows on SELECT.
+  2. **Cross-Tenant & Cross-Project Default Deny**: Foreign tenants receive immediate `Access denied to this project.`
+  3. **Server-Derived Identity & Anti-Spoofing**: Organization, project, and contact IDs in submissions are derived authoritatively server-side (`auth.uid()`, `v_task.organization_id`, `v_contact_id`); client payload overrides are strictly ignored.
+  4. **Cross-Channel Token Revocation**: Authenticated portal submission strictly sets active Magic Link tokens to `status = 'revoked'`, `revoked_at = NOW()`, with `used_at = NULL`. Zero tokens are marked `used`.
+  5. **Authoritative Private Storage Architecture**: All attachments stored in canonical private bucket `project-documents` under `client-actions/{org_id}/{proj_id}/{task_id}/{file_uuid}_{sanitized_name}` generated server-side via `generate_client_action_storage_path`.
+  6. **Storage RLS Policies & Filename Validation**: Upload/read policies on `storage.objects` verify task ownership and membership with UUID regex validation. Rejects spoofed task namespaces and unpermitted extensions.
+  7. **Exact Notification Cardinality**:
+     - `PM != Owner`: Exactly 2 persisted rows (1 PM + 1 Owner).
+     - `PM == Owner`: Exactly 1 persisted row (Owner).
+     - `PM IS NULL`: Exactly 1 persisted row (Owner, using `IS DISTINCT FROM`).
+     - Retries / duplicate submit: Exactly 0 duplicate notifications.
+     - PM Reopen: Exactly 1 notification persisted for the assigned client user.
+  8. **Client Action Center UI Upgrades**: Drag-and-drop file upload with 8 allowlisted extensions, 25 MB / 5 file limit, responsive modal, submission review with signed download URLs and Reopen capability.
+  9. **Exhaustive Automated Regression**: 54 suites, 1023 assertions, 0 failures (100% PASS).
+  10. **Data Preservation Guard**: 100% PASS (0 deletions, 0 data loss). User's pre-existing manual acceptance data from Phase 6D.3 completely intact.
 
-### Next Subphase:
-- **Phase 6D.4: Client Portal Integration & Authenticated Actions** (Proposal / Scope / Definition of Done submitted; awaiting user approval before implementation).
+### Next Step:
+- **Awaiting User Manual Acceptance** for Phase 6D.4. Do not proceed to Phase 6D.5 until acceptance is granted.
