@@ -1,5 +1,9 @@
 # Walkthrough: Phase 6D.2 — Public Action Page UI & Submission Integration
 
+> [!NOTE]
+> **Status**: **ACCEPTED / CLOSED** (Manual Acceptance Passed on 2026-09-03).
+> All acceptance criteria, deterministic states, file allowlists, and abuse mitigations verified.
+
 ## Overview
 Phase 6D.2 implements the public client action portal route `#/action/:token`, providing external clients with a secure, responsive, and deterministic action experience without requiring authentication or account creation.
 

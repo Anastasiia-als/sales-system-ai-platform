@@ -12,4 +12,8 @@
 - [x] **Phase 6A**: Project Templates, Delivery Playbooks & One-Click Project Creation
 - [x] **Phase 6B**: Template Cloning & Advanced Delivery Orchestration
 - [x] **Phase 6C**: Advanced Process Automation & API Hooks (CLOSED / Approved)
-- [ ] **Phase 6D**: Client Action Portal & Public Submissions (Upcoming)
+- [/] **Phase 6D**: Client Action Portal & Public Submissions (Phase 6D.1 & 6D.2 CLOSED / In Progress)
+  - [x] **Phase 6D.1**: Secure Data Model, Hash-Only Storage & Atomic Submission Core (CLOSED)
+  - [x] **Phase 6D.2**: Public Action Page UI (`#/action/:token`) & Submission Integration (CLOSED)
+  - [ ] **Phase 6D.3**: PM Management UI & Magic Link Lifecycle (Next)
+  - [ ] **Phase 6D.4**: Client Portal Integration & Authenticated Actions (Upcoming)
