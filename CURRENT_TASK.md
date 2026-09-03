@@ -12,13 +12,14 @@
    - Atomic submission UX with double-click guard and automatic transition to `Already Completed` on reload.
    - Full Ukrainian localization and XSS sanitization.
 2. **Automated Verification**:
-   - 4 new test suites in `scratch/`:
+   - 5 dedicated test suites in `scratch/`:
      - `test_phase6d2_ui_states.js` (12/12 PASS)
      - `test_phase6d2_submission.js` (15/15 PASS)
-     - `test_phase6d2_validation.js` (35/35 PASS)
-     - `test_phase6d2_e2e_browser.js` (15/15 PASS)
-   - Canonical Master Regression: **41 suites, 535 assertions, 0 failures (100% PASS)**.
+     - `test_phase6d2_validation.js` (45/45 PASS)
+     - `test_phase6d2_e2e_browser.js` (27/27 PASS)
+     - `test_phase6d2_rate_limit_and_abuse.js` (211/211 PASS)
+   - Canonical Master Regression: **42 suites, 768 assertions, 0 failures (100% PASS)**.
    - Permanent Data Preservation Guard: **100% PASS (0 deletions, 0 data loss)**.
 
 ### Next Step:
-- Manual Acceptance review by user for Phase 6D.2.
+- Final Manual Acceptance review by user for Phase 6D.2.

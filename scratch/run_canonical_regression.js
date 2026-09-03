@@ -20,7 +20,8 @@ const suites = [
     'test_phase6d_rls_tokens.js', 'test_phase6d_client_isolation.js',
     'test_phase6d_exact_once_side_effects.js', 'test_phase6d_rollback.js',
     'test_phase6d2_ui_states.js', 'test_phase6d2_submission.js',
-    'test_phase6d2_validation.js', 'test_phase6d2_e2e_browser.js'
+    'test_phase6d2_validation.js', 'test_phase6d2_e2e_browser.js',
+    'test_phase6d2_rate_limit_and_abuse.js'
 ];
 
 async function run() {

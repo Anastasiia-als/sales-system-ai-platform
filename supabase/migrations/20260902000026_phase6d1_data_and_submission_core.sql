@@ -117,6 +117,36 @@ BEGIN
         RAISE EXCEPTION 'Action is already completed.';
     END IF;
 
+    -- 3b. Authoritative Server-Side Attachment Validation
+    IF p_attachments IS NOT NULL AND jsonb_typeof(p_attachments) = 'array' THEN
+        IF jsonb_array_length(p_attachments) > 5 THEN
+            RAISE EXCEPTION 'Attachments limit exceeded: maximum 5 files allowed.';
+        END IF;
+
+        DECLARE
+            v_att JSONB;
+            v_att_name TEXT;
+            v_att_size BIGINT;
+            v_att_ext TEXT;
+        BEGIN
+            FOR v_att IN SELECT * FROM jsonb_array_elements(p_attachments)
+            LOOP
+                v_att_name := v_att->>'name';
+                v_att_size := COALESCE((v_att->>'size')::BIGINT, 0);
+
+                IF v_att_size > 26214400 THEN
+                    RAISE EXCEPTION 'File % exceeds maximum size of 25 MB.', v_att_name;
+                END IF;
+
+                v_att_ext := lower(substring(v_att_name from '\.([a-zA-Z0-9]+)$'));
+
+                IF v_att_ext IS NULL OR v_att_ext NOT IN ('pdf', 'png', 'jpg', 'jpeg', 'docx', 'xlsx', 'zip', 'csv') THEN
+                    RAISE EXCEPTION 'File format of % is not allowed. Permitted formats: pdf, png, jpg, jpeg, docx, xlsx, zip, csv.', v_att_name;
+                END IF;
+            END LOOP;
+        END;
+    END IF;
+
     -- 4. Create Task Submission
     INSERT INTO public.task_submissions (
         organization_id,

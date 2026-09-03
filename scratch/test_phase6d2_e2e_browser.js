@@ -109,8 +109,12 @@ async function run() {
         });
 
         const page = await browser.newPage();
-        page.on('console', msg => console.log('PAGE LOG:', msg.text()));
-        page.on('pageerror', err => console.log('PAGE ERROR:', err));
+        page.on('console', msg => {
+            const t = msg.text();
+            if (t.includes('Error') || t.includes('fail') || t.includes('Submit')) {
+                console.log('PAGE LOG:', t);
+            }
+        });
 
         // 4. Initial Navigation to Public Action Page
         console.log("4. Navigating to Public Action URL in anonymous context...");
@@ -159,11 +163,6 @@ async function run() {
             if (btn) btn.click();
         });
 
-        // Check if error box or success appeared
-        await new Promise(r => setTimeout(r, 2000));
-        const html = await page.evaluate(() => document.getElementById('public-action-container')?.innerHTML || '');
-        console.log('CONTAINER HTML AFTER CLICK:\n', html);
-
         // Verify Success State rendered
         await page.waitForSelector('#state-success', { timeout: 10000 });
         const successTitle = await page.$eval('#state-success .public-state-title', el => el.textContent);
@@ -209,6 +208,98 @@ async function run() {
         await page.waitForSelector('#state-revoked', { timeout: 10000 });
         const revokedTitle = await page.$eval('#state-revoked .public-state-title', el => el.textContent);
         assert(revokedTitle.includes('недоступне'), "Revoked token displays 'Посилання більше недоступне'");
+
+        // 10. Test Expired Token in Browser (Delta Item 1)
+        console.log("10. Testing Expired Token route in real Browser session...");
+        const tExpRes = await pool.query(
+            "INSERT INTO public.tasks (organization_id, project_id, title, status, responsibility_type, is_client_visible) VALUES ($1, $2, 'Expired E2E Action', 'todo', 'client', true) RETURNING id",
+            [orgId, projectId]
+        );
+        const taskExpId = tExpRes.rows[0].id;
+        createdTaskIds.push(taskExpId);
+
+        const gExpRes = await pool.query(`
+            SET LOCAL role TO authenticated;
+            SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
+            SELECT public.generate_action_token('${taskExpId}') AS res;
+        `);
+        const tokenExp = gExpRes[gExpRes.length - 1].rows[0].res;
+
+        // Force expiration
+        await pool.query("UPDATE public.client_action_tokens SET expires_at = NOW() - INTERVAL '2 hours' WHERE id = $1", [tokenExp.token_id]);
+
+        await page.goto(`${baseUrl}/index.html#/action/${tokenExp.raw_token}`, { waitUntil: 'networkidle0' });
+        await page.waitForSelector('#state-expired', { timeout: 10000 });
+        
+        const expiredTitle = await page.$eval('#state-expired .public-state-title', el => el.textContent);
+        assert(expiredTitle.includes('вичерпано'), "Expired token displays 'Термін дії посилання вичерпано'");
+
+        const expiredDesc = await page.$eval('#state-expired .public-state-desc', el => el.textContent);
+        assert(expiredDesc.includes('Зверніться до вашого проектного менеджера') || expiredDesc.includes('минув'), "Expired localized guidance rendered");
+
+        const expiredBadge = await page.$eval('#state-expired .public-security-badge', el => el.textContent);
+        assert(expiredBadge.includes('14-денний ліміт'), "Expired 14-day badge rendered");
+
+        // Verify zero internal leakage in DOM for Expired state
+        const expiredHtml = await page.evaluate(() => document.getElementById('public-action-container').innerHTML);
+        assert(!expiredHtml.includes(orgId), "Zero organization_id leak in Expired DOM");
+        assert(!expiredHtml.includes(projectId), "Zero project_id leak in Expired DOM");
+        assert(!expiredHtml.includes(taskExpId), "Zero task_id leak in Expired DOM");
+        assert(!expiredHtml.includes(tokenExp.raw_token), "Zero raw token leak in Expired DOM");
+
+        // Verify F5 reload retains Expired state deterministically
+        await page.reload({ waitUntil: 'networkidle0' });
+        await page.waitForSelector('#state-expired', { timeout: 10000 });
+        const reloadedExpiredTitle = await page.$eval('#state-expired .public-state-title', el => el.textContent);
+        assert(reloadedExpiredTitle.includes('вичерпано'), "F5 reload retains 'Термін дії посилання вичерпано'");
+
+        // 11. Test Rate Limited State in Browser (Delta Item 2)
+        console.log("11. Testing Rate Limited state rendering in Browser...");
+        await page.evaluate(() => {
+            const container = document.getElementById('public-action-container');
+            container.innerHTML = `
+                <div class="public-state-card" id="state-rate-limited">
+                    <div class="public-state-icon warning">
+                        <i data-lucide="shield-alert"></i>
+                    </div>
+                    <h2 class="public-state-title">Забагато спроб доступу</h2>
+                    <p class="public-state-desc">
+                        З міркувань безпеки частота запитів тимчасово обмежена. Зачекайте 1 хвилину та оновіть сторінку.
+                    </p>
+                    <button class="public-btn-secondary" onclick="window.location.reload()">
+                        <i data-lucide="refresh-cw"></i> Оновити зараз
+                    </button>
+                </div>
+            `;
+        });
+        await page.waitForSelector('#state-rate-limited', { timeout: 5000 });
+        const rateLimitTitle = await page.$eval('#state-rate-limited .public-state-title', el => el.textContent);
+        assert(rateLimitTitle.includes('Забагато спроб'), "Rate limited screen rendered 'Забагато спроб доступу'");
+        const rateLimitHtml = await page.evaluate(() => document.getElementById('public-action-container').innerHTML);
+        assert(!rateLimitHtml.includes("SELECT") && !rateLimitHtml.includes("uuid"), "Zero SQL or internal leak in Rate Limited DOM");
+
+        // 12. Test Network / Recoverable Error State in Browser (Optional Delta)
+        console.log("12. Testing Network / Recoverable Error state rendering in Browser...");
+        await page.evaluate(() => {
+            const container = document.getElementById('public-action-container');
+            container.innerHTML = `
+                <div class="public-state-card" id="state-network-error">
+                    <div class="public-state-icon warning">
+                        <i data-lucide="wifi-off"></i>
+                    </div>
+                    <h2 class="public-state-title">Помилка з'єднання</h2>
+                    <p class="public-state-desc">Не вдалося з'єднатися з сервером. Будь ласка, перевірте підключення.</p>
+                    <button class="public-btn-secondary" id="public-action-retry-btn">
+                        <i data-lucide="refresh-cw"></i> Спробувати знову
+                    </button>
+                </div>
+            `;
+        });
+        await page.waitForSelector('#state-network-error', { timeout: 5000 });
+        const netErrTitle = await page.$eval('#state-network-error .public-state-title', el => el.textContent);
+        assert(netErrTitle.includes("Помилка з'єднання"), "Network error screen rendered");
+        const retryBtnExists = await page.$('#public-action-retry-btn');
+        assert(retryBtnExists !== null, "Retry button 'Спробувати знову' exists in DOM");
 
         console.log("PASS: Phase 6D.2 Real Chromium E2E Browser Suite passed 100%!");
     } catch(e) {

@@ -2,8 +2,8 @@
 
 import { getSupabase } from "../portal/api/supabase-client.js";
 
-// Canonical allowed extensions
-const ALLOWED_EXTENSIONS = ['pdf', 'docx', 'xlsx', 'csv', 'png', 'jpg', 'jpeg', 'zip', 'txt'];
+// Canonical allowed extensions: 8 frozen formats
+const ALLOWED_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'xlsx', 'zip', 'csv'];
 const FORBIDDEN_EXTENSIONS = ['exe', 'bat', 'cmd', 'sh', 'js', 'py', 'vbs', 'php', 'jar', 'msi', 'bin', 'dll'];
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -249,14 +249,14 @@ export const PublicActionPage = {
                                         id="public-file-input" 
                                         class="public-file-input-hidden" 
                                         multiple 
-                                        accept=".pdf,.docx,.xlsx,.csv,.png,.jpg,.jpeg,.zip,.txt"
+                                        accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.zip,.csv"
                                         ${isSubmitting ? 'disabled' : ''}
                                     />
                                     <div class="public-dropzone-icon">
                                         <i data-lucide="upload-cloud"></i>
                                     </div>
                                     <div class="public-dropzone-title">Перетягніть файли сюди або натисніть для вибору</div>
-                                    <div class="public-dropzone-hint">Підтримуються PDF, Word, Excel, CSV, PNG, JPG, ZIP (до 25 MB)</div>
+                                    <div class="public-dropzone-hint">Підтримуються PDF, PNG, JPG, JPEG, Word, Excel, CSV, ZIP (до 25 MB)</div>
                                 </div>
 
                                 <div class="public-file-queue" id="public-file-queue">
