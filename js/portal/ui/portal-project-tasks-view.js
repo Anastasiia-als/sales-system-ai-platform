@@ -497,7 +497,8 @@ export async function openTaskModal(projectId, organizationId, task = null, stag
     const isEdit = Boolean(task && task.id);
     const currentTaskId = task?.id;
     const currentUserId = PortalAuth.getUserId();
-    const canManage = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin(organizationId);
+    const isProjectPM = members.some(m => m.user_id === currentUserId && m.project_role === 'pm');
+    const canManage = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin(organizationId) || isProjectPM;
     const isAssignee = task && (task.assignee_user_id === currentUserId || task.assignee?.id === currentUserId);
     const isSpecialistSelfEdit = isEdit && !canManage && isAssignee;
     const isReadOnly = isEdit && !canManage && !isAssignee;
@@ -571,7 +572,7 @@ export async function openTaskModal(projectId, organizationId, task = null, stag
                                 <label class="portal-label">Статус</label>
                                 <select id="task-status" class="portal-select" ${isReadOnly ? 'disabled' : ''}>
                                     <option value="backlog" ${task?.status === 'backlog' ? 'selected' : ''}>Беклог</option>
-                                    <option value="todo" ${task?.status === 'todo' ? 'selected' : ''}>До виконання</option>
+                                    <option value="todo" ${(!task?.status || task?.status === 'todo') ? 'selected' : ''}>До виконання</option>
                                     <option value="in_progress" ${task?.status === 'in_progress' ? 'selected' : ''}>В роботі</option>
                                     <option value="review" ${task?.status === 'review' ? 'selected' : ''}>На перевірці</option>
                                     <option value="waiting_client" ${task?.status === 'waiting_client' ? 'selected' : ''}>Очікуємо клієнта</option>
@@ -682,6 +683,18 @@ export async function openTaskModal(projectId, organizationId, task = null, stag
                             </label>
                         </div>
 
+                        ${isEdit && task?.id ? `
+                            <div id="client-action-management-container" style="${task.responsibility_type === 'client' ? '' : 'display:none;'} margin-top: 14px; background: #0E1526; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                                        <i data-lucide="key" style="width:14px; height:14px; color:var(--color-primary);"></i>
+                                        Клієнтська дія (Magic Link & Submission)
+                                    </div>
+                                    <span class="portal-spinner" style="width:14px; height:14px; border-width:2px;"></span>
+                                </div>
+                            </div>
+                        ` : ''}
+
                         <div id="task-modal-error" style="color: var(--color-danger); font-size: 0.82rem; margin-top: 10px; display: none;"></div>
                     </div>
 
@@ -735,6 +748,7 @@ export async function openTaskModal(projectId, organizationId, task = null, stag
     const clientVisibleCb = document.getElementById("task-is-client-visible");
 
     respTypeSelect?.addEventListener("change", (e) => {
+        const caContainer = document.getElementById("client-action-management-container");
         if (e.target.value === "client") {
             if (staffGroup) staffGroup.style.display = "none";
             if (clientContactGroup) clientContactGroup.style.display = "block";
@@ -742,12 +756,14 @@ export async function openTaskModal(projectId, organizationId, task = null, stag
                 clientVisibleCb.checked = true;
                 clientVisibleCb.disabled = true;
             }
+            if (caContainer) caContainer.style.display = "block";
         } else {
             if (staffGroup) staffGroup.style.display = "block";
             if (clientContactGroup) clientContactGroup.style.display = "none";
             if (clientVisibleCb) {
                 clientVisibleCb.disabled = false;
             }
+            if (caContainer) caContainer.style.display = "none";
         }
     });
     if (respTypeSelect?.value === "client" && clientVisibleCb) {
@@ -764,6 +780,10 @@ export async function openTaskModal(projectId, organizationId, task = null, stag
     document.getElementById("task-modal-overlay")?.addEventListener("click", (e) => {
         if (e.target.id === "task-modal-overlay") closeModal();
     });
+
+    if (isEdit && task?.id) {
+        initClientActionManagementSection(task, canManage, onSuccess);
+    }
 
     const form = document.getElementById("form-task-modal");
     form?.addEventListener("submit", async (e) => {
@@ -1020,3 +1040,420 @@ function escapeHtml(str) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+function formatDateTime(dateStr) {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    return d.toLocaleString("uk-UA", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// -----------------------------------------------------------------------------
+// Phase 6D.3: Client Action & Magic Link Lifecycle Management Section
+// -----------------------------------------------------------------------------
+export async function initClientActionManagementSection(task, canManage, onReload) {
+    const container = document.getElementById("client-action-management-container");
+    if (!container || !task || !task.id) return;
+
+    container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                <i data-lucide="key" style="width:14px; height:14px; color:var(--color-primary);"></i>
+                Клієнтська дія (Magic Link & Submission)
+            </div>
+            <span class="portal-spinner" style="width:14px; height:14px; border-width:2px;"></span>
+        </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+
+    let statusRes, submissionsRes;
+    try {
+        [statusRes, submissionsRes] = await Promise.all([
+            DataClient.getClientActionTokenStatus(task.id),
+            DataClient.getTaskSubmissions(task.id)
+        ]);
+    } catch(err) {
+        container.innerHTML = `
+            <div style="font-size:0.8rem; color:var(--color-danger);">
+                Помилка завантаження даних клієнтської дії: ${escapeHtml(err.message)}
+            </div>
+        `;
+        return;
+    }
+
+    const tokenData = statusRes?.data || { status: "none", is_completed: false };
+    const submissions = submissionsRes?.data || [];
+    const currentStatus = tokenData.status || "none";
+
+    let badgeHtml = "";
+    let statusDesc = "";
+    let actionsHtml = "";
+
+    switch (currentStatus) {
+        case "done":
+            badgeHtml = `<span class="portal-badge" style="background: rgba(16, 185, 129, 0.15); color: #34D399;"><i data-lucide="check-circle-2" style="width:11px; height:11px;"></i> Виконано</span>`;
+            statusDesc = `Дію успішно виконано клієнтом${tokenData.completed_at ? ` (${formatDate(tokenData.completed_at)})` : ""}.`;
+            if (canManage) {
+                actionsHtml = `
+                    <button type="button" class="btn btn-sm btn-outline-warning" id="btn-ca-reopen" style="display:inline-flex; align-items:center; gap:6px; font-size:0.8rem;">
+                        <i data-lucide="rotate-ccw" style="width:13px; height:13px;"></i> Повернути в роботу (Reopen)
+                    </button>
+                `;
+            }
+            break;
+
+        case "active":
+            badgeHtml = `<span class="portal-badge" style="background: rgba(59, 130, 246, 0.15); color: #60A5FA;"><i data-lucide="clock" style="width:11px; height:11px;"></i> Активне</span>`;
+            statusDesc = `Посилання активне (дійсне до ${formatDate(tokenData.expires_at)}).`;
+            if (canManage) {
+                actionsHtml = `
+                    <button type="button" class="btn btn-sm btn-outline" id="btn-ca-regenerate" style="display:inline-flex; align-items:center; gap:6px; font-size:0.8rem;">
+                        <i data-lucide="refresh-cw" style="width:13px; height:13px;"></i> Перевипустити посилання
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="btn-ca-revoke" style="display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; margin-left:8px;">
+                        <i data-lucide="slash" style="width:13px; height:13px;"></i> Відкликати
+                    </button>
+                `;
+            }
+            break;
+
+        case "expired":
+            badgeHtml = `<span class="portal-badge" style="background: rgba(239, 68, 68, 0.15); color: #F87171;"><i data-lucide="alert-circle" style="width:11px; height:11px;"></i> Прострочено</span>`;
+            statusDesc = `14-денний термін дії посилання вичерпано (${formatDate(tokenData.expires_at)}).`;
+            if (canManage) {
+                actionsHtml = `
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-ca-regenerate" style="display:inline-flex; align-items:center; gap:6px; font-size:0.8rem;">
+                        <i data-lucide="refresh-cw" style="width:13px; height:13px;"></i> Створити нове посилання
+                    </button>
+                `;
+            }
+            break;
+
+        case "revoked":
+            badgeHtml = `<span class="portal-badge" style="background: rgba(239, 68, 68, 0.15); color: #F87171;"><i data-lucide="slash" style="width:11px; height:11px;"></i> Відкликано</span>`;
+            statusDesc = `Попереднє посилання було відкликано менеджером.`;
+            if (canManage) {
+                actionsHtml = `
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-ca-regenerate" style="display:inline-flex; align-items:center; gap:6px; font-size:0.8rem;">
+                        <i data-lucide="refresh-cw" style="width:13px; height:13px;"></i> Створити нове посилання
+                    </button>
+                `;
+            }
+            break;
+
+        case "none":
+        default:
+            badgeHtml = `<span class="portal-badge" style="background: rgba(148, 163, 184, 0.15); color: #94A3B8;"><i data-lucide="link" style="width:11px; height:11px;"></i> Не згенеровано</span>`;
+            statusDesc = `Посилання для клієнта ще не згенеровано. Створіть одноразовий Magic Link для виконання цієї дії без реєстрації.`;
+            if (canManage) {
+                actionsHtml = `
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-ca-generate" style="display:inline-flex; align-items:center; gap:6px; font-size:0.8rem;">
+                        <i data-lucide="link" style="width:13px; height:13px;"></i> Згенерувати Magic Link
+                    </button>
+                `;
+            }
+            break;
+    }
+
+    // Render submission history HTML
+    let submissionsHtml = "";
+    if (submissions && submissions.length > 0) {
+        submissionsHtml = `
+            <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+                <div style="font-weight: 700; font-size: 0.82rem; color: var(--text-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="history" style="width: 13px; height: 13px; color: var(--color-primary);"></i>
+                    <span>Отримані відповіді клієнта (${submissions.length})</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    ${submissions.map((sub, idx) => {
+                        const isPublic = sub.submission_type === "public_link";
+                        const channelBadge = isPublic
+                            ? `<span class="portal-badge" style="background: rgba(139, 92, 246, 0.15); color: #A78BFA; font-size: 0.7rem;"><i data-lucide="globe" style="width: 10px; height: 10px;"></i> Публічне посилання</span>`
+                            : `<span class="portal-badge" style="background: rgba(59, 130, 246, 0.15); color: #60A5FA; font-size: 0.7rem;"><i data-lucide="shield" style="width: 10px; height: 10px;"></i> Клієнтський портал</span>`;
+                        const atts = Array.isArray(sub.attachments) ? sub.attachments : [];
+                        return `
+                            <div style="background: #111827; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 0.75rem; font-weight: 700; color: #94A3B8;">#${idx + 1}</span>
+                                        ${channelBadge}
+                                        <span style="font-size: 0.78rem; color: var(--text-muted);">${formatDateTime(sub.created_at)}</span>
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: #CBD5E1;">
+                                        <i data-lucide="user" style="width: 10px; height: 10px; vertical-align: middle;"></i> ${escapeHtml(sub.submitted_by_contact_name || sub.submitted_by_user_name || 'Клієнт')}
+                                    </div>
+                                </div>
+                                <div style="background: #1A233A; padding: 10px; border-radius: 4px; font-size: 0.82rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.4;">${escapeHtml(sub.payload?.text || '—')}</div>
+                                ${atts.length > 0 ? `
+                                    <div style="margin-top: 8px;">
+                                        <div style="font-size: 0.74rem; font-weight: 600; color: #94A3B8; margin-bottom: 4px;">Додані файли (${atts.length}):</div>
+                                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                                            ${atts.map(att => `
+                                                <div style="display: flex; align-items: center; justify-content: space-between; background: #0E1526; border: 1px solid #1E293B; border-radius: 4px; padding: 6px 10px; font-size: 0.78rem;">
+                                                    <span style="color: #60A5FA; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px;">
+                                                        <i data-lucide="file-text" style="width: 12px; height: 12px; flex-shrink: 0;"></i>
+                                                        ${escapeHtml(att.name)}
+                                                    </span>
+                                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                                        <span style="color: #64748B; font-size: 0.72rem;">${formatBytes(att.size)}</span>
+                                                        ${att.path ? `
+                                                            <button type="button" class="btn-download-att" data-path="${escapeHtml(att.path)}" style="background: none; border: none; color: var(--color-primary); cursor: pointer; padding: 2px;" title="Завантажити">
+                                                                <i data-lucide="download" style="width: 12px; height: 12px;"></i>
+                                                            </button>
+                                                        ` : ''}
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                <i data-lucide="key" style="width:14px; height:14px; color:var(--color-primary);"></i>
+                Клієнтська дія (Magic Link & Submission)
+            </div>
+            <div>${badgeHtml}</div>
+        </div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px; line-height:1.4;">${statusDesc}</p>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            ${actionsHtml}
+        </div>
+        <div id="ca-error-box" style="display:none; color:var(--color-danger); font-size:0.8rem; margin-top:8px;"></div>
+        ${submissionsHtml}
+    `;
+
+    if (window.lucide) window.lucide.createIcons();
+
+    const errBox = document.getElementById("ca-error-box");
+    function showCaError(msg) {
+        if (errBox) {
+            errBox.textContent = msg;
+            errBox.style.display = "block";
+        }
+    }
+
+    // Attachment download buttons
+    container.querySelectorAll(".btn-download-att").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const p = btn.getAttribute("data-path");
+            if (!p) return;
+            try {
+                const { data: signedUrl, error } = await DataClient.getClientActionAttachmentUrl(p);
+                if (error || !signedUrl) throw error || new Error("Помилка завантаження");
+                window.open(signedUrl, "_blank");
+            } catch(err) {
+                showCaError(err.message || "Не вдалося отримати посилання на файл");
+            }
+        });
+    });
+
+    // 1. Generate Handler
+    const genBtn = document.getElementById("btn-ca-generate");
+    genBtn?.addEventListener("click", async () => {
+        genBtn.disabled = true;
+        genBtn.innerHTML = `<span class="portal-spinner" style="width:12px;height:12px;border-width:2px;"></span> Генерація...`;
+        if (errBox) errBox.style.display = "none";
+
+        try {
+            const { data, error } = await DataClient.generateClientActionToken(task.id);
+            if (error || !data?.success) throw error || new Error(error?.message || "Не вдалося створити посилання");
+
+            showOneTimeRevealModal(data.raw_token, data.public_url, () => {
+                initClientActionManagementSection(task, canManage, onReload);
+                if (onReload) onReload();
+            });
+        } catch(err) {
+            showCaError(err.message || "Помилка при генерації посилання");
+            genBtn.disabled = false;
+            genBtn.innerHTML = `<i data-lucide="link" style="width:13px; height:13px;"></i> Згенерувати Magic Link`;
+            if (window.lucide) window.lucide.createIcons();
+        }
+    });
+
+    // 2. Regenerate Handler
+    const regenBtn = document.getElementById("btn-ca-regenerate");
+    regenBtn?.addEventListener("click", async () => {
+        if (currentStatus === "active") {
+            const confirmed = window.confirm("Попереднє посилання буде негайно анульовано. Створити нове посилання для клієнта?");
+            if (!confirmed) return;
+        }
+        regenBtn.disabled = true;
+        regenBtn.innerHTML = `<span class="portal-spinner" style="width:12px;height:12px;border-width:2px;"></span> Створення...`;
+        if (errBox) errBox.style.display = "none";
+
+        try {
+            const { data, error } = await DataClient.regenerateClientActionToken(task.id);
+            if (error || !data?.success) throw error || new Error(error?.message || "Не вдалося перевипустити посилання");
+
+            showOneTimeRevealModal(data.raw_token, data.public_url, () => {
+                initClientActionManagementSection(task, canManage, onReload);
+                if (onReload) onReload();
+            });
+        } catch(err) {
+            showCaError(err.message || "Помилка при перевипуску посилання");
+            regenBtn.disabled = false;
+            regenBtn.innerHTML = `<i data-lucide="refresh-cw" style="width:13px; height:13px;"></i> Перевипустити посилання`;
+            if (window.lucide) window.lucide.createIcons();
+        }
+    });
+
+    // 3. Revoke Handler
+    const revokeBtn = document.getElementById("btn-ca-revoke");
+    revokeBtn?.addEventListener("click", async () => {
+        const confirmed = window.confirm("Ви впевнені, що хочете відкликати це посилання? Клієнт більше не зможе відкрити форму.");
+        if (!confirmed) return;
+
+        revokeBtn.disabled = true;
+        revokeBtn.innerHTML = `<span class="portal-spinner" style="width:12px;height:12px;border-width:2px;"></span> Відкликання...`;
+        if (errBox) errBox.style.display = "none";
+
+        try {
+            const { data, error } = await DataClient.revokeClientActionToken(task.id);
+            if (error || !data?.success) throw error || new Error(error?.message || "Не вдалося відкликати посилання");
+
+            await initClientActionManagementSection(task, canManage, onReload);
+            if (onReload) onReload();
+        } catch(err) {
+            showCaError(err.message || "Помилка при відкликанні посилання");
+            revokeBtn.disabled = false;
+            revokeBtn.innerHTML = `<i data-lucide="slash" style="width:13px; height:13px;"></i> Відкликати`;
+            if (window.lucide) window.lucide.createIcons();
+        }
+    });
+
+    // 4. Reopen Handler (Canonical Precedence Rule: Виконано -> Reopen -> Не згенеровано)
+    const reopenBtn = document.getElementById("btn-ca-reopen");
+    reopenBtn?.addEventListener("click", async () => {
+        const confirmed = window.confirm("Повернути клієнтську дію в роботу? Задача повернеться в статус «До виконання», а всі попередні відповіді збережуться в історії.");
+        if (!confirmed) return;
+
+        reopenBtn.disabled = true;
+        reopenBtn.innerHTML = `<span class="portal-spinner" style="width:12px;height:12px;border-width:2px;"></span> Відновлення...`;
+        if (errBox) errBox.style.display = "none";
+
+        try {
+            const { data, error } = await DataClient.reopenClientAction(task.id);
+            if (error || !data?.success) throw error || new Error(error?.message || "Не вдалося повернути дію в роботу");
+
+            task.status = "todo";
+            task.completed_at = null;
+            const statusSelect = document.getElementById("task-status");
+            if (statusSelect) statusSelect.value = "todo";
+
+            await initClientActionManagementSection(task, canManage, onReload);
+            if (onReload) onReload();
+        } catch(err) {
+            showCaError(err.message || "Помилка при поверненні дії в роботу");
+            reopenBtn.disabled = false;
+            reopenBtn.innerHTML = `<i data-lucide="rotate-ccw" style="width:13px; height:13px;"></i> Повернути в роботу (Reopen)`;
+            if (window.lucide) window.lucide.createIcons();
+        }
+    });
+}
+
+export function showOneTimeRevealModal(rawToken, publicUrl, onClosed) {
+    let transientToken = rawToken;
+    const origin = window.location.origin;
+    const pathname = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/';
+    const fullUrl = `${origin}${pathname}#/action/${transientToken}`;
+
+    const modalEl = document.createElement("div");
+    modalEl.id = "modal-one-time-reveal";
+    modalEl.className = "portal-modal-overlay";
+    modalEl.style.zIndex = "9999";
+    modalEl.innerHTML = `
+        <div class="portal-modal" style="max-width: 560px; background: #0F172A; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.6);">
+            <div class="portal-modal-header" style="border-bottom: 1px solid #1E293B;">
+                <div class="portal-modal-title" style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="shield-check" style="color: #38BDF8; width: 20px; height: 20px;"></i>
+                    <span>Одноразове посилання для клієнта (Magic Link)</span>
+                </div>
+                <button id="btn-close-reveal-modal" style="color: var(--text-muted); cursor: pointer; padding: 4px; background: none; border: none;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="portal-modal-body" style="padding: 20px;">
+                <p style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 14px; line-height: 1.5;">
+                    Надішліть це посилання клієнту. За ним клієнт зможе переглянути вимоги, надати відповідь та прикріпити необхідні файли без авторизації.
+                </p>
+                <div style="margin-bottom: 16px;">
+                    <label class="portal-label" style="font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B;">Посилання для клієнта</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="reveal-url-input" class="portal-input" value="${escapeHtml(fullUrl)}" readonly style="font-family: monospace; font-size: 0.82rem; background: #090D16; color: #38BDF8; border-color: #334155;" />
+                        <button type="button" class="btn btn-primary" id="btn-copy-magic-link" style="white-space: nowrap; display: flex; align-items: center; gap: 6px;">
+                            <i data-lucide="copy" style="width: 14px; height: 14px;"></i> <span>Копіювати</span>
+                        </button>
+                    </div>
+                </div>
+                <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-sm); padding: 12px; font-size: 0.82rem; color: #FCD34D; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4;">
+                    <i data-lucide="alert-triangle" style="width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px;"></i>
+                    <span><strong>Скопіюйте посилання зараз.</strong> З міркувань безпеки після закриття цього вікна повна адреса більше ніколи не відображатиметься (у системі зберігається лише SHA-256 хеш).</span>
+                </div>
+            </div>
+            <div class="portal-modal-footer" style="border-top: 1px solid #1E293B; display: flex; justify-content: flex-end;">
+                <button type="button" class="btn btn-primary" id="btn-done-reveal-modal">Зрозуміло, закрити</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalEl);
+    if (window.lucide) window.lucide.createIcons();
+
+    const copyBtn = document.getElementById("btn-copy-magic-link");
+    const urlInput = document.getElementById("reveal-url-input");
+    copyBtn?.addEventListener("click", async () => {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(fullUrl);
+            } else {
+                urlInput.select();
+                document.execCommand("copy");
+            }
+            copyBtn.innerHTML = `<i data-lucide="check" style="width:14px;height:14px;"></i> <span>Скопійовано!</span>`;
+            copyBtn.style.background = "#10B981";
+            if (window.lucide) window.lucide.createIcons();
+            setTimeout(() => {
+                copyBtn.innerHTML = `<i data-lucide="copy" style="width:14px;height:14px;"></i> <span>Копіювати</span>`;
+                copyBtn.style.background = "";
+                if (window.lucide) window.lucide.createIcons();
+            }, 2500);
+        } catch(err) {
+            urlInput.select();
+        }
+    });
+
+    function destroyRevealModal() {
+        transientToken = null; // Memory wiped
+        modalEl.remove();
+        window.removeEventListener("keydown", handleEsc);
+        if (onClosed) onClosed();
+    }
+
+    function handleEsc(e) {
+        if (e.key === "Escape") destroyRevealModal();
+    }
+
+    document.getElementById("btn-close-reveal-modal")?.addEventListener("click", destroyRevealModal);
+    document.getElementById("btn-done-reveal-modal")?.addEventListener("click", destroyRevealModal);
+    modalEl.addEventListener("click", (e) => {
+        if (e.target.id === "modal-one-time-reveal") destroyRevealModal();
+    });
+    window.addEventListener("keydown", handleEsc);
+}
+

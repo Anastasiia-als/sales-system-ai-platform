@@ -4311,7 +4311,65 @@ export const DataClient = {
             .eq('project_id', projectId);
         if (error) throw error;
         return data;
+    },
+
+    // -------------------------------------------------------------------------
+    // Phase 6D.3: Client Action & Magic Link Lifecycle (PM Management)
+    // -------------------------------------------------------------------------
+    async getClientActionTokenStatus(taskId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc('get_client_action_token_status', { p_task_id: taskId });
+        return { data, error };
+    },
+
+    async generateClientActionToken(taskId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc('generate_action_token', { p_task_id: taskId });
+        return { data, error };
+    },
+
+    async regenerateClientActionToken(taskId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc('regenerate_action_token', { p_task_id: taskId });
+        return { data, error };
+    },
+
+    async revokeClientActionToken(taskId, tokenId = null) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc('revoke_action_token', { p_task_id: taskId, p_token_id: tokenId });
+        return { data, error };
+    },
+
+    async reopenClientAction(taskId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc('reopen_client_action', { p_task_id: taskId });
+        return { data, error };
+    },
+
+    async getTaskSubmissions(taskId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc('get_task_submissions', { p_task_id: taskId });
+        return { data: data || [], error };
+    },
+
+    async getClientActionAttachmentUrl(storagePath) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.storage
+            .from("project-documents")
+            .createSignedUrl(storagePath, 60);
+        if (error || !data?.signedUrl) {
+            return { data: null, error: error || new Error("Не вдалося сформувати посилання на файл") };
+        }
+        return { data: data.signedUrl, error: null };
     }
 };
+
 
 

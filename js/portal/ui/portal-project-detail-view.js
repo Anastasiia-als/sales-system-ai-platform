@@ -89,11 +89,13 @@ async function loadProjectDetail(projectId) {
         const contactsRes = await DataClient.getContactsByOrg(project.organization_id);
         const contacts = contactsRes.data || [];
 
-        const canManage = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin(project.organization_id);
+        const members = project.project_memberships || [];
+        const currentUserId = PortalAuth.getUserId();
+        const isProjectPM = project.responsible_pm_id === currentUserId || members.some(m => m.user_id === currentUserId && m.project_role === 'pm');
+        const canManage = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin(project.organization_id) || isProjectPM;
         const org = project.organizations;
         const isInternal = PortalAuth.isStaff();
         const pm = project.responsible_pm;
-        const members = project.project_memberships || [];
         const projectName = project.name || project.title || "Проєкт";
         const health = project.health || project.health_status || "on_track";
         const status = project.status || "draft";

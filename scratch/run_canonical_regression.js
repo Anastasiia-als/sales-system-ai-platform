@@ -21,7 +21,11 @@ const suites = [
     'test_phase6d_exact_once_side_effects.js', 'test_phase6d_rollback.js',
     'test_phase6d2_ui_states.js', 'test_phase6d2_submission.js',
     'test_phase6d2_validation.js', 'test_phase6d2_e2e_browser.js',
-    'test_phase6d2_rate_limit_and_abuse.js'
+    'test_phase6d2_rate_limit_and_abuse.js',
+    'test_phase6d3_rbac_matrix.js', 'test_phase6d3_token_lifecycle.js',
+    'test_phase6d3_cross_channel.js', 'test_phase6d3_reopen_audit.js',
+    'test_phase6d3_security_review.js', 'test_phase6d3_e2e_browser.js',
+    'test_server_resilience_regression.js', 'verify_used_token_f5_acceptance.js'
 ];
 
 async function run() {
