@@ -27,7 +27,8 @@ const suites = [
     'test_phase6d3_security_review.js', 'test_phase6d3_e2e_browser.js',
     'test_server_resilience_regression.js', 'verify_used_token_f5_acceptance.js',
     'test_phase6d4_isolation_and_rbac.js', 'test_phase6d4_token_revocation_and_storage.js',
-    'test_phase6d4_notification_cardinality.js', 'test_phase6d4_e2e_browser.js'
+    'test_phase6d4_notification_cardinality.js', 'test_phase6d4_e2e_browser.js',
+    'test_phase6d4_completed_action_modal_e2e.js'
 ];
 
 async function run() {

@@ -4409,20 +4409,39 @@ export const DataClient = {
         return { data: data || [], error: null };
     },
 
-    async getClientActionSubmissions(taskId) {
+    async getTaskById(taskId) {
         const supabase = await getSupabase();
-        if (!supabase) return { data: [], error: new Error("Database not connected") };
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
         const { data, error } = await supabase
-            .from("task_submissions")
-            .select("id, task_id, submission_type, payload, attachments, created_at")
-            .eq("task_id", taskId)
-            .order("created_at", { ascending: true });
+            .from("tasks")
+            .select(`
+                id,
+                organization_id,
+                project_id,
+                title,
+                description,
+                status,
+                due_date,
+                responsibility_type,
+                is_client_visible,
+                client_contact_id,
+                created_at,
+                updated_at,
+                completed_at,
+                project:projects(id, name, title)
+            `)
+            .eq("id", taskId)
+            .maybeSingle();
 
         if (error) {
-            console.error("[DataClient] getClientActionSubmissions error:", error);
-            return { data: [], error };
+            console.error("[DataClient] getTaskById error:", error);
+            return { data: null, error };
         }
-        return { data: data || [], error: null };
+        return { data, error: null };
+    },
+
+    async getClientActionSubmissions(taskId) {
+        return this.getTaskSubmissions(taskId);
     },
 
     async generateClientActionStoragePath(taskId, filename) {

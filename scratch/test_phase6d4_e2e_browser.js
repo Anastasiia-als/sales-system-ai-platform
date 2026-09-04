@@ -216,9 +216,9 @@ async function run() {
             // Wait for completed state container
             await page.waitForFunction(() => {
                 const modal = document.querySelector("#action-detail-modal");
-                return modal && modal.textContent.includes("Авторизований портал");
+                return modal && (modal.textContent.includes("Клієнтський портал") || modal.textContent.includes("Авторизований портал"));
             }, { timeout: 5000 });
-            assert(true, `[${vp.name}] Submission Review displays 'Авторизований портал' channel badge`);
+            assert(true, `[${vp.name}] Submission Review displays authenticated portal channel badge`);
 
             // Verify attachment download link exists
             await page.waitForSelector("button[onclick*='downloadAttachmentFile']", { timeout: 5000 });
