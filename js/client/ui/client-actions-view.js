@@ -160,7 +160,7 @@ function renderActionCard(a) {
 
             <!-- Actions Footer -->
             <div class="client-action-card-footer">
-                <button type="button" class="btn btn-sm btn-ghost btn-action-details" data-task-id="${a.id}" onclick="event.stopPropagation(); window.openActionDetailModal && window.openActionDetailModal('${a.id}')">
+                <button type="button" class="btn btn-sm btn-ghost btn-action-details" data-task-id="${a.id}">
                     <i data-lucide="eye" style="width: 13px; height: 13px;"></i> Деталі
                 </button>
 
@@ -283,150 +283,160 @@ export function initClientActionsEvents(actions = [], projects = [], onFilterCha
 }
 
 let modalSelectedFiles = [];
+let isOpeningModal = false;
 
 export async function openActionDetailModal(taskIdOrAction) {
-    let action = null;
-    let taskId = null;
-    if (typeof taskIdOrAction === 'object' && taskIdOrAction !== null) {
-        action = taskIdOrAction;
-        taskId = action.id;
-    } else {
-        taskId = taskIdOrAction;
-        const actions = window._clientActionsData || [];
-        action = actions.find(a => a.id === taskId);
-    }
+    if (isOpeningModal) return;
+    isOpeningModal = true;
 
-    if (!action && taskId) {
-        // Fallback fetch if not found in memory
-        const { data: fetchedTask } = await DataClient.getTaskById(taskId);
-        if (fetchedTask) {
-            action = fetchedTask;
+    try {
+        let action = null;
+        let taskId = null;
+        if (typeof taskIdOrAction === 'object' && taskIdOrAction !== null) {
+            action = taskIdOrAction;
+            taskId = action.id;
+        } else {
+            taskId = taskIdOrAction;
+            const actions = window._clientActionsData || [];
+            action = actions.find(a => a.id === taskId);
         }
-    }
 
-    if (!action) {
-        console.warn("[ClientActions] Action not found for id:", taskId);
-        return;
-    }
+        if (!action && taskId) {
+            // Fallback fetch if not found in memory
+            const { data: fetchedTask } = await DataClient.getTaskById(taskId);
+            if (fetchedTask) {
+                action = fetchedTask;
+            }
+        }
 
-    let container = document.getElementById("client-action-modal-container");
-    if (!container) {
-        container = document.createElement("div");
-        container.id = "client-action-modal-container";
-        document.body.appendChild(container);
-    }
+        if (!action) {
+            console.warn("[ClientActions] Action not found for id:", taskId);
+            return;
+        }
 
-    modalSelectedFiles = [];
-    const isDone = action.status === "done";
-    const projectName = action.project?.name || action.project?.title || "Проєкт";
+        let container = document.getElementById("client-action-modal-container");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "client-action-modal-container";
+            document.body.appendChild(container);
+        }
 
-    container.innerHTML = `
-        <div class="portal-modal-overlay" id="modal-action-detail-overlay">
-            <div class="portal-modal-card" id="action-detail-modal" style="max-width: 600px; width: 100%;">
-                <div class="portal-modal-header">
-                    <div>
-                        <span class="client-badge client-badge-neutral" style="font-size: 0.75rem; margin-bottom: 4px;">
-                            ${escapeHtml(projectName)}
-                        </span>
-                        <h3 class="portal-modal-title" style="margin-top: 2px;">${escapeHtml(action.title)}</h3>
-                    </div>
-                    <button class="portal-modal-close" onclick="closeActionDetailModal()">&times;</button>
-                </div>
+        modalSelectedFiles = [];
+        const isDone = action.status === "done";
+        const projectName = action.project?.name || action.project?.title || "Проєкт";
 
-                <div class="portal-modal-body">
-                    ${action.description ? `
-                        <div style="margin-bottom: 16px;">
-                            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Опис завдання від команди</label>
-                            <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6; margin-top: 4px; white-space: pre-wrap; background: var(--bg-card-subtle); padding: 12px; border-radius: var(--radius-sm);">${escapeHtml(action.description)}</div>
-                        </div>
-                    ` : ''}
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; padding: 12px; background: var(--bg-card-subtle); border-radius: var(--radius-sm);">
+        container.innerHTML = `
+            <div class="portal-modal-overlay" id="modal-action-detail-overlay">
+                <div class="portal-modal" id="action-detail-modal" style="max-width: 620px; width: 100%;">
+                    <div class="portal-modal-header">
                         <div>
-                            <span style="font-size: 0.75rem; color: var(--text-muted);">Статус</span>
-                            <div style="font-size: 0.88rem; font-weight: 600; margin-top: 2px;">
-                                ${isDone ? '<span class="client-badge client-badge-success">Виконано</span>' : '<span class="client-badge client-badge-warning">До виконання</span>'}
-                            </div>
+                            <span class="client-badge client-badge-neutral" style="font-size: 0.75rem; margin-bottom: 4px;">
+                                ${escapeHtml(projectName)}
+                            </span>
+                            <h3 class="portal-modal-title" style="margin-top: 2px;">${escapeHtml(action.title)}</h3>
                         </div>
-                        <div>
-                            <span style="font-size: 0.75rem; color: var(--text-muted);">Термін виконання</span>
-                            <div style="font-size: 0.88rem; font-weight: 600; margin-top: 2px;">
-                                ${action.due_date ? formatDate(action.due_date) : 'Не вказано'}
-                            </div>
-                        </div>
+                        <button class="portal-modal-close" onclick="closeActionDetailModal()">&times;</button>
                     </div>
 
-                    ${!isDone ? `
-                        <!-- Submission Form -->
-                        <div class="client-action-submission-box" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
-                            <label for="client-action-text-input" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">
-                                Ваша відповідь / коментар:
-                            </label>
-                            <textarea 
-                                id="client-action-text-input" 
-                                class="client-form-textarea" 
-                                rows="3" 
-                                placeholder="Вкажіть коментар або відповідь на запит команди..."
-                                style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 12px; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit;"
-                            ></textarea>
+                    <div class="portal-modal-body">
+                        ${action.description ? `
+                            <div style="margin-bottom: 16px;">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Опис завдання від команди</label>
+                                <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6; margin-top: 4px; white-space: pre-wrap; background: var(--bg-card-subtle); padding: 12px; border-radius: var(--radius-sm);">${escapeHtml(action.description)}</div>
+                            </div>
+                        ` : ''}
 
-                            <div style="margin-bottom: 12px;">
-                                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">
-                                    Прикріпити матеріали (до 5 файлів, до 25 MB кожен):
-                                </label>
-                                <div 
-                                    id="client-action-dropzone" 
-                                    style="border: 2px dashed var(--border-color); border-radius: var(--radius-sm); padding: 16px; text-align: center; cursor: pointer; transition: background 0.2s;"
-                                    onclick="document.getElementById('client-action-file-input').click()"
-                                >
-                                    <i data-lucide="upload-cloud" style="width: 24px; height: 24px; color: var(--text-muted); margin-bottom: 4px;"></i>
-                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">
-                                        Натисніть або перетягніть файли сюди (.pdf, .png, .jpg, .docx, .xlsx, .zip, .csv)
-                                    </div>
-                                    <input 
-                                        type="file" 
-                                        id="client-action-file-input" 
-                                        multiple 
-                                        accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.zip,.csv" 
-                                        style="display: none;" 
-                                        onchange="handleClientActionFileSelect(event)"
-                                    />
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; padding: 12px; background: var(--bg-card-subtle); border-radius: var(--radius-sm);">
+                            <div>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Статус</span>
+                                <div style="font-size: 0.88rem; font-weight: 600; margin-top: 2px;">
+                                    ${isDone ? '<span class="client-badge client-badge-success">Виконано</span>' : '<span class="client-badge client-badge-warning">До виконання</span>'}
                                 </div>
-                                <div id="client-action-selected-files" style="margin-top: 8px;"></div>
-                                <div id="client-action-form-error" style="color: var(--color-danger, #ef4444); font-size: 0.82rem; margin-top: 6px; display: none;"></div>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Термін виконання</span>
+                                <div style="font-size: 0.88rem; font-weight: 600; margin-top: 2px;">
+                                    ${action.due_date ? formatDate(action.due_date) : 'Не вказано'}
+                                </div>
                             </div>
                         </div>
-                    ` : ''}
 
-                    <!-- Submission Review / History Section -->
-                    <div id="client-action-review-section" style="border-top: 1px solid var(--border-color); padding-top: 16px; ${!isDone ? 'display: none;' : ''}">
-                        ${isDone ? `
-                            <div style="text-align: center; padding: 12px; color: var(--text-muted);">
-                                <span>Завантаження деталей відповіді...</span>
+                        <!-- Prior Submission History Section (Unconditionally mounted with visible loading state) -->
+                        <div id="client-action-review-section" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                            <div style="text-align: center; padding: 14px; color: var(--text-muted); font-size: 0.85rem;">
+                                <span class="portal-spinner" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span>
+                                ${isDone ? 'Завантаження деталей відповіді...' : 'Завантаження історії відповідей...'}
+                            </div>
+                        </div>
+
+                        ${!isDone ? `
+                            <!-- Submission Form -->
+                            <div class="client-action-submission-box" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+                                    Ваша відповідь на дію
+                                </div>
+                                <label for="client-action-text-input" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">
+                                    Коментар / текст відповіді:
+                                </label>
+                                <textarea 
+                                    id="client-action-text-input" 
+                                    class="client-form-textarea" 
+                                    rows="3" 
+                                    placeholder="Вкажіть коментар або відповідь на запит команди..."
+                                    style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 12px; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit;"
+                                ></textarea>
+
+                                <div style="margin-bottom: 12px;">
+                                    <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">
+                                        Прикріпити матеріали (до 5 файлів, до 25 MB кожен):
+                                    </label>
+                                    <div 
+                                        id="client-action-dropzone" 
+                                        style="border: 2px dashed var(--border-color); border-radius: var(--radius-sm); padding: 16px; text-align: center; cursor: pointer; transition: background 0.2s;"
+                                        onclick="document.getElementById('client-action-file-input').click()"
+                                    >
+                                        <i data-lucide="upload-cloud" style="width: 24px; height: 24px; color: var(--text-muted); margin-bottom: 4px;"></i>
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                            Натисніть або перетягніть файли сюди (.pdf, .png, .jpg, .docx, .xlsx, .zip, .csv)
+                                        </div>
+                                        <input 
+                                            type="file" 
+                                            id="client-action-file-input" 
+                                            multiple 
+                                            accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.zip,.csv" 
+                                            style="display: none;" 
+                                            onchange="handleClientActionFileSelect(event)"
+                                        />
+                                    </div>
+                                    <div id="client-action-selected-files" style="margin-top: 8px;"></div>
+                                    <div id="client-action-form-error" style="color: var(--color-danger, #ef4444); font-size: 0.82rem; margin-top: 6px; display: none;"></div>
+                                </div>
                             </div>
                         ` : ''}
                     </div>
-                </div>
 
-                <div class="portal-modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
-                    <button class="btn btn-outline" onclick="closeActionDetailModal()">Закрити</button>
-                    ${isDone ? `
-                        <button class="btn btn-outline" id="btn-reopen-client-action" onclick="triggerReopenModalAction('${action.id}')">
-                            <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Повернути до виконання
-                        </button>
-                    ` : `
-                        <button class="btn btn-primary" id="btn-submit-client-action" onclick="triggerSubmitModalAction('${action.id}')">
-                            <i data-lucide="send" style="width: 14px; height: 14px;"></i> Надіслати відповідь
-                        </button>
-                    `}
+                    <div class="portal-modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                        <button class="btn btn-outline" onclick="closeActionDetailModal()">Закрити</button>
+                        ${isDone ? `
+                            <button class="btn btn-outline" id="btn-reopen-client-action" onclick="triggerReopenModalAction('${action.id}')">
+                                <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Повернути до виконання
+                            </button>
+                        ` : `
+                            <button class="btn btn-primary" id="btn-submit-client-action" onclick="triggerSubmitModalAction('${action.id}')">
+                                <i data-lucide="send" style="width: 14px; height: 14px;"></i> Надіслати відповідь
+                            </button>
+                        `}
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
 
-    if (window.lucide) window.lucide.createIcons();
+        if (window.lucide) window.lucide.createIcons();
 
-    await loadClientActionSubmissionHistory(action.id, isDone);
+        await loadClientActionSubmissionHistory(action.id, isDone);
+    } finally {
+        isOpeningModal = false;
+    }
 };
 
 window.handleClientActionFileSelect = (event) => {
@@ -494,94 +504,116 @@ async function loadClientActionSubmissionHistory(taskId, isDone = false) {
     const section = document.getElementById("client-action-review-section");
     if (!section) return;
 
-    const { data: subs, error } = await DataClient.getClientActionSubmissions(taskId);
-    if (error || !subs || subs.length === 0) {
-        if (!isDone) {
-            section.innerHTML = "";
-            section.style.display = "none";
-        } else {
+    try {
+        const { data: subs, error } = await DataClient.getClientActionSubmissions(taskId);
+        if (error) {
+            console.error("[ClientActions] Error loading submissions for task:", taskId, error);
             section.style.display = "block";
             section.innerHTML = `
-                <div style="font-size: 0.88rem; color: var(--text-muted); padding: 12px; background: var(--bg-card-subtle); border-radius: var(--radius-sm); text-align: center;">
-                    Дію виконано. Деталі відповіді відсутні або зафіксовані в системі.
+                <div style="font-size: 0.82rem; color: var(--color-danger, #ef4444); padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-sm); border: 1px solid rgba(239, 68, 68, 0.2);">
+                    Не вдалося завантажити історію відповідей: ${escapeHtml(error.message || String(error))}
                 </div>
             `;
+            return;
         }
-        return;
-    }
 
-    section.style.display = "block";
-    const headerTitle = !isDone 
-        ? `Історія попередніх відповідей (${subs.length})` 
-        : (subs.length > 1 ? `Історія виконання (${subs.length} ітерації)` : 'Відповідь клієнта');
-
-    section.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-            <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
-                ${headerTitle}
-            </div>
-            ${subs.map((sub, index) => {
-                const isLatest = index === subs.length - 1;
-                const payload = sub.payload || {};
-                const attachments = sub.attachments || payload.attachments || [];
-                const author = sub.submitted_by_contact_name || sub.submitted_by_user_name || sub.submitted_by_contact_email || 'Клієнт';
-                const channelName = sub.submission_type === 'authenticated_portal' ? 'Клієнтський портал' : 'Публічне посилання';
-                const channelBadge = sub.submission_type === 'authenticated_portal' ? 'client-badge-success' : 'client-badge-neutral';
-                const showIterationBadge = !isDone || subs.length > 1;
-
-                return `
-                    <div style="background: var(--bg-card-subtle); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span class="client-badge ${channelBadge}" style="font-size: 0.75rem;">
-                                    ${escapeHtml(channelName)}
-                                </span>
-                                ${showIterationBadge ? `
-                                    <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">
-                                        Ітерація ${index + 1}${isDone && isLatest && subs.length > 1 ? ' (Поточна)' : ''}
-                                    </span>
-                                ` : ''}
-                            </div>
-                            <span style="font-size: 0.75rem; color: var(--text-muted);">
-                                ${formatDateTime(sub.created_at)}
-                            </span>
-                        </div>
-
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
-                            <strong>Автор:</strong> ${escapeHtml(author)}
-                        </div>
-
-                        ${payload.text ? `
-                            <div style="font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; margin-bottom: 10px; white-space: pre-wrap; background: var(--bg-card); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                                ${escapeHtml(payload.text)}
-                            </div>
-                        ` : '<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Відповідь без текстового коментаря</div>'}
-
-                        ${attachments.length > 0 ? `
-                            <div style="border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 8px;">
-                                <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
-                                    Прикріплені файли (${attachments.length}):
-                                </span>
-                                <div style="display: flex; flex-direction: column; gap: 4px;">
-                                    ${attachments.map(att => `
-                                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; padding: 6px 10px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(att.name)}</span>
-                                            ${(att.path || att.storage_path) ? `
-                                                <button type="button" class="btn btn-outline btn-xs" onclick="downloadAttachmentFile('${escapeHtml(att.path || att.storage_path)}')" style="padding: 2px 8px; font-size: 0.75rem;">
-                                                    Завантажити
-                                                </button>
-                                            ` : ''}
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
+        if (!subs || subs.length === 0) {
+            if (!isDone) {
+                // For a fresh task without submissions, cleanly hide the section
+                section.innerHTML = "";
+                section.style.display = "none";
+            } else {
+                section.style.display = "block";
+                section.innerHTML = `
+                    <div style="font-size: 0.88rem; color: var(--text-muted); padding: 12px; background: var(--bg-card-subtle); border-radius: var(--radius-sm); text-align: center;">
+                        Дію виконано. Деталі відповіді відсутні або зафіксовані в системі.
                     </div>
                 `;
-            }).join('')}
-        </div>
-    `;
-    if (window.lucide) window.lucide.createIcons();
+            }
+            return;
+        }
+
+        section.style.display = "block";
+        const headerTitle = !isDone 
+            ? `Історія попередніх відповідей (${subs.length})` 
+            : (subs.length > 1 ? `Історія виконання (${subs.length} ітерації)` : 'Відповідь клієнта');
+
+        section.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+                    ${headerTitle}
+                </div>
+                ${subs.map((sub, index) => {
+                    const isLatest = index === subs.length - 1;
+                    const payload = sub.payload || {};
+                    const attachments = sub.attachments || payload.attachments || [];
+                    const author = sub.submitted_by_contact_name || sub.submitted_by_user_name || sub.submitted_by_contact_email || 'Клієнт';
+                    const channelName = sub.submission_type === 'authenticated_portal' ? 'Клієнтський портал' : 'Публічне посилання';
+                    const channelBadge = sub.submission_type === 'authenticated_portal' ? 'client-badge-success' : 'client-badge-neutral';
+                    const showIterationBadge = !isDone || subs.length > 1;
+
+                    return `
+                        <div style="background: var(--bg-card-subtle); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="client-badge ${channelBadge}" style="font-size: 0.75rem;">
+                                        ${escapeHtml(channelName)}
+                                    </span>
+                                    ${showIterationBadge ? `
+                                        <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">
+                                            Ітерація ${index + 1}${isDone && isLatest && subs.length > 1 ? ' (Поточна)' : ''}
+                                        </span>
+                                    ` : ''}
+                                </div>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">
+                                    ${formatDateTime(sub.created_at)}
+                                </span>
+                            </div>
+
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                                <strong>Автор:</strong> ${escapeHtml(author)}
+                            </div>
+
+                            ${payload.text ? `
+                                <div style="font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; margin-bottom: 10px; white-space: pre-wrap; background: var(--bg-card); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                                    ${escapeHtml(payload.text)}
+                                </div>
+                            ` : '<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Відповідь без текстового коментаря</div>'}
+
+                            ${attachments.length > 0 ? `
+                                <div style="border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 8px;">
+                                    <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+                                        Прикріплені файли (${attachments.length}):
+                                    </span>
+                                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                                        ${attachments.map(att => `
+                                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; padding: 6px 10px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(att.name)}</span>
+                                                ${(att.path || att.storage_path) ? `
+                                                    <button type="button" class="btn btn-outline btn-xs" onclick="downloadAttachmentFile('${escapeHtml(att.path || att.storage_path)}')" style="padding: 2px 8px; font-size: 0.75rem;">
+                                                        Завантажити
+                                                    </button>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+        console.error("[ClientActions] Exception in loadClientActionSubmissionHistory:", err);
+        section.style.display = "block";
+        section.innerHTML = `
+            <div style="font-size: 0.82rem; color: var(--color-danger, #ef4444); padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-sm); border: 1px solid rgba(239, 68, 68, 0.2);">
+                Помилка відображення історії відповідей: ${escapeHtml(err.message || String(err))}
+            </div>
+        `;
+    }
 }
 
 function formatDateTime(dateStr) {
