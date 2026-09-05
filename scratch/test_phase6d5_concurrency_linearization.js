@@ -186,8 +186,10 @@ async function run() {
         assert(task3Db.rows[0].completed_at === null, "tasks.completed_at is strictly NULL");
 
         // Verify historical used token is dead and never reactivated
-        const token3Db = await pool.query("SELECT status, used_at FROM public.client_action_tokens WHERE id = $1;", [token3.token_id]);
-        assert(token3Db.rows[0].status === 'used', "Historical token remains 'used' (never reactivated)");
+        const token3Db = await pool.query("SELECT status, used_at, revoked_at FROM public.client_action_tokens WHERE id = $1;", [token3.token_id]);
+        assert(token3Db.rows[0].status === 'used', "Historical token status is strictly 'used' (never reactivated)");
+        assert(token3Db.rows[0].used_at !== null, "Historical token used_at IS NOT NULL");
+        assert(token3Db.rows[0].revoked_at === null, "Historical token revoked_at IS NULL");
 
         // Subsequent public submission with used token is rejected with exact canonical literal
         let usedSubmitError = null;
@@ -196,7 +198,7 @@ async function run() {
         } catch(e) {
             usedSubmitError = e.message;
         }
-        assert(usedSubmitError && usedSubmitError.includes("Action has already been submitted."), "Public submit with used token rejected with 'Action has already been submitted.'");
+        assert(usedSubmitError && usedSubmitError.trim() === "Action has already been submitted.", `Public submit with used token rejected with exact canonical literal 'Action has already been submitted.' (Got: '${usedSubmitError}')`);
 
         // Also test with revoked token branch
         const token3Rev = await genToken(task3Id);
@@ -205,13 +207,18 @@ async function run() {
             SET LOCAL request.jwt.claims TO '{"sub":"${ownerId}"}';
             SELECT public.revoke_action_token('${task3Id}', '${token3Rev.token_id}');
         `);
+        const token3RevDb = await pool.query("SELECT status, used_at, revoked_at FROM public.client_action_tokens WHERE id = $1;", [token3Rev.token_id]);
+        assert(token3RevDb.rows[0].status === 'revoked', "Historical revoked token status is strictly 'revoked'");
+        assert(token3RevDb.rows[0].revoked_at !== null, "Historical revoked token revoked_at IS NOT NULL");
+        assert(token3RevDb.rows[0].used_at === null, "Historical revoked token used_at IS NULL");
+
         let revokedSubmitError = null;
         try {
             await pool.query("SELECT public.submit_public_client_action($1, '{\"text\":\"Attempt with revoked\"}'::jsonb);", [token3Rev.raw_token]);
         } catch(e) {
             revokedSubmitError = e.message;
         }
-        assert(revokedSubmitError && revokedSubmitError.includes("Invalid or revoked token."), "Public submit with revoked token rejected with 'Invalid or revoked token.'");
+        assert(revokedSubmitError && revokedSubmitError.trim() === "Invalid or revoked token.", `Public submit with revoked token rejected with exact canonical literal 'Invalid or revoked token.' (Got: '${revokedSubmitError}')`);
 
         // Invariants: exactly 1 historical submission, 0 new submissions
         const subs3 = await pool.query("SELECT count(*) FROM public.task_submissions WHERE task_id = $1;", [task3Id]);
