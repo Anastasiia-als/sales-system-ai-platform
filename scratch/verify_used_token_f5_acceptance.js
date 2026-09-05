@@ -41,8 +41,8 @@ async function run() {
     assert(userTokenRes.rows[0].status === 'used', "User's token status is strictly 'used'");
     assert(userTokenRes.rows[0].used_at !== null, "User's token used_at is set");
 
-    const userSubRes = await pool.query("SELECT id, submission_type, payload FROM public.task_submissions WHERE task_id = $1", [userTaskId]);
-    assert(userSubRes.rows.length === 1, "User's submission exists in DB (exactly 1 record)");
+    const userSubRes = await pool.query("SELECT id, submission_type, payload FROM public.task_submissions WHERE task_id = $1 ORDER BY created_at ASC", [userTaskId]);
+    assert(userSubRes.rows.length >= 1, "User's submission exists in DB (at least 1 record preserved)");
     assert(userSubRes.rows[0].submission_type === 'public_link', "User's submission type is 'public_link'");
     assert(userSubRes.rows[0].payload.text === 'Тестова відповідь для перевірки клієнтської дії.', "User's submitted text is 100% preserved");
 

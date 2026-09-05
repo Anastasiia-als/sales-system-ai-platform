@@ -1,33 +1,45 @@
 # Current Task: Phase 6D — Client Action Portal & Public Submissions
 
-## Active Step: Phase 6D.4 CLOSED & ACCEPTED — STOPPED FOR PHASE 6D.5 SCOPE APPROVAL
+## Active Step: Phase 6D.5 IMPLEMENTATION COMPLETE — STOPPED AT MANUAL ACCEPTANCE GATE
 
-### Phase 6D.4 Acceptance Summary:
-- **Status**: **PASSED, ACCEPTED & CLOSED**
-- **User Acceptance Confirmation**:
-  - Reopened submission through Public Magic Link strictly preserved as **Iteration 1**.
-  - Subsequent submission through Client Portal successfully created as **Iteration 2**.
-  - Prior submission text and metadata not overwritten and not deleted (100% data preservation).
-  - Both iterations clearly rendered in chronological order within **Submission History**.
-  - Final task status: **«Виконано»** (completed).
-  - **Reopen** action remains available and operational for PM/Admin.
-- **Deliverables Verified**:
-  1. **Strict Same-Org Client A vs Client B Contact Isolation**: Hardened `tasks_client_select` RLS and `submit_authenticated_client_action` RPC to ensure `tasks.client_contact_id` matches caller's contact ID derived from `client_portal_access`. Client B from the same organization receives `Access denied` and 0 rows on SELECT.
-  2. **Cross-Tenant & Cross-Project Default Deny**: Foreign tenants receive immediate `Access denied to this project.`
-  3. **Server-Derived Identity & Anti-Spoofing**: Organization, project, and contact IDs in submissions are derived authoritatively server-side (`auth.uid()`, `v_task.organization_id`, `v_contact_id`); client payload overrides are strictly ignored.
-  4. **Cross-Channel Token Revocation**: Authenticated portal submission strictly sets active Magic Link tokens to `status = 'revoked'`, `revoked_at = NOW()`, with `used_at = NULL`. Zero tokens are marked `used`.
-  5. **Authoritative Private Storage Architecture**: All attachments stored in canonical private bucket `project-documents` under `client-actions/{org_id}/{proj_id}/{task_id}/{file_uuid}_{sanitized_name}` generated server-side via `generate_client_action_storage_path`.
-  6. **Storage RLS Policies & Filename Validation**: Upload/read policies on `storage.objects` verify task ownership and membership with UUID regex validation. Rejects spoofed task namespaces and unpermitted extensions.
-  7. **Exact Notification Cardinality**:
-     - `PM != Owner`: Exactly 2 persisted rows (1 PM + 1 Owner).
-     - `PM == Owner`: Exactly 1 persisted row (Owner).
-     - `PM IS NULL`: Exactly 1 persisted row (Owner, using `IS DISTINCT FROM`).
-     - Retries / duplicate submit: Exactly 0 duplicate notifications.
-     - PM Reopen: Exactly 1 notification persisted for the assigned client user.
-  8. **Client Action Center UI Upgrades**: Drag-and-drop file upload with 8 allowlisted extensions, 25 MB / 5 file limit, responsive modal, submission review with signed download URLs and Reopen capability.
-  9. **Exhaustive Automated Regression**: 56 suites, 1073 assertions, 0 failures (100% PASS).
-  10. **Data Preservation Guard**: 100% PASS (0 deletions, 0 data loss). User's manual acceptance data preserved across iterations.
+### Phase 6D.5 Implementation & Verification Summary:
+- **Status**: **IMPLEMENTATION COMPLETE (Awaiting User Manual Acceptance)**
+- **Scope Compliance**:
+  - Strictly followed approved Frozen Scope, Concurrency Linearization Matrix, RTM, and Definition of Done.
+  - Zero modifications to canonical task status (`tasks.status = 'done'`, `completed_at IS NOT NULL`).
+  - Zero modifications to canonical submission type (`submission_type = 'authenticated_portal'`).
+  - 100% preservation of pre-existing user data (`Demo Client Corp`, `Idempotency Test`, manual submissions).
+  - All test fixtures isolated and deleted strictly by exact UUIDs/paths (`WHERE id = ANY($1::uuid[])`).
+- **Executed Suites & Deliverables**:
+  1. **Concurrency Linearization Suite** (`scratch/test_phase6d5_concurrency_linearization.js`):
+     - Verified all 9 race conditions under authoritative row-level locking (`FOR UPDATE`).
+     - Verified both deterministic branches of `Public Submit ↔ Reopen` (Reopen first rejected, Public Submit first succeeded).
+     - Verified both historical token branches (`used` -> `Action has already been submitted.` vs `revoked` -> `Invalid or revoked token.`).
+     - Verified exact notification cardinality (0 duplicate notifications) and zero duplicate downstream tasks.
+     - Result: **55 / 55 assertions passed (Exit code 0)**.
+  2. **Signed URL & Storage Security Audit Suite** (`scratch/test_phase6d5_storage_security_audit.js`):
+     - Validated private bucket `project-documents` under storage RLS policies.
+     - Verified valid download before TTL expiry and denial after TTL expiry (0 bytes returned, no internal leakage).
+     - Verified signature tampering rejection, path tampering rejection, and cross-tenant access denial.
+     - Verified direct public access elimination and path traversal protection.
+     - Result: **21 / 21 assertions passed (Exit code 0)**.
+  3. **Canonical Two-Iteration Golden Path E2E Suite** (`scratch/test_phase6d5_golden_path_e2e.js`):
+     - Executed full 2-iteration lifecycle in real Chromium across Desktop (1920×1080) and Mobile (375×812).
+     - Iteration 1 via Public Magic Link (`status = 'done'`, token `used`).
+     - Reopen by PM (`status = 'todo'`, token remains `used`).
+     - Iteration 2 via Client Portal (`status = 'done'`, both submissions and attachments chronologically preserved).
+     - 0 browser console errors and 0 horizontal overflow.
+     - Result: **58 / 58 assertions passed (Exit code 0)**.
+  4. **Fixture Isolation & Data Preservation Audit Suite** (`scratch/test_phase6d5_fixture_isolation_audit.js`):
+     - 0 dangling test organizations, projects, tasks, submissions, or storage files found.
+     - Real manual acceptance records in `Demo Client Corp` confirmed 100% intact.
+     - Sentinel exact-ID deletion verified.
+     - Result: **19 / 19 assertions passed (Exit code 0)**.
+  5. **Full Canonical Regression Runner** (`scratch/run_canonical_regression.js`):
+     - **60 / 60 suites passed (1226 assertions passed, 0 failed, 0 skipped-required, Exit code 0)**.
+     - Data preservation guard: 0 missing, 0 leaked fixtures.
 
-### Next Step:
-- **Phase 6D.5**: Production Hardening, Edge-Case Auditing & Full E2E Verification.
-- **Current State**: STOPPED. Awaiting user review and approval of the Phase 6D.5 Proposal, Scope, and Definition of Done before any implementation.
+### Next Action:
+- **STOPPED AT MANUAL ACCEPTANCE GATE**.
+- Awaiting user manual verification in real Chrome for Phase 6D.5.
+- Phase 6D.5 will NOT be closed until explicit user confirmation is received.

@@ -45,6 +45,11 @@ async function run() {
         const rootDir = path.resolve(__dirname, '..');
         server = http.createServer((req, res) => {
             let reqPath = req.url.split('?')[0].split('#')[0];
+            if (reqPath === '/favicon.ico') {
+                res.writeHead(204);
+                res.end();
+                return;
+            }
             if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
             const filePath = path.join(rootDir, reqPath);
 
@@ -241,6 +246,7 @@ async function run() {
     } finally {
         if (browser) await browser.close();
         if (server) await new Promise(resolve => server.close(resolve));
+        try { fs.unlinkSync(path.resolve(__dirname, 'mock_test_spec.pdf')); } catch (e) {}
 
         // Exact ID cleanup
         if (createdTaskIds.length > 0) {

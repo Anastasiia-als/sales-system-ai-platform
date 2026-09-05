@@ -16,11 +16,36 @@ function assert(condition, message) {
 async function run() {
     console.log("=== Phase 6D.4: Reopened Action Modal & Submission History E2E Test ===");
     let browser;
+    const trackedTaskIds = [];
+    const trackedSubIds = [];
     try {
-        const reopenedTaskId = '02f8e8b7-83d1-49af-9e18-3c3206505482';
         const demoOrgId = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+        const projectRes = await pool.query("SELECT id FROM public.projects WHERE organization_id = $1 AND name = 'Idempotency Test' AND status != 'archived' LIMIT 1", [demoOrgId]);
+        const projectId = projectRes.rows[0].id;
+        const contactRes = await pool.query("SELECT id FROM public.contacts WHERE organization_id = $1 LIMIT 1", [demoOrgId]);
+        const contactId = contactRes.rows[0].id;
 
-        // 1. Verify DB state before test (must be 'todo' with 1 submission)
+        // 1. Create dedicated isolated test task
+        const taskInsert = await pool.query(`
+            INSERT INTO public.tasks (
+                title, description, status, responsibility_type, is_client_visible, organization_id, project_id, client_contact_id
+            ) VALUES (
+                'Fill in initial business questionnaire', 'Fill in questionnaire', 'todo', 'client', true, $1, $2, $3
+            ) RETURNING id;
+        `, [demoOrgId, projectId, contactId]);
+        const reopenedTaskId = taskInsert.rows[0].id;
+        trackedTaskIds.push(reopenedTaskId);
+
+        // Add 1 prior submission
+        const subInsert = await pool.query(`
+            INSERT INTO public.task_submissions (
+                task_id, organization_id, submission_type, payload, attachments, submitted_by_contact_id, created_at
+            ) VALUES (
+                $1, $2, 'public_link', '{"text":"Тестова відповідь для перевірки клієнтської дії."}'::jsonb, '[]'::jsonb, $3, NOW() - INTERVAL '10 minutes'
+            ) RETURNING id;
+        `, [reopenedTaskId, demoOrgId, contactId]);
+        trackedSubIds.push(subInsert.rows[0].id);
+
         const beforeTask = await pool.query("SELECT id, title, status, completed_at FROM public.tasks WHERE id = $1", [reopenedTaskId]);
         assert(beforeTask.rows.length > 0 && beforeTask.rows[0].status === 'todo', "Target task exists in DB with status 'todo'");
         assert(beforeTask.rows[0].completed_at === null, "completed_at is null for reopened task");
@@ -233,6 +258,16 @@ async function run() {
         throw err;
     } finally {
         if (browser) await browser.close();
+        try {
+            await pool.query("SET session_replication_role = 'replica';");
+            if (trackedSubIds.length > 0) {
+                await pool.query("DELETE FROM public.task_submissions WHERE id = ANY($1::uuid[])", [trackedSubIds]);
+            }
+            if (trackedTaskIds.length > 0) {
+                await pool.query("DELETE FROM public.tasks WHERE id = ANY($1::uuid[])", [trackedTaskIds]);
+            }
+            await pool.query("SET session_replication_role = 'origin';");
+        } catch(e) {}
         await pool.end();
     }
 }
