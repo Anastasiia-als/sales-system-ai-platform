@@ -396,14 +396,16 @@ export async function openActionDetailModal(taskIdOrAction) {
                                 <div id="client-action-form-error" style="color: var(--color-danger, #ef4444); font-size: 0.82rem; margin-top: 6px; display: none;"></div>
                             </div>
                         </div>
-                    ` : `
-                        <!-- Completed Review Section -->
-                        <div id="client-action-review-section" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    ` : ''}
+
+                    <!-- Submission Review / History Section -->
+                    <div id="client-action-review-section" style="border-top: 1px solid var(--border-color); padding-top: 16px; ${!isDone ? 'display: none;' : ''}">
+                        ${isDone ? `
                             <div style="text-align: center; padding: 12px; color: var(--text-muted);">
                                 <span>Завантаження деталей відповіді...</span>
                             </div>
-                        </div>
-                    `}
+                        ` : ''}
+                    </div>
                 </div>
 
                 <div class="portal-modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
@@ -424,9 +426,7 @@ export async function openActionDetailModal(taskIdOrAction) {
 
     if (window.lucide) window.lucide.createIcons();
 
-    if (isDone) {
-        await loadClientActionSubmissionHistory(action.id);
-    }
+    await loadClientActionSubmissionHistory(action.id, isDone);
 };
 
 window.handleClientActionFileSelect = (event) => {
@@ -490,32 +490,44 @@ window.removeSelectedFile = (idx) => {
     renderSelectedFilesList();
 };
 
-async function loadClientActionSubmissionHistory(taskId) {
+async function loadClientActionSubmissionHistory(taskId, isDone = false) {
     const section = document.getElementById("client-action-review-section");
     if (!section) return;
 
     const { data: subs, error } = await DataClient.getClientActionSubmissions(taskId);
     if (error || !subs || subs.length === 0) {
-        section.innerHTML = `
-            <div style="font-size: 0.88rem; color: var(--text-muted); padding: 12px; background: var(--bg-card-subtle); border-radius: var(--radius-sm); text-align: center;">
-                Дію виконано. Деталі відповіді відсутні або зафіксовані в системі.
-            </div>
-        `;
+        if (!isDone) {
+            section.innerHTML = "";
+            section.style.display = "none";
+        } else {
+            section.style.display = "block";
+            section.innerHTML = `
+                <div style="font-size: 0.88rem; color: var(--text-muted); padding: 12px; background: var(--bg-card-subtle); border-radius: var(--radius-sm); text-align: center;">
+                    Дію виконано. Деталі відповіді відсутні або зафіксовані в системі.
+                </div>
+            `;
+        }
         return;
     }
+
+    section.style.display = "block";
+    const headerTitle = !isDone 
+        ? `Історія попередніх відповідей (${subs.length})` 
+        : (subs.length > 1 ? `Історія виконання (${subs.length} ітерації)` : 'Відповідь клієнта');
 
     section.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 12px;">
             <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
-                ${subs.length > 1 ? `Історія виконання (${subs.length} ітерації)` : 'Відповідь клієнта'}
+                ${headerTitle}
             </div>
             ${subs.map((sub, index) => {
                 const isLatest = index === subs.length - 1;
                 const payload = sub.payload || {};
                 const attachments = sub.attachments || payload.attachments || [];
-                const author = sub.submitted_by_contact_name || sub.submitted_by_user_name || sub.submitted_by_contact_email || '';
+                const author = sub.submitted_by_contact_name || sub.submitted_by_user_name || sub.submitted_by_contact_email || 'Клієнт';
                 const channelName = sub.submission_type === 'authenticated_portal' ? 'Клієнтський портал' : 'Публічне посилання';
                 const channelBadge = sub.submission_type === 'authenticated_portal' ? 'client-badge-success' : 'client-badge-neutral';
+                const showIterationBadge = !isDone || subs.length > 1;
 
                 return `
                     <div style="background: var(--bg-card-subtle); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
@@ -524,9 +536,9 @@ async function loadClientActionSubmissionHistory(taskId) {
                                 <span class="client-badge ${channelBadge}" style="font-size: 0.75rem;">
                                     ${escapeHtml(channelName)}
                                 </span>
-                                ${subs.length > 1 ? `
+                                ${showIterationBadge ? `
                                     <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">
-                                        Ітерація ${index + 1}${isLatest ? ' (Поточна)' : ''}
+                                        Ітерація ${index + 1}${isDone && isLatest && subs.length > 1 ? ' (Поточна)' : ''}
                                     </span>
                                 ` : ''}
                             </div>
@@ -535,11 +547,9 @@ async function loadClientActionSubmissionHistory(taskId) {
                             </span>
                         </div>
 
-                        ${author ? `
-                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
-                                <strong>Автор:</strong> ${escapeHtml(author)}
-                            </div>
-                        ` : ''}
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                            <strong>Автор:</strong> ${escapeHtml(author)}
+                        </div>
 
                         ${payload.text ? `
                             <div style="font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; margin-bottom: 10px; white-space: pre-wrap; background: var(--bg-card); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
