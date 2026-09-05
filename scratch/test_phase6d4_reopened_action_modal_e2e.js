@@ -114,6 +114,12 @@ async function run() {
         const reviewDisplay = await page.$eval("#client-action-review-section", el => window.getComputedStyle(el).display);
         assert(reviewDisplay !== "none", "Previous submissions section is visible (display != 'none')");
 
+        const reviewBox = await page.$eval("#client-action-review-section", el => {
+            const r = el.getBoundingClientRect();
+            return { width: r.width, height: r.height };
+        });
+        assert(reviewBox.width > 100 && reviewBox.height > 50, `Review section has visible bounding box (${reviewBox.width}x${reviewBox.height})`);
+
         const reviewHtml = await page.$eval("#client-action-review-section", el => el.innerHTML);
         assert(reviewHtml.includes("Історія попередніх відповідей (1)"), "Header contains 'Історія попередніх відповідей (1)'");
         assert(reviewHtml.includes("Ітерація 1"), "History card displays 'Ітерація 1'");
@@ -124,6 +130,21 @@ async function run() {
         // Close modal
         await page.click(".portal-modal-close");
         await new Promise(r => setTimeout(r, 400));
+
+        // Test project dropdown filter flow
+        const projectSelect = await page.$("#select-client-action-project");
+        if (projectSelect) {
+            const idempValue = await page.$eval("#select-client-action-project", sel => {
+                const opt = Array.from(sel.options).find(o => o.text.trim() === 'Idempotency Test');
+                return opt ? opt.value : null;
+            });
+            assert(idempValue !== null, "Found 'Idempotency Test' in project dropdown");
+            await page.select("#select-client-action-project", idempValue);
+            await new Promise(r => setTimeout(r, 1000));
+
+            const cardInProjectFilter = await page.$(cardSelector);
+            assert(cardInProjectFilter !== null, "Card is present and visible when filtered by Idempotency Test project");
+        }
 
         // Test clicking 'Деталі' button directly
         const detailsBtn = await page.$(`${cardSelector} .btn-action-details`);

@@ -145,6 +145,12 @@ async function run() {
         await c1.query('COMMIT');
     }
     
+    if (projId) {
+        try {
+            await pool.query("UPDATE public.projects SET status = 'archived' WHERE id = $1", [projId]);
+        } catch (e) {}
+    }
+
     c1.release();
 
     await pool.end();

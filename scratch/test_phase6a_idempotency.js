@@ -26,6 +26,7 @@ async function run() {
     const c1 = await pool.connect();
     const c2 = await pool.connect();
 
+    let createdProjId = null;
     try {
         const req1 = c1.query(payloadQuery);
         const req2 = c2.query(payloadQuery);
@@ -40,8 +41,10 @@ async function run() {
                 const resData = Array.isArray(r.value) ? r.value[r.value.length - 1] : r.value;
                 const data = resData.rows[0].res;
                 console.log(`Request ${i+1}:`, data);
-                if (data.success) successCount++;
-                else rejectCount++;
+                if (data.success) {
+                    successCount++;
+                    createdProjId = data.project_id;
+                } else rejectCount++;
             } else {
                 console.log(`Request ${i+1} Exception:`, r.reason.message);
                 rejectCount++;
@@ -55,6 +58,11 @@ async function run() {
             console.error("Idempotency Test FAILED!");
         }
     } finally {
+        if (createdProjId) {
+            try {
+                await pool.query("UPDATE public.projects SET status = 'archived' WHERE id = $1", [createdProjId]);
+            } catch (e) {}
+        }
         c1.release();
         c2.release();
         await pool.end();

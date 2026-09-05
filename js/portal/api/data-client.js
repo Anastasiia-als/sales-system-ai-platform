@@ -2252,38 +2252,44 @@ export const DataClient = {
     // -------------------------------------------------------------------------
     // 11. Client Action Center (Phase 4B)
     // -------------------------------------------------------------------------
-    async getClientActions(orgId, filter = {}) {
+    async getClientActions(orgIdOrProjectId = null, filter = {}) {
         const supabase = await getSupabase();
         if (!supabase) return { data: [], error: new Error("Database not connected") };
 
         try {
-            // First get accessible projects for org
-            const { data: projects } = await supabase
-                .from("projects")
-                .select("id, title, name")
-                .eq("organization_id", orgId)
-                .neq("status", "archived");
+            let projectIds = [];
 
-            const projectList = projects || [];
-            if (projectList.length === 0) return { data: [], error: null };
-            const projectIds = projectList.map(p => p.id);
+            if (filter && filter.projectId && filter.projectId !== "all") {
+                projectIds = [filter.projectId];
+            } else if (orgIdOrProjectId && orgIdOrProjectId !== "all") {
+                // First get active (non-archived) projects for org
+                const { data: projects } = await supabase
+                    .from("projects")
+                    .select("id, title, name")
+                    .eq("organization_id", orgIdOrProjectId)
+                    .neq("status", "archived");
+
+                const projectList = projects || [];
+                if (projectList.length === 0) return { data: [], error: null };
+                projectIds = projectList.map(p => p.id);
+            }
 
             let query = supabase
                 .from("tasks")
                 .select(`
-                    id, project_id, stage_id, milestone_id, title, description, status, priority,
+                    id, organization_id, project_id, stage_id, milestone_id, title, description, status, priority,
                     start_date, due_date, completed_at, responsibility_type, client_contact_id, source_meeting_id,
-                    project:project_id(id, title, name),
+                    created_at, updated_at,
+                    project:projects(id, title, name),
                     stage:stage_id(id, name, is_client_visible),
                     milestone:milestone_id(id, name, is_client_visible),
                     meeting:source_meeting_id(id, title, is_client_visible)
                 `)
-                .in("project_id", projectIds)
                 .eq("responsibility_type", "client")
                 .eq("is_client_visible", true);
 
-            if (filter.projectId && filter.projectId !== "all") {
-                query = query.eq("project_id", filter.projectId);
+            if (projectIds.length > 0) {
+                query = query.in("project_id", projectIds);
             }
 
             if (filter.search) {
@@ -4368,45 +4374,6 @@ export const DataClient = {
             return { data: null, error: error || new Error("Не вдалося сформувати посилання на файл") };
         }
         return { data: data.signedUrl, error: null };
-    },
-
-    async getClientActions(orgIdOrProjectId = null, filters = {}) {
-        const supabase = await getSupabase();
-        if (!supabase) return { data: [], error: new Error("Database not connected") };
-        let query = supabase
-            .from("tasks")
-            .select(`
-                id,
-                organization_id,
-                project_id,
-                title,
-                description,
-                status,
-                due_date,
-                responsibility_type,
-                is_client_visible,
-                client_contact_id,
-                created_at,
-                updated_at,
-                completed_at,
-                project:projects(id, name, title)
-            `)
-            .eq("responsibility_type", "client")
-            .eq("is_client_visible", true)
-            .order("due_date", { ascending: true, nullsFirst: false });
-
-        if (filters && filters.projectId && filters.projectId !== "all") {
-            query = query.eq("project_id", filters.projectId);
-        } else if (orgIdOrProjectId && orgIdOrProjectId !== "all") {
-            query = query.or(`organization_id.eq.${orgIdOrProjectId},project_id.eq.${orgIdOrProjectId}`);
-        }
-
-        const { data, error } = await query;
-        if (error) {
-            console.error("[DataClient] getClientActions error:", error);
-            return { data: [], error };
-        }
-        return { data: data || [], error: null };
     },
 
     async getTaskById(taskId) {
