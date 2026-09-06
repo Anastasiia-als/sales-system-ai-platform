@@ -18,6 +18,11 @@
   - [x] **Phase 6D.3**: PM Management UI & Magic Link Lifecycle (CLOSED)
   - [x] **Phase 6D.4**: Client Portal Integration & Authenticated Actions (CLOSED / Manually Accepted)
   - [x] **Phase 6D.5**: Production Hardening, Edge-Case Auditing & Full E2E Verification (CLOSED / Manually Accepted)
-- [ ] **Phase 7**: External Integrations & Webhooks (Upcoming)
+- [ ] **Phase 7**: External Integrations & Outbound Delivery Engine (Architecture APPROVED / Ready for Phase 7A)
+  - [ ] **Phase 7A**: Integration Core & Outbound Webhooks (Transactional Outbox, Vault Secrets, SSRF Guard, Exact HMAC)
+  - [ ] **Phase 7B**: Telegram Notifications Integration (Dedicated Outbox Channel, Vault Bot Tokens, Retry-After Backoff)
+  - [ ] **Phase 7C**: Calendar Read-Only Feed (One-Way RFC 5545 iCal, Hash-Only Tokens, Zero Write-Back)
+  - [ ] **Phase 7D**: Additional Communication (Slack Integration — Deferred)
 - [ ] **Phase 8**: AI Delivery Layer (Upcoming)
+
 

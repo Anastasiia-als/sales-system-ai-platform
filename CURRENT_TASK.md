@@ -1,37 +1,67 @@
-# Current Task: Phase 6D — Client Action Portal & Public Submissions
+# Current Task: Phase 7 — External Integrations & Outbound Delivery Engine
 
-## Active Step: Phase 6D OFFICIALLY ACCEPTED & CLOSED (All Sub-Phases 6D.1 – 6D.5 Complete)
+## Active Step: Phase 7 Architecture Approval Gate — PASSED & FROZEN
 
-### Phase 6D.5 Acceptance Summary:
-- **Status**: **PASSED, ACCEPTED & CLOSED**
-- **User Manual Verification in Real Chrome**:
-  - Completed action «Fill in initial business questionnaire» displayed correctly with green «Виконано» status badge.
-  - Chronological history contains both preserved iterations:
-    - **Iteration 1**: Channel badge «Публічне посилання», response text: `Тестова відповідь для перевірки клієнтської дії.`
-    - **Iteration 2**: Channel badge «Клієнтський портал».
-  - Both response texts, channel badges, authors, and timestamps rendered accurately.
-  - Reopen / multi-iteration history preserved with 100% data integrity.
-  - Mobile responsive rendering manually verified in device mode (modal fits mobile viewport, 0 horizontal overflow, vertical scrolling operates smoothly, both iterations and bottom controls accessible).
-- **Automated Verification Summary**:
-  1. **Concurrency Linearization Suite** (`scratch/test_phase6d5_concurrency_linearization.js`):
-     - 60 assertions executed, 60 passed (Exit code 0).
-     - Row-level locking (`FOR UPDATE`) eliminates all duplicate submissions, orphaned records, and duplicate notifications across 9 race conditions.
-     - Both branches of `Public Submit ↔ Reopen` verified.
-     - Separate exact string matching for historical tokens (`used` -> `Action has already been submitted.` vs `revoked` -> `Invalid or revoked token.`).
-  2. **Storage Security & Signed URL Audit Suite** (`scratch/test_phase6d5_storage_security_audit.js`):
-     - 21 assertions executed, 21 passed (Exit code 0).
-     - Valid signed URL download, expired URL denial, signature and path tampering rejection, Storage RLS cross-tenant isolation, path traversal elimination.
-  3. **Canonical Two-Iteration Golden Path E2E Suite** (`scratch/test_phase6d5_golden_path_e2e.js`):
-     - 58 assertions executed, 58 passed (Exit code 0).
-     - Full 2-iteration lifecycle executed in real Chromium for Desktop (1920×1080) and Mobile (375×812) with 0 browser console errors.
-  4. **Fixture Isolation & Data Preservation Audit Suite** (`scratch/test_phase6d5_fixture_isolation_audit.js`):
-     - 19 assertions executed, 19 passed (Exit code 0).
-     - 0 dangling test fixtures, exact-ID deletion verified, real user data 100% preserved.
-  5. **Full Canonical Regression Runner** (`scratch/run_canonical_regression.js`):
-     - **60 / 60 suites passed (1231 assertions passed, 0 failed, 0 skipped-required, Exit code 0)**.
+### Architecture Approval Summary
+- **Status**: **APPROVED & FROZEN** (Formally approved by user)
+- **Implementation Status**: **ZERO CODE IMPLEMENTED IN CURRENT CHAT** (Clean architectural checkpoint preserved)
+- **Next Step**: Phase 7A implementation ready to begin in a fresh chat session.
 
 ---
 
-## Next Milestone:
-- **Phase 7 — Integrations (Інтеграції)**: Connecting the platform with external services (Webhooks, Slack/Telegram notifications, calendar sync, external task sync).
-- **Current State**: STOPPED. Awaiting user review and approval of Phase 7 Scope and Proposal before any implementation.
+## 1. Approved Phase 7 Structure
+
+| Sub-Phase | Component | Priority | Status | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Phase 7A** | Integration Core & Outbound Webhooks | **Mandatory** | **APPROVED / READY** | Transactional Outbox, Vault-backed URL/secret storage, SSRF protection (no 3xx follow, DNS rebinding guard), exact-byte HMAC-SHA256, payload allowlists, hardened `SECURITY DEFINER` RPCs, referential integrity triggers. |
+| **Phase 7B** | Telegram Notifications Integration | **Mandatory** | **APPROVED** | Dedicated Outbox channel `channel_type='telegram'`, Vault bot token, MarkdownV2 parser, 429 `retry_after` backoff handling. |
+| **Phase 7C** | Calendar Read-Only Feed (iCalendar) | **Mandatory** | **APPROVED** | One-way RFC 5545 `.ics` subscription feed, Hash-only token architecture (`sha256(raw_token)`), zero write-back. |
+| **Phase 7D** | Additional Communication (Slack) | **Optional** | **DEFERRED** | Optional / deferred until validated business requirement. |
+
+---
+
+## 2. Frozen Architectural Invariants
+
+1. **Transactional Outbox Delivery Identity**:
+   - Composite unique identity: `(event_id, channel_type, destination_id)`.
+   - Dedicated row per destination, eliminating multi-target collision and preserving deterministic retry states.
+2. **Hardened `SECURITY DEFINER` Functions**:
+   - `public._emit_integration_event` execution strictly revoked from `PUBLIC`, `anon`, and `authenticated`.
+   - Only `service_role` and internal triggers have access.
+   - Strict `SET search_path = public, pg_temp` and schema-qualified SQL objects.
+   - Context (`organization_id`, `project_id`) derived server-side from authoritative database rows.
+   - Client direct RPC invocation returns `42501 permission denied`.
+3. **Destination Referential Integrity & Deletion Semantics**:
+   - `destination_id UUID NOT NULL` in `integration_outbox`.
+   - Hard deletion (`DELETE`) of endpoints or Telegram destinations is strictly **forbidden** if any historical Outbox row references them (across all statuses: `pending`, `processing`, `retrying`, `delivered`, `failed`, `dead_letter`, `rejected_ssrf`).
+   - Lifecycle management enforced via `is_active = false`.
+   - `BEFORE DELETE` triggers on `public.integration_endpoints` and `public.telegram_destinations` raise error `23001 RESTRICT_VIOLATION`.
+   - Hard delete allowed only if historical Outbox count is exactly 0.
+4. **Server-Side Routing & Validation**:
+   - `_enqueue_integration_outbox_deliveries(p_event_id UUID)` takes zero client routing arguments.
+   - Validates destination existence, `channel_type` match, tenant ownership (`organization_id`), and active state (`is_active = true`).
+   - 0 rows created for non-existent, cross-channel, cross-tenant, or inactive destinations. No fallback.
+5. **Secret Storage in Supabase Vault**:
+   - Complete webhook URLs (including secret paths/tokens) and signing secrets stored in `vault.secrets`.
+   - Client UI receives only masked metadata and vault reference UUIDs. Zero secrets in plain application tables.
+6. **SSRF & Network Security**:
+   - Webhook dispatcher validates destination IPs against IANA private/loopback/link-local ranges before socket connection.
+   - HTTP 3xx redirects are strictly rejected as delivery failures (`rejected_ssrf`).
+   - DNS resolved immediately before fetch to prevent DNS rebinding attacks.
+7. **Exact-Byte HMAC-SHA256 Signing**:
+   - Signature computed over the exact byte sequence of the serialized JSON HTTP request body.
+   - Header: `X-Firstwin-Signature-256: sha256=<hex>`.
+8. **Payload Minimization & Security**:
+   - Strict event-specific allowlists in `payload_json`.
+   - PII and internal access tokens strictly excluded.
+
+---
+
+## 3. Immediate Action Plan for Next Chat (Phase 7A Kickoff)
+1. Initialize Phase 7A database migrations:
+   - `integration_events` table with immutable RLS.
+   - `integration_endpoints` table with Vault secret reference columns and `BEFORE DELETE` trigger.
+   - `integration_outbox` table with `(event_id, channel_type, destination_id)` uniqueness.
+   - Hardened `public._emit_integration_event` and `public._enqueue_integration_outbox_deliveries`.
+2. Implement Edge Function dispatcher with SSRF and exact-byte HMAC signing.
+3. Execute negative security and referential-integrity test suites.
