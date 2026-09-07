@@ -1,67 +1,76 @@
-# Current Task: Phase 7 — External Integrations & Outbound Delivery Engine
+# Поточне завдання: Phase 7 — Зовнішні інтеграції та механізм вихідної доставки (Outbound Delivery Engine)
 
-## Active Step: Phase 7 Architecture Approval Gate — PASSED & FROZEN
+## Активний етап: Phase 7B — Інтеграція сповіщень Telegram (ШЛЮЗ АРХІТЕКТУРИ ТА ПЛАНУВАННЯ / PLANNING ONLY)
 
-### Architecture Approval Summary
-- **Status**: **APPROVED & FROZEN** (Formally approved by user)
-- **Implementation Status**: **ZERO CODE IMPLEMENTED IN CURRENT CHAT** (Clean architectural checkpoint preserved)
-- **Next Step**: Phase 7A implementation ready to begin in a fresh chat session.
+### Архітектурний бейслайн
+- **Попередній етап Phase 7A**: ПОВНІСТЮ ЗАКРИТО (PASSED / ACCEPTED / CLOSED після успішного Manual Acceptance користувачем).
+- **Поточний стан**: PLANNING ONLY / ZERO IMPLEMENTATION до окремого схвалення архітектурного контракту Phase 7B.
+- **Обсяг етапу (Scope)**: Виділений канал Outbox `channel_type='telegram'`, збереження Bot Token у Supabase Vault (`vault.secrets`), модель таблиці `telegram_destinations`, захист від референційного видалення (`23001 RESTRICT_VIOLATION`), парсер та екранування MarkdownV2, обробка HTTP 429 з `parameters.retry_after`, мінімізація корисної інформації, UI керування чатами/топіками.
 
 ---
 
-## 1. Approved Phase 7 Structure
+## 1. Затверджена структура Phase 7
 
-| Sub-Phase | Component | Priority | Status | Description |
+| Підетап | Компонент | Пріоритет | Статус | Опис |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phase 7A** | Integration Core & Outbound Webhooks | **Mandatory** | **APPROVED / READY** | Transactional Outbox, Vault-backed URL/secret storage, SSRF protection (no 3xx follow, DNS rebinding guard), exact-byte HMAC-SHA256, payload allowlists, hardened `SECURITY DEFINER` RPCs, referential integrity triggers. |
-| **Phase 7B** | Telegram Notifications Integration | **Mandatory** | **APPROVED** | Dedicated Outbox channel `channel_type='telegram'`, Vault bot token, MarkdownV2 parser, 429 `retry_after` backoff handling. |
-| **Phase 7C** | Calendar Read-Only Feed (iCalendar) | **Mandatory** | **APPROVED** | One-way RFC 5545 `.ics` subscription feed, Hash-only token architecture (`sha256(raw_token)`), zero write-back. |
-| **Phase 7D** | Additional Communication (Slack) | **Optional** | **DEFERRED** | Optional / deferred until validated business requirement. |
+| **Phase 7A** | Integration Core & Outbound Webhooks | **Обов'язковий** | **ЗАКРИТО / PASSED** | Transactional Outbox, Vault-backed URL/secret storage, SSRF protection (без 3xx redirect, DNS rebinding guard), exact-byte HMAC-SHA256, білі списки payload, захищені `SECURITY DEFINER` RPCs, тригери референційної цілісності, автономний воркер диспетчера, UI кінцевих точок та журналу доставок. Повністю прийнято користувачем. |
+| **Phase 7B** | Telegram Notifications Integration | **Обов'язковий** | **ПЛАНУВАННЯ / ШЛЮЗ АРХІТЕКТУРИ** | Виділений канал Outbox `channel_type='telegram'`, бот-токен у Vault, парсер MarkdownV2, обробка затримки 429 `retry_after`. |
+| **Phase 7C** | Calendar Read-Only Feed (iCalendar) | **Обов'язковий** | **ЗАТВЕРДЖЕНО** | Односторонній потік підписки RFC 5545 `.ics`, архітектура хешованих токенів (`sha256(raw_token)`), заборона зворотного запису. |
+| **Phase 7D** | Additional Communication (Slack) | **Опціональний** | **ВІДКЛАДЕНО** | Опціонально / відкладено до підтвердженої бізнес-потреби. |
 
 ---
 
-## 2. Frozen Architectural Invariants
+## 2. Заморожені архітектурні інваріанти
 
-1. **Transactional Outbox Delivery Identity**:
-   - Composite unique identity: `(event_id, channel_type, destination_id)`.
-   - Dedicated row per destination, eliminating multi-target collision and preserving deterministic retry states.
-2. **Hardened `SECURITY DEFINER` Functions**:
-   - `public._emit_integration_event` execution strictly revoked from `PUBLIC`, `anon`, and `authenticated`.
-   - Only `service_role` and internal triggers have access.
-   - Strict `SET search_path = public, pg_temp` and schema-qualified SQL objects.
-   - Context (`organization_id`, `project_id`) derived server-side from authoritative database rows.
-   - Client direct RPC invocation returns `42501 permission denied`.
-3. **Destination Referential Integrity & Deletion Semantics**:
-   - `destination_id UUID NOT NULL` in `integration_outbox`.
-   - Hard deletion (`DELETE`) of endpoints or Telegram destinations is strictly **forbidden** if any historical Outbox row references them (across all statuses: `pending`, `processing`, `retrying`, `delivered`, `failed`, `dead_letter`, `rejected_ssrf`).
-   - Lifecycle management enforced via `is_active = false`.
-   - `BEFORE DELETE` triggers on `public.integration_endpoints` and `public.telegram_destinations` raise error `23001 RESTRICT_VIOLATION`.
-   - Hard delete allowed only if historical Outbox count is exactly 0.
-4. **Server-Side Routing & Validation**:
-   - `_enqueue_integration_outbox_deliveries(p_event_id UUID)` takes zero client routing arguments.
-   - Validates destination existence, `channel_type` match, tenant ownership (`organization_id`), and active state (`is_active = true`).
-   - 0 rows created for non-existent, cross-channel, cross-tenant, or inactive destinations. No fallback.
-5. **Secret Storage in Supabase Vault**:
-   - Complete webhook URLs (including secret paths/tokens) and signing secrets stored in `vault.secrets`.
-   - Client UI receives only masked metadata and vault reference UUIDs. Zero secrets in plain application tables.
-6. **SSRF & Network Security**:
-   - Webhook dispatcher validates destination IPs against IANA private/loopback/link-local ranges before socket connection.
-   - HTTP 3xx redirects are strictly rejected as delivery failures (`rejected_ssrf`).
-   - DNS resolved immediately before fetch to prevent DNS rebinding attacks.
-7. **Exact-Byte HMAC-SHA256 Signing**:
-   - Signature computed over the exact byte sequence of the serialized JSON HTTP request body.
-   - Header: `X-Firstwin-Signature-256: sha256=<hex>`.
-8. **Payload Minimization & Security**:
-   - Strict event-specific allowlists in `payload_json`.
-   - PII and internal access tokens strictly excluded.
+1. **Ідентичність доставки Transactional Outbox**:
+   - Складений унікальний ключ: `(event_id, channel_type, destination_id)`.
+   - Окремий рядок для кожного одержувача доставки, що унеможливлює конфлікти та забезпечує детерміновані повторні спроби.
+2. **Захищені функції `SECURITY DEFINER`**:
+   - Виконання `public._emit_integration_event` суворо відкликано у `PUBLIC`, `anon` та `authenticated`.
+   - Доступ мають лише `service_role` та внутрішні тригери.
+   - Суворе використання `SET search_path = public, pg_temp` та повністю кваліфікованих імен об'єктів.
+   - Контекст (`organization_id`, `project_id`) обчислюється на сервері з перевірених рядків БД.
+   - Прямий виклик клієнтом повертає помилку `42501 permission denied`.
+3. **Референційна цілісність та семантика видалення**:
+   - `destination_id UUID NOT NULL` в `integration_outbox`.
+   - Фізичне видалення (`DELETE`) кінцевих точок або Telegram-дестинацій суворо **заборонено**, якщо в Outbox є хоч один історичний запис (в усіх статусах).
+   - Керування життєвим циклом через `is_active = false`.
+   - Тригери `BEFORE DELETE` на `public.integration_endpoints` та `public.telegram_destinations` повертають помилку `23001 RESTRICT_VIOLATION`.
+   - Фізичне видалення дозволено виключно за умови, що кількість записів в Outbox дорівнює точно 0.
+4. **Серверна маршрутизація та валідація**:
+   - `_enqueue_integration_outbox_deliveries(p_event_id UUID)` не приймає аргументів маршрутизації від клієнта.
+   - Перевіряє існування дестинації, збіг `channel_type`, належність тенанту (`organization_id`) та активний стан (`is_active = true`).
+   - 0 рядків створюється для неіснуючих, чужих, деактивованих чи невідповідних каналів.
+5. **Збереження секретів у Supabase Vault**:
+   - Повні URL вебхуків (разом із секретними шляхами/токенами) та секрети підпису зберігаються у `vault.secrets`.
+   - UI отримує лише масковані метадані та UUID-посилання на Vault. Жодних відкритих секретів у звичайних таблицях.
+6. **SSRF та мережева безпека**:
+   - Диспетчер перевіряє цільові IP-адреси на належність до приватних/loopback/link-local діапазонів IANA перед відкриттям сокету.
+   - HTTP 3xx перенаправлення категорично відхиляються як невдала доставка зі статусом `rejected_ssrf`.
+   - DNS-резолвінг виконується безпосередньо перед запитом для унеможливлення атак DNS rebinding.
+7. **Підпис точно за байтами HMAC-SHA256**:
+   - Підпис обчислюється над точною послідовністю байтів серіалізованого JSON-тіла HTTP-запиту.
+   - Заголовок: `X-Firstwin-Signature-256: sha256=<hex>`.
+8. **Мінімізація корисного навантаження (Payload Minimization)**:
+   - Суворі білі списки полів для кожної події у `payload_json`.
+   - Персональні дані (PII) та внутрішні токени доступу категорично виключені.
+9. **Контекст організації в UI**:
+   - Використовується авторитетний механізм через `DataClient.getOrganizations()` та `PortalState.currentOrganization` / `PortalAuth.getMemberships()`.
+10. **Автономний воркер диспетчера Outbox**:
+    - Інтегрований у `server.js` фоновий диспетчер (`js/portal/api/dispatcher-worker.js`), що використовує `FOR UPDATE SKIP LOCKED`, підтримує автоматичну доставку кожні 2.5 секунди та наскрізні повторні спроби (exponential backoff).
 
 ---
 
-## 3. Immediate Action Plan for Next Chat (Phase 7A Kickoff)
-1. Initialize Phase 7A database migrations:
-   - `integration_events` table with immutable RLS.
-   - `integration_endpoints` table with Vault secret reference columns and `BEFORE DELETE` trigger.
-   - `integration_outbox` table with `(event_id, channel_type, destination_id)` uniqueness.
-   - Hardened `public._emit_integration_event` and `public._enqueue_integration_outbox_deliveries`.
-2. Implement Edge Function dispatcher with SSRF and exact-byte HMAC signing.
-3. Execute negative security and referential-integrity test suites.
+## 3. Результат ручного прийняття Phase 7A (Manual Acceptance PASSED)
+- **Статус Phase 7A**: **ПОВНІСТЮ ПРИЙНЯТО ТА ЗАКРИТО (PASSED / ACCEPTED / CLOSED)**.
+- **Підтверджені критерії приймання**:
+  1. Розділ «Інтеграції та Webhooks» працює коректно для клієнта `Demo Client Corp`.
+  2. Тестовий вебхук `Phase 7A Manual Test` успішно створений із показом одноразового Signing Secret.
+  3. Зміна статусу задачі `Draft Recommendations` генерує подію `task.completed`.
+  4. Запис у журналі Outbox отримує статус `DELIVERED`, HTTP 200, 1/5 спроб.
+  5. Зовнішній сервер `webhook.site` підтверджує отримання POST із заголовками `X-Firstwin-Event: task.completed`, `X-Firstwin-Signature-256`, `X-Firstwin-Timestamp`, `X-Firstwin-Delivery`.
+  6. Мінімізований payload містить коректні дані події, задачі та проєкту без витоку чутливої інформації.
+  7. Hard Delete Protection блокує видалення точки з історією доставок (помилка `23001`).
+  8. Soft Deactivation успішно вимикає точку без втрати історії.
+  9. Дефект `selectedDepIds is not defined` не відтворюється.
+- **Поточний стан**: ПЛАНУВАННЯ ТА ШЛЮЗ АРХІТЕКТУРИ PHASE 7B. Жодної реалізації чи змін у БД до окремого погодження користувачем.

@@ -1,6 +1,6 @@
 /* js/app.js - Main Application Entrypoint */
 
-import { Router } from "./router.js";
+import { Router } from "./router.js?v=phase7a_r2";
 import { Chat } from "./components/chat.js";
 import { captureAttribution } from "./marketing/attribution.js";
 import { Consent } from "./marketing/consent.js";

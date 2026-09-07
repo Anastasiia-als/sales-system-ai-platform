@@ -8,7 +8,7 @@ import { renderPortalNotificationsView, initPortalNotificationsEvents } from "..
 import { renderClientsView, initClientsViewEvents } from "../portal/ui/portal-clients-view.js";
 import { renderClientDetailView, initClientDetailEvents } from "../portal/ui/portal-client-detail-view.js";
 import { renderProjectsView, initProjectsViewEvents } from "../portal/ui/portal-projects-view.js";
-import { renderProjectDetailView, initProjectDetailEvents } from "../portal/ui/portal-project-detail-view.js";
+import { renderProjectDetailView, initProjectDetailEvents } from "../portal/ui/portal-project-detail-view.js?v=phase7a_r2";
 import { renderTasksView, initTasksViewEvents } from "../portal/ui/portal-tasks-view.js";
 import { renderDocumentsView, initDocumentsViewEvents } from "../portal/ui/portal-documents-view.js";
 import { renderDocumentDetailView, initDocumentDetailEvents } from "../portal/ui/portal-document-detail-view.js";
@@ -23,6 +23,7 @@ import { renderReportsView, initReportsEvents } from "../portal/ui/portal-report
 import { renderTemplatesView, initTemplatesEvents } from "../portal/ui/portal-templates-view.js";
 import { renderGlobalAutomationView, initGlobalAutomationEvents } from "../portal/ui/portal-global-automation-view.js";
 import { renderTemplateBuilderView, initTemplateBuilderEvents } from "../portal/ui/portal-template-builder-view.js";
+import { renderIntegrationsView, initIntegrationsViewEvents } from "../portal/ui/portal-integrations-view.js";
 
 export const PortalPage = {
     render() {
@@ -255,6 +256,22 @@ export async function renderPortalPage() {
                 breadcrumbTitle = "Шаблони проєктів";
                 childHtml = renderTemplatesView();
             }
+        } else if (activeSection === "integrations") {
+            if (!PortalAuth.isGlobalOwner() && !PortalAuth.isOrgAdmin()) {
+                breadcrumbTitle = "Інтеграції";
+                childHtml = `
+                    <div class="portal-content">
+                        <div class="portal-placeholder-box">
+                            <div class="portal-empty-icon" style="color: var(--color-danger);"><i data-lucide="shield-alert"></i></div>
+                            <div class="portal-empty-title">Доступ обмежено</div>
+                            <div class="portal-empty-desc">Модуль інтеграцій доступний виключно для керівництва.</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                breadcrumbTitle = "Інтеграції та Webhooks";
+                childHtml = renderIntegrationsView();
+            }
         } else {
             // Placeholder Sections for Future Phases
             const sectionTitles = {
@@ -349,6 +366,10 @@ export async function renderPortalPage() {
                 } else {
                     await initTemplatesEvents();
                 }
+            }
+        } else if (activeSection === "integrations") {
+            if (PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin()) {
+                await initIntegrationsViewEvents();
             }
         }
     } catch (err) {

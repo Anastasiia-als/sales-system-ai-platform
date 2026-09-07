@@ -15,7 +15,7 @@ import {
 import {
     renderProjectTasksView,
     initProjectTasksEvents
-} from "./portal-project-tasks-view.js";
+} from "./portal-project-tasks-view.js?v=phase7a_r2";
 import {
     renderDocumentsTable,
     openCreateDocumentModal
@@ -48,9 +48,11 @@ export async function initProjectDetailEvents(projectId) {
     await loadProjectDetail(projectId);
 }
 
-async function loadProjectDetail(projectId) {
+async function loadProjectDetail(projectId, preferredTab = null) {
     const container = document.getElementById("project-detail-container");
     if (!container) return;
+
+    const currentActiveTab = preferredTab || document.querySelector("#project-card-tabs .portal-tab-btn.active")?.getAttribute("data-tab") || "overview";
 
     try {
         const [projectRes, roadmapRes, tasksRes, depsRes, docsRes, meetingsRes, nextMeetingRes] = await Promise.all([
@@ -666,6 +668,11 @@ async function loadProjectDetail(projectId) {
             });
         });
 
+        // Restore active tab if previously selected
+        if (currentActiveTab && currentActiveTab !== "overview") {
+            switchTab(currentActiveTab);
+        }
+
         // Quick switch from Overview to Roadmap / Tasks / Meetings
         document.querySelectorAll(".btn-switch-to-roadmap").forEach(b => {
             b.addEventListener("click", () => switchTab("roadmap"));
@@ -679,18 +686,18 @@ async function loadProjectDetail(projectId) {
 
         // Initialize Roadmap View Events
         initRoadmapEvents(project.id, project.organization_id, stages, async () => {
-            await loadProjectDetail(projectId);
+            await loadProjectDetail(projectId, "roadmap");
         });
 
         // Initialize Project Tasks Events (Phase 2B)
         initProjectTasksEvents(project.id, project.organization_id, tasks, stages, members, contacts, dependencies, async () => {
-            await loadProjectDetail(projectId);
+            await loadProjectDetail(projectId, "tasks");
         });
 
         // Project Documents Actions (Phase 3A)
         const openProjectDocModal = () => {
             openCreateDocumentModal(project.organization_id, project.id, async () => {
-                await loadProjectDetail(projectId);
+                await loadProjectDetail(projectId, "documents");
             });
         };
         document.getElementById("btn-add-project-doc")?.addEventListener("click", openProjectDocModal);
@@ -702,7 +709,7 @@ async function loadProjectDetail(projectId) {
                 org ? [org] : [],
                 [project],
                 async () => {
-                    await loadProjectDetail(projectId);
+                    await loadProjectDetail(projectId, "meetings");
                 },
                 project.id,
                 project.organization_id

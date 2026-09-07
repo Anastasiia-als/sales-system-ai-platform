@@ -4478,6 +4478,96 @@ export const DataClient = {
             return { data: null, error };
         }
         return { data, error: null };
+    },
+
+    // -------------------------------------------------------------------------
+    // 34. Phase 7A: Integration Core & Webhook Endpoints
+    // -------------------------------------------------------------------------
+    async getIntegrationEndpoints(organizationId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: null };
+        const { data, error } = await supabase.rpc("get_integration_endpoints", {
+            p_organization_id: organizationId
+        });
+        if (error) {
+            console.error("[DataClient] getIntegrationEndpoints error:", error);
+            return { data: [], error };
+        }
+        return { data: Array.isArray(data) ? data : [], error: null };
+    },
+
+    async createIntegrationEndpoint({ organizationId, name, description, targetUrl, eventTypes }) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("create_integration_endpoint", {
+            p_organization_id: organizationId,
+            p_name: name,
+            p_description: description || "",
+            p_target_url: targetUrl,
+            p_event_types: eventTypes || ["*"]
+        });
+        if (error) {
+            console.error("[DataClient] createIntegrationEndpoint error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async rotateIntegrationEndpointSecret(endpointId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("rotate_integration_endpoint_secret", {
+            p_endpoint_id: endpointId
+        });
+        if (error) {
+            console.error("[DataClient] rotateIntegrationEndpointSecret error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async toggleIntegrationEndpointActive(endpointId, isActive) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase
+            .from("integration_endpoints")
+            .update({ is_active: isActive, updated_at: new Date().toISOString() })
+            .eq("id", endpointId)
+            .select()
+            .single();
+        if (error) {
+            console.error("[DataClient] toggleIntegrationEndpointActive error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async deleteIntegrationEndpoint(endpointId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase
+            .from("integration_endpoints")
+            .delete()
+            .eq("id", endpointId);
+        if (error) {
+            console.error("[DataClient] deleteIntegrationEndpoint error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async getIntegrationDeliveries(organizationId, limit = 50) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: null };
+        const { data, error } = await supabase.rpc("get_integration_deliveries", {
+            p_organization_id: organizationId,
+            p_limit: limit
+        });
+        if (error) {
+            console.error("[DataClient] getIntegrationDeliveries error:", error);
+            return { data: [], error };
+        }
+        return { data: Array.isArray(data) ? data : [], error: null };
     }
 };
 

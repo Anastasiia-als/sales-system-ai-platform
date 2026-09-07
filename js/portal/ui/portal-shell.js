@@ -16,6 +16,7 @@ export function renderPortalShell(activeSection, childHtml, breadcrumbTitle = ""
     const canSeeAnalytics = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin();
     const canSeeTemplates = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin();
     const canSeeAutomation = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin();
+    const canSeeIntegrations = PortalAuth.isGlobalOwner() || PortalAuth.isOrgAdmin();
 
     const navItems = [
         { id: "dashboard", label: "Дашборд", icon: "layout-dashboard", href: "#/portal/dashboard", isPlaceholder: false },
@@ -29,6 +30,9 @@ export function renderPortalShell(activeSection, childHtml, breadcrumbTitle = ""
         ] : []),
         ...(canSeeAutomation ? [
             { id: "automation", label: "Автоматизації", icon: "cpu", href: "#/portal/automation", isPlaceholder: false }
+        ] : []),
+        ...(canSeeIntegrations ? [
+            { id: "integrations", label: "Інтеграції", icon: "webhook", href: "#/portal/integrations", isPlaceholder: false }
         ] : []),
         { id: "clients", label: "Клієнти", icon: "briefcase", href: "#/portal/clients", isPlaceholder: false },
         { id: "projects", label: "Проєкти", icon: "folder", href: "#/portal/projects", isPlaceholder: false },

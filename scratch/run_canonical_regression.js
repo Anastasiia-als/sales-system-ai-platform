@@ -30,7 +30,13 @@ const suites = [
     'test_phase6d4_notification_cardinality.js', 'test_phase6d4_e2e_browser.js',
     'test_phase6d4_reopened_action_modal_e2e.js', 'test_phase6d4_multi_iteration_isolated.js',
     'test_phase6d5_concurrency_linearization.js', 'test_phase6d5_storage_security_audit.js',
-    'test_phase6d5_golden_path_e2e.js', 'test_phase6d5_fixture_isolation_audit.js'
+    'test_phase6d5_golden_path_e2e.js', 'test_phase6d5_fixture_isolation_audit.js',
+    'test_phase7a_security_and_emission.js', 'test_phase7a_outbox_routing.js',
+    'test_phase7a_lifecycle_and_integrity.js', 'test_phase7a_vault_and_leakage.js',
+    'test_phase7a_ssrf_and_network.js', 'test_phase7a_hmac_and_replay.js',
+    'test_phase7a_payload_minimization.js', 'test_phase7a_e2e_delivery.js',
+    'test_phase7a_browser_integrations_e2e.js', 'test_phase7a_task_edit_e2e.js',
+    'test_phase7a_real_delivery_e2e.js'
 ];
 
 async function run() {

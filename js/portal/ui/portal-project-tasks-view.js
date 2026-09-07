@@ -860,19 +860,25 @@ export async function openTaskModal(projectId, organizationId, task = null, stag
 
             const savedTaskId = res.data.id;
 
-            // Sync dependencies
-            const currentDepIds = taskDeps.map(d => d.depends_on_task_id);
-            const toAdd = selectedDepIds.filter(id => !currentDepIds.includes(id));
-            const toRemove = taskDeps.filter(d => !selectedDepIds.includes(d.depends_on_task_id));
+            // Sync dependencies (only when user has task management permissions)
+            if (!isSpecialistSelfEdit && !isReadOnly) {
+                const depSelect = document.getElementById("task-dependencies-select");
+                const selectedDepIds = depSelect
+                    ? Array.from(depSelect.selectedOptions || []).map(opt => opt.value).filter(Boolean)
+                    : [];
+                const currentDepIds = taskDeps.map(d => d.depends_on_task_id);
+                const toAdd = selectedDepIds.filter(id => !currentDepIds.includes(id));
+                const toRemove = taskDeps.filter(d => !selectedDepIds.includes(d.depends_on_task_id));
 
-            for (const dep of toRemove) {
-                await DataClient.removeTaskDependency(dep.id);
-            }
+                for (const dep of toRemove) {
+                    await DataClient.removeTaskDependency(dep.id);
+                }
 
-            for (const depId of toAdd) {
-                const depRes = await DataClient.addTaskDependency(savedTaskId, depId, projectId, organizationId);
-                if (depRes.error) {
-                    console.warn("Dependency add warning:", depRes.error.message);
+                for (const depId of toAdd) {
+                    const depRes = await DataClient.addTaskDependency(savedTaskId, depId, projectId, organizationId);
+                    if (depRes.error) {
+                        console.warn("Dependency add warning:", depRes.error.message);
+                    }
                 }
             }
 

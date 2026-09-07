@@ -18,7 +18,7 @@ import { Refund } from "./pages/refund.js";
 import { Contacts } from "./pages/contacts.js";
 import { AiSolutions } from "./pages/ai-solutions.js";
 import { Admin } from "./pages/admin.js";
-import { PortalPage } from "./pages/portal-page.js";
+import { PortalPage } from "./pages/portal-page.js?v=phase7a_r2";
 import { ClientPage } from "./pages/client-page.js";
 import { PublicActionPage } from "./pages/public-action-page.js";
 

@@ -26,8 +26,29 @@ const MIME_TYPES = {
     '.csv': 'text/csv; charset=utf-8'
 };
 
+const { startOutboxWorker, stopOutboxWorker, processPendingOutbox } = require('./js/portal/api/dispatcher-worker.js');
+
 const server = http.createServer((req, res) => {
     let reqPath = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
+
+    // Internal dispatcher trigger endpoint
+    if (reqPath === '/api/dispatcher/run') {
+        processPendingOutbox(20).then(result => {
+            res.writeHead(200, {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify(result));
+        }).catch(err => {
+            res.writeHead(500, {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ error: err.message }));
+        });
+        return;
+    }
+
     if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
     
     const filePath = path.join(ROOT_DIR, reqPath);
@@ -119,6 +140,19 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`  http://localhost:${PORT}/`);
     console.log(`  http://localhost:${PORT}/#/portal/automation`);
     console.log(`  http://127.0.0.1:${PORT}/#/portal/automation`);
+
+    // Start Autonomous Outbox Dispatcher Worker (Phase 7A)
+    startOutboxWorker({ pollIntervalMs: 2500 });
+});
+
+process.on('SIGTERM', () => {
+    stopOutboxWorker();
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    stopOutboxWorker();
+    process.exit(0);
 });
 
 

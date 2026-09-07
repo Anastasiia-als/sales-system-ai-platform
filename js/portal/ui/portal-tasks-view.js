@@ -2,7 +2,7 @@
 
 import { DataClient } from "../api/data-client.js";
 import { PortalAuth } from "../auth/auth-service.js";
-import { isTaskOverdue, getTaskStatusLabel, getPriorityLabel, openTaskModal, openDeleteTaskModal } from "./portal-project-tasks-view.js";
+import { isTaskOverdue, getTaskStatusLabel, getPriorityLabel, openTaskModal, openDeleteTaskModal } from "./portal-project-tasks-view.js?v=phase7a_r2";
 
 let myTasksFilters = {
     status: "all",
