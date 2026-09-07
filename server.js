@@ -26,10 +26,65 @@ const MIME_TYPES = {
     '.csv': 'text/csv; charset=utf-8'
 };
 
-const { startOutboxWorker, stopOutboxWorker, processPendingOutbox } = require('./js/portal/api/dispatcher-worker.js');
+const {
+    startOutboxWorker,
+    stopOutboxWorker,
+    processPendingOutbox,
+    verifyTelegramConnection,
+    setTelegramMockMode,
+    getTelegramMockMode
+} = require('./js/portal/api/dispatcher-worker.js');
 
 const server = http.createServer((req, res) => {
     let reqPath = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
+
+    // Telegram connection verification endpoint (Phase 7B)
+    if (reqPath === '/api/telegram/verify-connection') {
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            });
+            res.end();
+            return;
+        }
+        if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            return;
+        }
+
+        let bodyStr = '';
+        req.on('data', chunk => {
+            bodyStr += chunk;
+            if (bodyStr.length > 1e6) {
+                req.destroy();
+            }
+        });
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(bodyStr || '{}');
+                const result = await verifyTelegramConnection({
+                    bot_token: data.bot_token,
+                    chat_id: data.chat_id,
+                    thread_id: data.thread_id
+                });
+                res.writeHead(200, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(result));
+            } catch (err) {
+                res.writeHead(400, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({ ok: false, error: err.message }));
+            }
+        });
+        return;
+    }
 
     // Internal dispatcher trigger endpoint
     if (reqPath === '/api/dispatcher/run') {
@@ -46,6 +101,52 @@ const server = http.createServer((req, res) => {
             });
             res.end(JSON.stringify({ error: err.message }));
         });
+        return;
+    }
+
+    // Telegram Dispatcher mock mode toggle (for automated tests to eliminate external side effects)
+    if (reqPath === '/api/dispatcher/mock-mode') {
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            });
+            res.end();
+            return;
+        }
+        if (req.method === 'GET') {
+            res.writeHead(200, {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({ mock: getTelegramMockMode() }));
+            return;
+        }
+        if (req.method === 'POST') {
+            let bodyStr = '';
+            req.on('data', chunk => { bodyStr += chunk; });
+            req.on('end', () => {
+                try {
+                    const data = JSON.parse(bodyStr || '{}');
+                    setTelegramMockMode(Boolean(data.enabled));
+                    res.writeHead(200, {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Access-Control-Allow-Origin': '*'
+                    });
+                    res.end(JSON.stringify({ ok: true, mock: getTelegramMockMode() }));
+                } catch (err) {
+                    res.writeHead(400, {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Access-Control-Allow-Origin': '*'
+                    });
+                    res.end(JSON.stringify({ ok: false, error: err.message }));
+                }
+            });
+            return;
+        }
+        res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
         return;
     }
 

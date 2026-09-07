@@ -115,6 +115,9 @@ async function run() {
         });
         assert(Boolean(taskId), `Found Draft Recommendations task ID: ${taskId}`);
 
+        // Ensure Demo Client Corp integration endpoint is active
+        await pool.query("UPDATE public.integration_endpoints SET is_active = true WHERE organization_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'");
+
         // Ensure task is in 'todo' before triggering 'done'
         const currentDbStatus = await pool.query('SELECT status FROM public.tasks WHERE id = $1', [taskId]);
         if (currentDbStatus.rows[0].status !== 'todo') {
@@ -161,6 +164,7 @@ async function run() {
                 JOIN public.integration_events e ON o.event_id = e.id
                 WHERE e.event_type = 'task.completed'
                   AND e.payload_json->>'task_id' = $1
+                  AND o.channel_type = 'webhook'
                   AND o.created_at >= NOW() - INTERVAL '1 minute'
                 ORDER BY o.created_at DESC
                 LIMIT 1

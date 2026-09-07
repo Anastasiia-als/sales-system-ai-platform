@@ -4568,6 +4568,88 @@ export const DataClient = {
             return { data: [], error };
         }
         return { data: Array.isArray(data) ? data : [], error: null };
+    },
+
+    // -------------------------------------------------------------------------
+    // 35. Phase 7B: Telegram Notifications Integration
+    // -------------------------------------------------------------------------
+    async getTelegramDestinations(organizationId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: null };
+        const { data, error } = await supabase.rpc("get_telegram_destinations", {
+            p_organization_id: organizationId
+        });
+        if (error) {
+            console.error("[DataClient] getTelegramDestinations error:", error);
+            return { data: [], error };
+        }
+        return { data: Array.isArray(data) ? data : [], error: null };
+    },
+
+    async createTelegramDestination({ organizationId, name, description, botToken, chatId, threadId, eventTypes }) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("create_telegram_destination", {
+            p_organization_id: organizationId,
+            p_name: name,
+            p_description: description || "",
+            p_bot_token: botToken,
+            p_chat_id: String(chatId),
+            p_thread_id: (threadId !== undefined && threadId !== null && String(threadId).trim() !== "") ? Number(threadId) : null,
+            p_event_types: eventTypes || ["task.completed", "stage.completed", "document.approved", "client_action.completed"]
+        });
+        if (error) {
+            console.error("[DataClient] createTelegramDestination error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async toggleTelegramDestinationActive(destinationId, isActive) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("toggle_telegram_destination_active", {
+            p_destination_id: destinationId,
+            p_is_active: isActive
+        });
+        if (error) {
+            console.error("[DataClient] toggleTelegramDestinationActive error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async deleteTelegramDestination(destinationId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("delete_telegram_destination", {
+            p_destination_id: destinationId
+        });
+        if (error) {
+            console.error("[DataClient] deleteTelegramDestination error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async verifyTelegramConnection({ botToken, chatId, threadId }) {
+        try {
+            const resp = await fetch("/api/telegram/verify-connection", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    bot_token: botToken,
+                    chat_id: String(chatId),
+                    thread_id: (threadId !== undefined && threadId !== null && String(threadId).trim() !== "") ? Number(threadId) : null
+                })
+            });
+            const data = await resp.json();
+            return data;
+        } catch (err) {
+            return { ok: false, error: err.message };
+        }
     }
 };
 

@@ -229,3 +229,114 @@ export function calculateNextRetry(attemptCount, baseSeconds = 30) {
     const delaySeconds = Math.pow(2, Math.max(0, attemptCount - 1)) * baseSeconds;
     return new Date(Date.now() + delaySeconds * 1000);
 }
+
+// ---------------------------------------------------------------------------
+// Phase 7B: Telegram Notifications Integration Engine
+// ---------------------------------------------------------------------------
+
+/**
+ * Escapes all 18 reserved characters for Telegram Bot API MarkdownV2 mode:
+ * _ * [ ] ( ) ~ ` > # + - = | { } . ! \
+ */
+export function escapeTelegramMarkdownV2(text) {
+    if (text === null || text === undefined) return "";
+    return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
+}
+
+/**
+ * Formats canonical event into Telegram MarkdownV2 text body.
+ */
+export function formatTelegramMessage(event) {
+    const payload = event.payload_json || {};
+    const orgName = payload.organization_name || event.organization_name || "";
+    const dateStr = event.created_at ? new Date(event.created_at).toLocaleString("uk-UA") : "";
+    const escapedDate = escapeTelegramMarkdownV2(dateStr);
+
+    let eventHeader = "*🔔 Сповіщення FIRSTWIN*";
+    let details = "";
+
+    switch (event.event_type) {
+        case "task.completed":
+            eventHeader = "*🎯 Завдання виконано*";
+            details = [
+                `*Завдання:* ${escapeTelegramMarkdownV2(payload.task_title || payload.title || "—")}`,
+                (payload.project_name || payload.project_title) ? `*Проєкт:* ${escapeTelegramMarkdownV2(payload.project_name || payload.project_title)}` : null,
+                orgName ? `*Організація:* ${escapeTelegramMarkdownV2(orgName)}` : null,
+                payload.responsibility_type ? `*Зона відповідальності:* ${escapeTelegramMarkdownV2(payload.responsibility_type)}` : null
+            ].filter(Boolean).join("\n");
+            break;
+
+        case "stage.completed":
+            eventHeader = "*🏁 Етап завершено*";
+            details = [
+                `*Етап:* ${escapeTelegramMarkdownV2(payload.stage_name || payload.title || "—")}`,
+                (payload.project_name || payload.project_title) ? `*Проєкт:* ${escapeTelegramMarkdownV2(payload.project_name || payload.project_title)}` : null,
+                orgName ? `*Організація:* ${escapeTelegramMarkdownV2(orgName)}` : null
+            ].filter(Boolean).join("\n");
+            break;
+
+        case "document.approved":
+            eventHeader = "*📄 Документ погоджено*";
+            details = [
+                `*Документ:* ${escapeTelegramMarkdownV2(payload.document_title || payload.title || "—")}`,
+                (payload.project_name || payload.project_title) ? `*Проєкт:* ${escapeTelegramMarkdownV2(payload.project_name || payload.project_title)}` : null,
+                orgName ? `*Організація:* ${escapeTelegramMarkdownV2(orgName)}` : null,
+                payload.approved_by ? `*Погодив:* ${escapeTelegramMarkdownV2(payload.approved_by)}` : null
+            ].filter(Boolean).join("\n");
+            break;
+
+        case "client_action.completed":
+            eventHeader = "*⚡ Дію клієнта виконано*";
+            details = [
+                `*Дія:* ${escapeTelegramMarkdownV2(payload.action_title || payload.title || "—")}`,
+                (payload.project_name || payload.project_title) ? `*Проєкт:* ${escapeTelegramMarkdownV2(payload.project_name || payload.project_title)}` : null,
+                orgName ? `*Організація:* ${escapeTelegramMarkdownV2(orgName)}` : null,
+                payload.completed_by ? `*Виконавець:* ${escapeTelegramMarkdownV2(payload.completed_by)}` : null
+            ].filter(Boolean).join("\n");
+            break;
+
+        default:
+            eventHeader = `*📌 Подія: ${escapeTelegramMarkdownV2(event.event_type)}*`;
+            details = [
+                orgName ? `*Організація:* ${escapeTelegramMarkdownV2(orgName)}` : null,
+                `*Дані:* ${escapeTelegramMarkdownV2(JSON.stringify(payload))}`
+            ].filter(Boolean).join("\n");
+            break;
+    }
+
+    return `${eventHeader}\n\n${details}\n\n_Час:_ ${escapedDate}`;
+}
+
+/**
+ * Validates Telegram API Endpoint strictly against official api.telegram.org host.
+ */
+export function validateTelegramApiEndpoint(urlString) {
+    try {
+        const parsed = new URL(urlString);
+        if (parsed.protocol !== "https:") {
+            return { valid: false, reason: "https_required" };
+        }
+        if (parsed.hostname.toLowerCase() !== "api.telegram.org") {
+            return { valid: false, reason: "forbidden_telegram_host" };
+        }
+        if (parsed.port && parsed.port !== "443" && parsed.port !== "") {
+            return { valid: false, reason: "custom_port_forbidden" };
+        }
+        if (parsed.username || parsed.password) {
+            return { valid: false, reason: "userinfo_forbidden" };
+        }
+        return { valid: true };
+    } catch (_e) {
+        return { valid: false, reason: "invalid_url_syntax" };
+    }
+}
+
+/**
+ * Calculates next retry timestamp using Telegram 429 retry_after parameter.
+ */
+export function calculateTelegram429Retry(retryAfterSeconds) {
+    const parsed = parseInt(retryAfterSeconds, 10);
+    const seconds = Math.max(1, isNaN(parsed) ? 5 : parsed);
+    return new Date(Date.now() + seconds * 1000);
+}
+

@@ -19,11 +19,16 @@ export function renderIntegrationsView() {
             <div class="portal-view-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <div class="portal-view-title-group">
                     <h1 class="portal-view-title">Інтеграції та Webhooks</h1>
-                    <p class="portal-view-subtitle">Керування вихідними вебхуками, HMAC-SHA256 автентифікацією та журналом доставок</p>
+                    <p class="portal-view-subtitle">Керування вихідними вебхуками, сповіщеннями Telegram та журналом доставок</p>
                 </div>
-                <button class="btn btn-primary" id="btn-create-webhook">
-                    <i data-lucide="plus"></i> Додати Webhook
-                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-outline" id="btn-create-telegram">
+                        <i data-lucide="send"></i> Підключити Telegram
+                    </button>
+                    <button class="btn btn-primary" id="btn-create-webhook">
+                        <i data-lucide="plus"></i> Додати Webhook
+                    </button>
+                </div>
             </div>
 
             <!-- Organization Context Bar -->
@@ -34,13 +39,16 @@ export function renderIntegrationsView() {
                         <option value="">Завантаження організацій...</option>
                     </select>
                 </div>
-                <div id="integrations-org-badge" style="font-size: 0.8rem; color: var(--text-muted);">Керування вебхуками обраної організації</div>
+                <div id="integrations-org-badge" style="font-size: 0.8rem; color: var(--text-muted);">Керування інтеграціями обраної організації</div>
             </div>
 
-            <!-- Tabs: Endpoints & Delivery Log -->
+            <!-- Tabs: Endpoints, Telegram & Delivery Log -->
             <div class="portal-tabs" style="display: flex; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color, #e2e8f0); padding-bottom: 8px;">
                 <button class="btn btn-sm btn-outline active" id="tab-btn-endpoints">
-                    <i data-lucide="webhook"></i> Кінцеві точки (Endpoints)
+                    <i data-lucide="webhook"></i> Кінцеві точки (Webhooks)
+                </button>
+                <button class="btn btn-sm btn-outline" id="tab-btn-telegram">
+                    <i data-lucide="send"></i> Telegram канали
                 </button>
                 <button class="btn btn-sm btn-outline" id="tab-btn-deliveries">
                     <i data-lucide="activity"></i> Журнал доставок (Outbox)
@@ -70,6 +78,38 @@ export function renderIntegrationsView() {
                         <tbody id="endpoints-table-body">
                             <tr>
                                 <td colspan="6" style="text-align: center; padding: 24px;">
+                                    <div class="portal-spinner" style="margin: 0 auto;"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Telegram Destinations Section -->
+            <div id="section-telegram" class="portal-card" style="display: none; margin-bottom: 24px;">
+                <div class="portal-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="portal-card-title">Підключені Telegram напрямки</h2>
+                    <button class="btn btn-sm btn-ghost" id="btn-refresh-telegram" title="Оновити">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                </div>
+                <div class="portal-table-wrapper">
+                    <table class="portal-table">
+                        <thead>
+                            <tr>
+                                <th>Назва та опис</th>
+                                <th>Чат / Канал</th>
+                                <th>Бот</th>
+                                <th>Підписані події</th>
+                                <th>Статус</th>
+                                <th>Дата створення</th>
+                                <th style="text-align: right;">Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody id="telegram-table-body">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 24px;">
                                     <div class="portal-spinner" style="margin: 0 auto;"></div>
                                 </td>
                             </tr>
@@ -201,6 +241,92 @@ export function renderIntegrationsView() {
                     </div>
                 </div>
             </div>
+
+            <!-- Create Telegram Destination Modal -->
+            <div id="modal-create-telegram" class="portal-modal-backdrop" style="display: none;">
+                <div class="portal-modal" style="max-width: 560px;">
+                    <div class="portal-modal-header">
+                        <h3 class="portal-modal-title">Підключити Telegram канал або групу</h3>
+                        <button class="portal-modal-close" id="btn-close-create-tg-modal">&times;</button>
+                    </div>
+                    <div class="portal-modal-body">
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label class="form-label" for="tg-create-org">Організація / Клієнт *</label>
+                            <select id="tg-create-org" class="portal-select" required></select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label class="form-label" for="tg-name">Назва підключення *</label>
+                            <input type="text" id="tg-name" class="portal-input" placeholder="напр., Alerts Team Chat, Client Notifications" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label class="form-label" for="tg-desc">Опис (необов'язково)</label>
+                            <input type="text" id="tg-desc" class="portal-input" placeholder="Призначення чату чи теми">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label class="form-label" for="tg-token">Telegram Bot Token *</label>
+                            <input type="password" id="tg-token" class="portal-input" placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ" autocomplete="new-password" required>
+                            <span class="form-hint" style="font-size: 0.75rem; color: var(--text-muted);">
+                                Отримується у @BotFather. Зберігається виключно у зашифрованому Vault і ніколи не повертається у відкритому вигляді.
+                            </span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 14px;">
+                            <div class="form-group">
+                                <label class="form-label" for="tg-chat-id">Chat ID *</label>
+                                <input type="text" id="tg-chat-id" class="portal-input" placeholder="-1001234567890 або @channel" required>
+                                <span class="form-hint" style="font-size: 0.75rem; color: var(--text-muted);">
+                                    Для груп/супергруп ID починається з мінуса (-100...)
+                                </span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="tg-thread-id">Topic ID (опціонально)</label>
+                                <input type="number" id="tg-thread-id" class="portal-input" placeholder="напр. 42">
+                                <span class="form-hint" style="font-size: 0.75rem; color: var(--text-muted);">
+                                    Тільки для Forum Supergroups
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Connection Test Button & Alert -->
+                        <div style="margin-bottom: 16px;">
+                            <button type="button" class="btn btn-sm btn-outline" id="btn-test-tg-connection" style="width: 100%;">
+                                <i data-lucide="shield-check"></i> Перевірити з'єднання (getMe + getChat)
+                            </button>
+                            <div id="tg-test-result" style="margin-top: 8px; font-size: 0.85rem; display: none;"></div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label class="form-label">Підписка на події</label>
+                            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="checkbox" id="tg-evt-all" value="*" checked>
+                                    <strong>Всі події (*)</strong>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="checkbox" class="tg-evt-item" value="task.completed">
+                                    <span>Завдання виконано (task.completed)</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="checkbox" class="tg-evt-item" value="stage.completed">
+                                    <span>Етап завершено (stage.completed)</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="checkbox" class="tg-evt-item" value="document.approved">
+                                    <span>Документ погоджено (document.approved)</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="checkbox" class="tg-evt-item" value="client_action.completed">
+                                    <span>Дію клієнта виконано (client_action.completed)</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div id="create-tg-error" style="color: var(--color-danger, #ef4444); font-size: 0.85rem; margin-top: 8px; display: none;"></div>
+                    </div>
+                    <div class="portal-modal-footer">
+                        <button class="btn btn-ghost" id="btn-cancel-create-tg">Скасувати</button>
+                        <button class="btn btn-primary" id="btn-submit-create-tg">Підключити Telegram</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -290,17 +416,22 @@ export async function initIntegrationsViewEvents() {
             }
             const createOrgSelect = document.getElementById("wh-create-org");
             if (createOrgSelect) createOrgSelect.value = currentOrgId;
+            const tgOrgSelect = document.getElementById("tg-create-org");
+            if (tgOrgSelect) tgOrgSelect.value = currentOrgId;
 
             const isDeliveriesActive = document.getElementById("tab-btn-deliveries")?.classList.contains("active");
+            const isTelegramActive = document.getElementById("tab-btn-telegram")?.classList.contains("active");
             if (isDeliveriesActive) {
                 await loadDeliveries(currentOrgId);
+            } else if (isTelegramActive) {
+                await loadTelegramDestinations(currentOrgId);
             } else {
                 await loadEndpoints(currentOrgId);
             }
         });
     }
 
-    // Populate Organization in Create Modal
+    // Populate Organization in Create Modals
     const createOrgSelect = document.getElementById("wh-create-org");
     if (createOrgSelect) {
         createOrgSelect.innerHTML = accessibleOrgs.map(o => `
@@ -309,34 +440,59 @@ export async function initIntegrationsViewEvents() {
             </option>
         `).join("");
     }
+    const tgCreateOrgSelect = document.getElementById("tg-create-org");
+    if (tgCreateOrgSelect) {
+        tgCreateOrgSelect.innerHTML = accessibleOrgs.map(o => `
+            <option value="${o.id}" ${o.id === currentOrgId ? "selected" : ""}>
+                ${escapeHtml(o.name || "Організація")}
+            </option>
+        `).join("");
+    }
 
-    // Tab Switching
+    // Tab Switching: Endpoints, Telegram, Deliveries
     const tabEndpoints = document.getElementById("tab-btn-endpoints");
+    const tabTelegram = document.getElementById("tab-btn-telegram");
     const tabDeliveries = document.getElementById("tab-btn-deliveries");
     const secEndpoints = document.getElementById("section-endpoints");
+    const secTelegram = document.getElementById("section-telegram");
     const secDeliveries = document.getElementById("section-deliveries");
 
     tabEndpoints?.addEventListener("click", () => {
         tabEndpoints.classList.add("active");
+        tabTelegram?.classList.remove("active");
         tabDeliveries?.classList.remove("active");
         if (secEndpoints) secEndpoints.style.display = "block";
+        if (secTelegram) secTelegram.style.display = "none";
         if (secDeliveries) secDeliveries.style.display = "none";
         loadEndpoints(currentOrgId);
+    });
+
+    tabTelegram?.addEventListener("click", () => {
+        tabTelegram.classList.add("active");
+        tabEndpoints?.classList.remove("active");
+        tabDeliveries?.classList.remove("active");
+        if (secTelegram) secTelegram.style.display = "block";
+        if (secEndpoints) secEndpoints.style.display = "none";
+        if (secDeliveries) secDeliveries.style.display = "none";
+        loadTelegramDestinations(currentOrgId);
     });
 
     tabDeliveries?.addEventListener("click", () => {
         tabDeliveries.classList.add("active");
         tabEndpoints?.classList.remove("active");
-        if (secEndpoints) secEndpoints.style.display = "none";
+        tabTelegram?.classList.remove("active");
         if (secDeliveries) secDeliveries.style.display = "block";
+        if (secEndpoints) secEndpoints.style.display = "none";
+        if (secTelegram) secTelegram.style.display = "none";
         loadDeliveries(currentOrgId);
     });
 
     // Refresh buttons
     document.getElementById("btn-refresh-endpoints")?.addEventListener("click", () => loadEndpoints(currentOrgId));
+    document.getElementById("btn-refresh-telegram")?.addEventListener("click", () => loadTelegramDestinations(currentOrgId));
     document.getElementById("btn-refresh-deliveries")?.addEventListener("click", () => loadDeliveries(currentOrgId));
 
-    // Create Modal handling
+    // Create Webhook Modal handling
     const modalCreate = document.getElementById("modal-create-webhook");
     const btnCreate = document.getElementById("btn-create-webhook");
     const btnCloseCreate = document.getElementById("btn-close-create-modal");
@@ -363,7 +519,7 @@ export async function initIntegrationsViewEvents() {
     btnCloseCreate?.addEventListener("click", hideCreateModal);
     btnCancelCreate?.addEventListener("click", hideCreateModal);
 
-    // Event checkboxes logic: '*' unchecks others, others uncheck '*'
+    // Event checkboxes logic for Webhook
     const chkAll = document.getElementById("wh-evt-all");
     const itemCheckboxes = document.querySelectorAll(".wh-evt-item");
     chkAll?.addEventListener("change", (e) => {
@@ -481,6 +637,193 @@ export async function initIntegrationsViewEvents() {
                 setTimeout(() => { copyStatus.style.display = "none"; }, 3000);
             }
         } catch (_e) {}
+    });
+
+    // Create Telegram Destination Modal handling (Phase 7B)
+    const modalCreateTg = document.getElementById("modal-create-telegram");
+    const btnCreateTg = document.getElementById("btn-create-telegram");
+    const btnCloseCreateTg = document.getElementById("btn-close-create-tg-modal");
+    const btnCancelCreateTg = document.getElementById("btn-cancel-create-tg");
+    const btnSubmitCreateTg = document.getElementById("btn-submit-create-tg");
+    const btnTestTg = document.getElementById("btn-test-tg-connection");
+    const tgTestResult = document.getElementById("tg-test-result");
+    const tgErrBox = document.getElementById("create-tg-error");
+
+    btnCreateTg?.addEventListener("click", () => {
+        if (modalCreateTg) modalCreateTg.style.display = "flex";
+        if (tgErrBox) tgErrBox.style.display = "none";
+        if (tgTestResult) tgTestResult.style.display = "none";
+        const cOrg = document.getElementById("tg-create-org");
+        if (cOrg && currentOrgId) cOrg.value = currentOrgId;
+        const nameInput = document.getElementById("tg-name");
+        const descInput = document.getElementById("tg-desc");
+        const tokenInput = document.getElementById("tg-token");
+        const chatIdInput = document.getElementById("tg-chat-id");
+        const threadIdInput = document.getElementById("tg-thread-id");
+        if (nameInput) nameInput.value = "";
+        if (descInput) descInput.value = "";
+        if (tokenInput) tokenInput.value = "";
+        if (chatIdInput) chatIdInput.value = "";
+        if (threadIdInput) threadIdInput.value = "";
+    });
+
+    const hideCreateTgModal = () => {
+        if (modalCreateTg) modalCreateTg.style.display = "none";
+    };
+    btnCloseCreateTg?.addEventListener("click", hideCreateTgModal);
+    btnCancelCreateTg?.addEventListener("click", hideCreateTgModal);
+
+    // Event checkboxes logic for Telegram
+    const tgChkAll = document.getElementById("tg-evt-all");
+    const tgItemCheckboxes = document.querySelectorAll(".tg-evt-item");
+    tgChkAll?.addEventListener("change", (e) => {
+        if (e.target.checked) {
+            tgItemCheckboxes.forEach(cb => cb.checked = false);
+        }
+    });
+    tgItemCheckboxes.forEach(cb => {
+        cb.addEventListener("change", () => {
+            if (cb.checked && tgChkAll) tgChkAll.checked = false;
+        });
+    });
+
+    function showTgError(msg) {
+        if (tgErrBox) {
+            tgErrBox.innerText = msg;
+            tgErrBox.style.display = "block";
+        }
+    }
+
+    // Test Telegram Connection
+    btnTestTg?.addEventListener("click", async () => {
+        const token = document.getElementById("tg-token")?.value?.trim();
+        const chatId = document.getElementById("tg-chat-id")?.value?.trim();
+        const threadId = document.getElementById("tg-thread-id")?.value?.trim();
+
+        if (!token) {
+            showTgError("Введіть Telegram Bot Token для перевірки");
+            return;
+        }
+        if (!chatId) {
+            showTgError("Введіть Chat ID для перевірки");
+            return;
+        }
+
+        if (tgErrBox) tgErrBox.style.display = "none";
+        btnTestTg.disabled = true;
+        btnTestTg.innerHTML = `<div class="portal-spinner" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 6px;"></div> Перевірка...`;
+
+        try {
+            const res = await DataClient.verifyTelegramConnection({
+                botToken: token,
+                chatId,
+                threadId: threadId ? Number(threadId) : null
+            });
+
+            if (tgTestResult) {
+                tgTestResult.style.display = "block";
+                if (res.ok) {
+                    tgTestResult.innerHTML = `
+                        <div style="padding: 10px; border-radius: 6px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--color-success, #10b981);">
+                            <strong>✓ З'єднання успішне!</strong>
+                            <div style="font-size: 0.8rem; margin-top: 4px; color: var(--text-color);">
+                                Бот: <strong>@${escapeHtml(res.bot.username)}</strong> (${escapeHtml(res.bot.first_name)})<br>
+                                Чат: <strong>${escapeHtml(res.chat.title)}</strong> [${escapeHtml(res.chat.type)}]
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    tgTestResult.innerHTML = `
+                        <div style="padding: 10px; border-radius: 6px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--color-danger, #ef4444);">
+                            <strong>✕ Перевірка не пройшла:</strong> ${escapeHtml(res.error || res.reason || "Невідома помилка")}
+                        </div>
+                    `;
+                }
+            }
+        } catch (e) {
+            if (tgTestResult) {
+                tgTestResult.style.display = "block";
+                tgTestResult.innerHTML = `<div style="color: var(--color-danger, #ef4444);">Помилка мережі: ${escapeHtml(e.message)}</div>`;
+            }
+        } finally {
+            btnTestTg.disabled = false;
+            btnTestTg.innerHTML = `<i data-lucide="shield-check"></i> Перевірити з'єднання (getMe + getChat)`;
+            if (window.lucide) window.lucide.createIcons();
+        }
+    });
+
+    // Submit Create Telegram Destination
+    btnSubmitCreateTg?.addEventListener("click", async () => {
+        const chosenOrgId = document.getElementById("tg-create-org")?.value || currentOrgId;
+        const name = document.getElementById("tg-name")?.value?.trim();
+        const desc = document.getElementById("tg-desc")?.value?.trim();
+        const token = document.getElementById("tg-token")?.value?.trim();
+        const chatId = document.getElementById("tg-chat-id")?.value?.trim();
+        const threadId = document.getElementById("tg-thread-id")?.value?.trim();
+
+        if (!chosenOrgId) {
+            showTgError("Оберіть організацію");
+            return;
+        }
+        if (!name) {
+            showTgError("Вкажіть назву підключення");
+            return;
+        }
+        if (!token) {
+            showTgError("Вкажіть Telegram Bot Token");
+            return;
+        }
+        if (!chatId) {
+            showTgError("Вкажіть Chat ID");
+            return;
+        }
+
+        let eventTypes = [];
+        if (tgChkAll?.checked) {
+            eventTypes = ["task.completed", "stage.completed", "document.approved", "client_action.completed"];
+        } else {
+            tgItemCheckboxes.forEach(cb => {
+                if (cb.checked) eventTypes.push(cb.value);
+            });
+            if (eventTypes.length === 0) {
+                eventTypes = ["task.completed", "stage.completed", "document.approved", "client_action.completed"];
+            }
+        }
+
+        btnSubmitCreateTg.disabled = true;
+        btnSubmitCreateTg.innerText = "Підключення...";
+
+        try {
+            const { data, error } = await DataClient.createTelegramDestination({
+                organizationId: chosenOrgId,
+                name,
+                description: desc,
+                botToken: token,
+                chatId,
+                threadId: threadId ? Number(threadId) : null,
+                eventTypes
+            });
+
+            if (error) {
+                if (error.code === "23505" || error.message?.includes("duplicate") || error.message?.includes("uq_telegram_dest_active_endpoint")) {
+                    showTgError("Такий активний напрямок Telegram (той самий бот, чат та тема) вже існує для цієї організації.");
+                } else {
+                    showTgError(error.message || "Помилка при підключенні Telegram");
+                }
+                btnSubmitCreateTg.disabled = false;
+                btnSubmitCreateTg.innerText = "Підключити Telegram";
+                return;
+            }
+
+            hideCreateTgModal();
+            // Switch to Telegram tab to show new connection
+            tabTelegram?.click();
+        } catch (e) {
+            showTgError(e.message || "Непередбачена помилка");
+        } finally {
+            btnSubmitCreateTg.disabled = false;
+            btnSubmitCreateTg.innerText = "Підключити Telegram";
+        }
     });
 
     // Initial Load
@@ -616,6 +959,115 @@ async function loadEndpoints(orgId = currentOrgId) {
     });
 }
 
+async function loadTelegramDestinations(orgId = currentOrgId) {
+    const tbody = document.getElementById("telegram-table-body");
+    if (!tbody) return;
+
+    if (!orgId) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                    Оберіть організацію для перегляду Telegram напрямків.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="7" style="text-align: center; padding: 24px;">
+                <div class="portal-spinner" style="margin: 0 auto;"></div>
+            </td>
+        </tr>
+    `;
+
+    const { data: destinations, error } = await DataClient.getTelegramDestinations(orgId);
+    if (error || !destinations || destinations.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                    Немає підключених Telegram напрямків. Натисніть «Підключити Telegram», щоб налаштувати бота для сповіщень.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = destinations.map(dest => {
+        const eventsBadges = (dest.event_types || []).map(evt => 
+            `<span class="badge badge-subtle" style="font-size: 0.75rem; margin-right: 4px;">${escapeHtml(evt)}</span>`
+        ).join("");
+
+        const statusBadge = dest.is_active
+            ? `<span class="badge badge-success">Активний</span>`
+            : `<span class="badge badge-neutral">Неактивний</span>`;
+
+        const dateStr = dest.created_at ? new Date(dest.created_at).toLocaleDateString("uk-UA") : "—";
+        const threadBadge = dest.thread_id ? `<span class="badge badge-neutral" style="font-size: 0.7rem; margin-left: 4px;">Topic: ${dest.thread_id}</span>` : "";
+
+        return `
+            <tr data-telegram-id="${dest.id}">
+                <td>
+                    <div style="font-weight: 500;">${escapeHtml(dest.name)}</div>
+                    ${dest.description ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(dest.description)}</div>` : ""}
+                </td>
+                <td>
+                    <div style="font-weight: 500; font-size: 0.85rem;">${escapeHtml(dest.chat_title || "Чат")} ${threadBadge}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">ID: ${escapeHtml(dest.chat_id)} (${escapeHtml(dest.chat_type || "чат")})</div>
+                </td>
+                <td>
+                    <div style="font-family: monospace; font-size: 0.85rem; color: #0284c7;">@${escapeHtml(dest.bot_username || "bot")}</div>
+                </td>
+                <td>${eventsBadges}</td>
+                <td>${statusBadge}</td>
+                <td style="font-size: 0.85rem; color: var(--text-muted);">${dateStr}</td>
+                <td style="text-align: right;">
+                    <button class="btn btn-sm btn-ghost btn-toggle-tg-active" data-id="${dest.id}" data-active="${dest.is_active}" title="${dest.is_active ? 'Деактивувати' : 'Активувати'}">
+                        <i data-lucide="${dest.is_active ? 'pause-circle' : 'play-circle'}"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost text-danger btn-delete-tg" data-id="${dest.id}" title="Видалити">
+                        <i data-lucide="trash-2"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // Attach row action listeners
+    tbody.querySelectorAll(".btn-toggle-tg-active").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            const currentActive = btn.getAttribute("data-active") === "true";
+            btn.disabled = true;
+            await DataClient.toggleTelegramDestinationActive(id, !currentActive);
+            await loadTelegramDestinations(currentOrgId);
+        });
+    });
+
+    tbody.querySelectorAll(".btn-delete-tg").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            if (!confirm("Видалити це підключення Telegram?")) return;
+            btn.disabled = true;
+            const { error } = await DataClient.deleteTelegramDestination(id);
+            if (error) {
+                // If historical outbox entries exist, trigger raises 23001
+                if (error.code === "23001" || error.message?.includes("history")) {
+                    alert("Неможливо видалити напрямок Telegram з історією доставок. За правилами аудиту деактивуйте його замість видалення.");
+                } else {
+                    alert("Помилка видалення: " + error.message);
+                }
+                btn.disabled = false;
+                return;
+            }
+            await loadTelegramDestinations(currentOrgId);
+        });
+    });
+}
+
 async function loadDeliveries(orgId = currentOrgId) {
     const tbody = document.getElementById("deliveries-table-body");
     if (!tbody) return;
@@ -661,13 +1113,22 @@ async function loadDeliveries(orgId = currentOrgId) {
         const dateStr = d.created_at ? new Date(d.created_at).toLocaleString("uk-UA") : "—";
         const attempts = `${d.attempts_count || 0} / ${d.max_attempts || 5}`;
 
+        const isTelegram = d.channel_type === "telegram";
+        const destIcon = isTelegram
+            ? `<i data-lucide="send" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; color: #0284c7;"></i>`
+            : `<i data-lucide="webhook" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; color: #6366f1;"></i>`;
+
+        const destSubtext = isTelegram
+            ? `Chat: ${escapeHtml(d.chat_id || "—")} ${d.bot_username ? '(@' + escapeHtml(d.bot_username) + ')' : ''}`
+            : escapeHtml(d.url_masked || "");
+
         return `
             <tr>
                 <td style="font-size: 0.85rem; color: var(--text-muted);">${dateStr}</td>
                 <td><span class="badge badge-subtle">${escapeHtml(d.event_type)}</span></td>
                 <td>
-                    <div style="font-weight: 500;">${escapeHtml(d.destination_name || "Webhook")}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(d.url_masked || "")}</div>
+                    <div style="font-weight: 500;">${destIcon} ${escapeHtml(d.destination_name || (isTelegram ? "Telegram" : "Webhook"))}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${destSubtext}</div>
                 </td>
                 <td><span class="badge ${badgeClass}">${escapeHtml(d.status)}</span></td>
                 <td style="font-size: 0.85rem;">${attempts}</td>

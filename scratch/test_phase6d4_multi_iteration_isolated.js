@@ -15,17 +15,33 @@ function assert(condition, message) {
 async function run() {
     console.log("=== Phase 6D.4: Isolated Multi-Iteration Lifecycle Test ===");
     const client = await pool.connect();
+    let testOrgId = null;
     let tempTaskId = null;
 
     try {
-        const demoOrgId = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
-        const projectRes = await client.query("SELECT id FROM public.projects WHERE organization_id = $1 LIMIT 1", [demoOrgId]);
+        // Create an isolated test organization and project to guarantee zero external integration side effects
+        const orgRes = await client.query(`
+            INSERT INTO public.organizations (name, slug)
+            VALUES ('TEST Isolated Multi-Iteration Org', 'test-multi-iteration-' || substr(md5(random()::text), 1, 8))
+            RETURNING id
+        `);
+        testOrgId = orgRes.rows[0].id;
+
+        const projectRes = await client.query(`
+            INSERT INTO public.projects (name, organization_id, status)
+            VALUES ('TEST Multi-Iteration Project', $1, 'active')
+            RETURNING id
+        `, [testOrgId]);
         const projectId = projectRes.rows[0].id;
 
-        const contactRes = await client.query("SELECT id FROM public.contacts WHERE organization_id = $1 LIMIT 1", [demoOrgId]);
+        const contactRes = await client.query(`
+            INSERT INTO public.contacts (first_name, last_name, email, organization_id)
+            VALUES ('Test', 'Contact', 'test-contact@firstwin.local', $1)
+            RETURNING id
+        `, [testOrgId]);
         const contactId = contactRes.rows[0].id;
 
-        const userRes = await client.query("SELECT id FROM public.profiles WHERE email = 'anzaitseva96@gmail.com' LIMIT 1");
+        const userRes = await client.query("SELECT id FROM public.profiles LIMIT 1");
         const userId = userRes.rows[0].id;
 
         // 1. Create temporary test task
@@ -35,7 +51,7 @@ async function run() {
             ) VALUES (
                 'Temporary Multi-Iteration Verification Task', 'todo', 'client', $1, $2, $3
             ) RETURNING id
-        `, [demoOrgId, projectId, contactId]);
+        `, [testOrgId, projectId, contactId]);
         tempTaskId = taskInsert.rows[0].id;
         console.log("Created isolated temp task:", tempTaskId);
 
@@ -46,7 +62,7 @@ async function run() {
             ) VALUES (
                 $1, $4, 'public_link', $2::jsonb, '[]'::jsonb, $3, NOW() - INTERVAL '1 hour'
             ) RETURNING id
-        `, [tempTaskId, JSON.stringify({ text: "Перша відповідь клієнта" }), contactId, demoOrgId]);
+        `, [tempTaskId, JSON.stringify({ text: "Перша відповідь клієнта" }), contactId, testOrgId]);
         assert(sub1.rows.length === 1, "Iteration 1 inserted");
 
         // Mark task done
@@ -64,7 +80,7 @@ async function run() {
             ) VALUES (
                 $1, $4, 'authenticated_portal', $2::jsonb, '[]'::jsonb, $3, NOW()
             ) RETURNING id
-        `, [tempTaskId, JSON.stringify({ text: "Друга уточнена відповідь клієнта" }), userId, demoOrgId]);
+        `, [tempTaskId, JSON.stringify({ text: "Друга уточнена відповідь клієнта" }), userId, testOrgId]);
         assert(sub2.rows.length === 1, "Iteration 2 inserted");
 
         await client.query("UPDATE public.tasks SET status = 'done', completed_at = NOW() WHERE id = $1", [tempTaskId]);
@@ -88,11 +104,19 @@ async function run() {
 
         console.log("PASS: Multi-iteration history is strictly additive, preserving both iterations without overwrite");
     } finally {
-        // Cleanup isolated temp task only
+        // Cleanup isolated temp task and entities
         if (tempTaskId) {
             await client.query("DELETE FROM public.task_submissions WHERE task_id = $1", [tempTaskId]);
             await client.query("DELETE FROM public.tasks WHERE id = $1", [tempTaskId]);
             console.log("Cleaned up isolated temp task:", tempTaskId);
+        }
+        if (testOrgId) {
+            await client.query("DELETE FROM public.contacts WHERE organization_id = $1", [testOrgId]);
+            await client.query("DELETE FROM public.projects WHERE organization_id = $1", [testOrgId]);
+            await client.query("DELETE FROM public.integration_events WHERE organization_id = $1", [testOrgId]);
+            await client.query("DELETE FROM public.integration_outbox WHERE organization_id = $1", [testOrgId]);
+            await client.query("DELETE FROM public.organizations WHERE id = $1", [testOrgId]);
+            console.log("Cleaned up isolated test organization:", testOrgId);
         }
         client.release();
         await pool.end();

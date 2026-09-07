@@ -20,7 +20,7 @@
   - [x] **Phase 6D.5**: Production Hardening, Edge-Case Auditing & Full E2E Verification (CLOSED / Manually Accepted)
 - [ ] **Phase 7**: External Integrations & Outbound Delivery Engine (Architecture APPROVED)
   - [x] **Phase 7A**: Integration Core & Outbound Webhooks (CLOSED / Manually Accepted)
-  - [/] **Phase 7B**: Telegram Notifications Integration (PLANNING ONLY / Architecture & Security Gate)
+  - [x] **Phase 7B**: Telegram Notifications Integration (CLOSED / Manually Accepted)
   - [ ] **Phase 7C**: Calendar Read-Only Feed (One-Way RFC 5545 iCal, Hash-Only Tokens, Zero Write-Back)
   - [ ] **Phase 7D**: Additional Communication (Slack Integration — Deferred)
 - [ ] **Phase 8**: AI Delivery Layer (Upcoming)
