@@ -4650,6 +4650,158 @@ export const DataClient = {
         } catch (err) {
             return { ok: false, error: err.message };
         }
+    },
+
+    // -------------------------------------------------------------------------
+    // 36. Phase 7C: Calendar Read-Only Feed (RFC 5545 iCalendar)
+    // -------------------------------------------------------------------------
+    async _computeSha256(text) {
+        if (typeof crypto !== "undefined" && crypto.subtle) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+        }
+        try {
+            const nodeCrypto = require("crypto");
+            return nodeCrypto.createHash("sha256").update(text).digest("hex");
+        } catch (e) {
+            throw new Error("SHA-256 computation not supported in current environment");
+        }
+    },
+
+    _generateFeedToken() {
+        if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+            const bytes = new Uint8Array(32);
+            crypto.getRandomValues(bytes);
+            return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+        }
+        try {
+            const nodeCrypto = require("crypto");
+            return nodeCrypto.randomBytes(32).toString("hex");
+        } catch (e) {
+            let res = "";
+            for (let i = 0; i < 64; i++) res += Math.floor(Math.random() * 16).toString(16);
+            return res;
+        }
+    },
+
+    _buildCalendarUrls(token) {
+        const origin = (typeof window !== "undefined" && window.location && window.location.origin)
+            ? window.location.origin
+            : "http://localhost:8002";
+        const httpsUrl = `${origin}/api/calendar/feed/${token}.ics`;
+        const webcalUrl = httpsUrl.replace(/^https?:\/\//, "webcal://");
+        return { https_url: httpsUrl, webcal_url: webcalUrl };
+    },
+
+    async getCalendarFeeds(organizationId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: null };
+        const { data, error } = await supabase.rpc("get_calendar_feed_subscriptions", {
+            p_organization_id: organizationId
+        });
+        if (error) {
+            console.error("[DataClient] getCalendarFeeds error:", error);
+            return { data: [], error };
+        }
+        return { data: Array.isArray(data) ? data : [], error: null };
+    },
+
+    async createCalendarFeed({ organizationId, name, feedScope, projectId, expiresAt }) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const rawToken = this._generateFeedToken();
+        const tokenHash = await this._computeSha256(rawToken);
+        const tokenPreview = rawToken.substring(0, 6);
+
+        const { data, error } = await supabase.rpc("create_calendar_feed_subscription", {
+            p_organization_id: organizationId,
+            p_name: name,
+            p_feed_scope: feedScope || "personal",
+            p_project_id: projectId || null,
+            p_token_hash: tokenHash,
+            p_token_preview: tokenPreview,
+            p_expires_at: expiresAt || null
+        });
+
+        if (error) {
+            console.error("[DataClient] createCalendarFeed error:", error);
+            return { data: null, error };
+        }
+
+        const urls = this._buildCalendarUrls(rawToken);
+        return {
+            data: {
+                ...data,
+                raw_token: rawToken,
+                https_url: urls.https_url,
+                webcal_url: urls.webcal_url
+            },
+            error: null
+        };
+    },
+
+    async revokeCalendarFeed(subscriptionId, organizationId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("revoke_calendar_feed_subscription", {
+            p_subscription_id: subscriptionId,
+            p_organization_id: organizationId
+        });
+        if (error) {
+            console.error("[DataClient] revokeCalendarFeed error:", error);
+            return { data: null, error };
+        }
+        return { data, error: null };
+    },
+
+    async rotateCalendarFeed(subscriptionId, organizationId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const newToken = this._generateFeedToken();
+        const newTokenHash = await this._computeSha256(newToken);
+        const newTokenPreview = newToken.substring(0, 6);
+
+        const { data, error } = await supabase.rpc("rotate_calendar_feed_subscription", {
+            p_subscription_id: subscriptionId,
+            p_organization_id: organizationId,
+            p_new_token_hash: newTokenHash,
+            p_new_token_preview: newTokenPreview
+        });
+
+        if (error) {
+            console.error("[DataClient] rotateCalendarFeed error:", error);
+            return { data: null, error };
+        }
+
+        const urls = this._buildCalendarUrls(newToken);
+        return {
+            data: {
+                ...data,
+                raw_token: newToken,
+                https_url: urls.https_url,
+                webcal_url: urls.webcal_url
+            },
+            error: null
+        };
+    },
+
+    async deleteCalendarFeed(subscriptionId, organizationId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+        const { data, error } = await supabase.rpc("delete_calendar_feed_subscription", {
+            p_subscription_id: subscriptionId,
+            p_organization_id: organizationId
+        });
+        if (error) {
+            console.error("[DataClient] deleteCalendarFeed error:", error);
+            return { data: null, error };
+        }
+        return { data: true, error: null };
     }
 };
 

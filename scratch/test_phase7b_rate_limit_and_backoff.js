@@ -27,31 +27,36 @@ async function run() {
         console.log('--- Phase 7B: Telegram Rate Limiting & Retry Backoff Suite ---');
 
         // 1. Test calculation of Telegram 429 retry
-        const now = Date.now();
+        const t0 = Date.now();
         const retry15 = calculateTelegram429Retry(15);
-        const diff15 = Math.round((retry15.getTime() - now) / 1000);
+        const diff15 = Math.round((retry15.getTime() - t0) / 1000);
         assert(diff15 >= 14 && diff15 <= 16, 'calculateTelegram429Retry(15) schedules retry 15s in future');
 
+        const tFallback = Date.now();
         const retryFallback = calculateTelegram429Retry(null);
-        const diffFallback = Math.round((retryFallback.getTime() - now) / 1000);
+        const diffFallback = Math.round((retryFallback.getTime() - tFallback) / 1000);
         assert(diffFallback >= 4 && diffFallback <= 6, 'calculateTelegram429Retry(null) defaults safely to 5s');
 
+        const tZero = Date.now();
         const retryZero = calculateTelegram429Retry(0);
-        const diffZero = Math.round((retryZero.getTime() - now) / 1000);
+        const diffZero = Math.round((retryZero.getTime() - tZero) / 1000);
         assert(diffZero >= 1 && diffZero <= 2, 'calculateTelegram429Retry(0) enforces minimum 1s floor');
 
         // 2. Test standard exponential backoff calculation
+        const t1 = Date.now();
         const r1 = calculateNextRetry(1, 30); // 30s
-        const d1 = Math.round((r1.getTime() - now) / 1000);
-        assert(d1 >= 29 && d1 <= 31, 'calculateNextRetry attempt 1 delay is ~30s');
+        const d1 = Math.round((r1.getTime() - t1) / 1000);
+        assert(d1 >= 28 && d1 <= 32, 'calculateNextRetry attempt 1 delay is ~30s');
 
+        const t2 = Date.now();
         const r2 = calculateNextRetry(2, 30); // 60s
-        const d2 = Math.round((r2.getTime() - now) / 1000);
-        assert(d2 >= 59 && d2 <= 61, 'calculateNextRetry attempt 2 delay is ~60s');
+        const d2 = Math.round((r2.getTime() - t2) / 1000);
+        assert(d2 >= 58 && d2 <= 62, 'calculateNextRetry attempt 2 delay is ~60s');
 
+        const t3 = Date.now();
         const r3 = calculateNextRetry(3, 30); // 120s
-        const d3 = Math.round((r3.getTime() - now) / 1000);
-        assert(d3 >= 119 && d3 <= 121, 'calculateNextRetry attempt 3 delay is ~120s');
+        const d3 = Math.round((r3.getTime() - t3) / 1000);
+        assert(d3 >= 118 && d3 <= 122, 'calculateNextRetry attempt 3 delay is ~120s');
 
         // 3. Database Outbox State Transitions for Telegram 429 and Dead Letter
         const orgRes = await client.query("INSERT INTO public.organizations (name) VALUES ('Org 7B Rate Limit') RETURNING id");

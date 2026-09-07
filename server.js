@@ -34,9 +34,16 @@ const {
     setTelegramMockMode,
     getTelegramMockMode
 } = require('./js/portal/api/dispatcher-worker.js');
+const { handleCalendarFeedRequest } = require('./js/portal/api/calendar-handler.js');
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     let reqPath = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
+
+    // Calendar Feed Endpoint (RFC 5545 iCalendar - Phase 7C)
+    if (reqPath.startsWith('/api/calendar/feed/')) {
+        const handled = await handleCalendarFeedRequest(req, res);
+        if (handled) return;
+    }
 
     // Telegram connection verification endpoint (Phase 7B)
     if (reqPath === '/api/telegram/verify-connection') {

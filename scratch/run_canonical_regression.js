@@ -42,7 +42,10 @@ const suites = [
     'test_phase7b_lifecycle_and_integrity.js', 'test_phase7b_connection_validation.js',
     'test_phase7b_markdown_parser.js', 'test_phase7b_rate_limit_and_backoff.js',
     'test_phase7b_chat_identity.js', 'test_phase7b_real_delivery_e2e.js',
-    'test_phase7b_auth_task_completed_fanout.js'
+    'test_phase7b_auth_task_completed_fanout.js',
+    'test_phase7c_token_hash_security.js', 'test_phase7c_rfc5545_compliance.js',
+    'test_phase7c_etag_and_caching.js', 'test_phase7c_scope_and_isolation.js',
+    'test_phase7c_revocation_lifecycle.js', 'test_phase7c_browser_e2e.js'
 ];
 
 async function run() {

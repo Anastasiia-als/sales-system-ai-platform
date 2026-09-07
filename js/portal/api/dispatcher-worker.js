@@ -580,5 +580,6 @@ module.exports = {
     dispatchSingleOutbox,
     verifyTelegramConnection,
     setTelegramMockMode,
-    getTelegramMockMode
+    getTelegramMockMode,
+    getPool
 };

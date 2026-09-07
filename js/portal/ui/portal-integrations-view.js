@@ -22,6 +22,9 @@ export function renderIntegrationsView() {
                     <p class="portal-view-subtitle">Керування вихідними вебхуками, сповіщеннями Telegram та журналом доставок</p>
                 </div>
                 <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-outline" id="btn-create-calendar">
+                        <i data-lucide="calendar"></i> Додати Календар (iCal)
+                    </button>
                     <button class="btn btn-outline" id="btn-create-telegram">
                         <i data-lucide="send"></i> Підключити Telegram
                     </button>
@@ -42,13 +45,16 @@ export function renderIntegrationsView() {
                 <div id="integrations-org-badge" style="font-size: 0.8rem; color: var(--text-muted);">Керування інтеграціями обраної організації</div>
             </div>
 
-            <!-- Tabs: Endpoints, Telegram & Delivery Log -->
+            <!-- Tabs: Endpoints, Telegram, Calendars & Delivery Log -->
             <div class="portal-tabs" style="display: flex; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color, #e2e8f0); padding-bottom: 8px;">
                 <button class="btn btn-sm btn-outline active" id="tab-btn-endpoints">
                     <i data-lucide="webhook"></i> Кінцеві точки (Webhooks)
                 </button>
                 <button class="btn btn-sm btn-outline" id="tab-btn-telegram">
                     <i data-lucide="send"></i> Telegram канали
+                </button>
+                <button class="btn btn-sm btn-outline" id="tab-btn-calendars">
+                    <i data-lucide="calendar"></i> Календарі (iCal)
                 </button>
                 <button class="btn btn-sm btn-outline" id="tab-btn-deliveries">
                     <i data-lucide="activity"></i> Журнал доставок (Outbox)
@@ -110,6 +116,40 @@ export function renderIntegrationsView() {
                         <tbody id="telegram-table-body">
                             <tr>
                                 <td colspan="7" style="text-align: center; padding: 24px;">
+                                    <div class="portal-spinner" style="margin: 0 auto;"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Calendars Section (RFC 5545 iCal - Phase 7C) -->
+            <div id="section-calendars" class="portal-card" style="display: none; margin-bottom: 24px;">
+                <div class="portal-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="portal-card-title">Підписки на Календарі (RFC 5545 iCalendar)</h2>
+                    <button class="btn btn-sm btn-ghost" id="btn-refresh-calendars" title="Оновити">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                </div>
+                <div class="portal-table-wrapper">
+                    <table class="portal-table">
+                        <thead>
+                            <tr>
+                                <th>Назва підписки</th>
+                                <th>Область (Scope)</th>
+                                <th>Проєкт</th>
+                                <th>Створив</th>
+                                <th>Прев'ю токена</th>
+                                <th>Останній доступ</th>
+                                <th>Запитів</th>
+                                <th>Статус</th>
+                                <th style="text-align: right;">Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calendars-table-body">
+                            <tr>
+                                <td colspan="9" style="text-align: center; padding: 24px;">
                                     <div class="portal-spinner" style="margin: 0 auto;"></div>
                                 </td>
                             </tr>
@@ -327,6 +367,87 @@ export function renderIntegrationsView() {
                     </div>
                 </div>
             </div>
+
+            <!-- Create Calendar Feed Modal (Phase 7C) -->
+            <div id="modal-create-calendar" class="portal-modal-backdrop" style="display: none;">
+                <div class="portal-modal" style="max-width: 540px;">
+                    <div class="portal-modal-header">
+                        <h3 class="portal-modal-title">Створити iCal календарну підписку</h3>
+                        <button class="portal-modal-close" id="btn-close-create-cal-modal">&times;</button>
+                    </div>
+                    <div class="portal-modal-body">
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label for="cal-create-org" style="font-weight: 600; font-size: 0.85rem;">Організація:</label>
+                            <select id="cal-create-org" class="portal-select" style="width: 100%;" disabled>
+                                <option value="">Оберіть організацію</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label for="cal-name" style="font-weight: 600; font-size: 0.85rem;">Назва календаря: <span style="color: red;">*</span></label>
+                            <input type="text" id="cal-name" class="portal-input" placeholder="напр., Мій робочий розклад чи Календар проєкту" style="width: 100%;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label for="cal-scope" style="font-weight: 600; font-size: 0.85rem;">Область видимості (Scope): <span style="color: red;">*</span></label>
+                            <select id="cal-scope" class="portal-select" style="width: 100%;">
+                                <option value="personal">Персональний (тільки призначені мені етапи та завдання)</option>
+                                <option value="project">Проєкт (всі етапи та завдання обраного проєкту)</option>
+                                <option value="organization">Організація (всі активні проєкти та завдання організації)</option>
+                                <option value="client">Клієнтський (тільки клієнтські етапи та задачі обраного проєкту)</option>
+                            </select>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                                Для областей «Проєкт» та «Клієнтський» обов'язково вкажіть конкретний проєкт.
+                            </div>
+                        </div>
+                        <div class="form-group" id="cal-project-group" style="margin-bottom: 14px; display: none;">
+                            <label for="cal-project" style="font-weight: 600; font-size: 0.85rem;">Проєкт: <span style="color: red;">*</span></label>
+                            <select id="cal-project" class="portal-select" style="width: 100%;">
+                                <option value="">Завантаження проєктів...</option>
+                            </select>
+                        </div>
+                        <div id="create-cal-error" style="color: var(--color-danger, #ef4444); font-size: 0.85rem; margin-top: 8px; display: none;"></div>
+                    </div>
+                    <div class="portal-modal-footer">
+                        <button class="btn btn-ghost" id="btn-cancel-create-cal">Скасувати</button>
+                        <button class="btn btn-primary" id="btn-submit-create-cal">Згенерувати посилання</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Show Calendar Token Modal (Phase 7C) -->
+            <div id="modal-show-calendar-token" class="portal-modal-backdrop" style="display: none;">
+                <div class="portal-modal" style="max-width: 600px;">
+                    <div class="portal-modal-header">
+                        <h3 class="portal-modal-title">Посилання на iCal календар</h3>
+                        <button class="portal-modal-close" id="btn-close-cal-token-modal">&times;</button>
+                    </div>
+                    <div class="portal-modal-body">
+                        <div class="portal-alert portal-alert-warning" style="margin-bottom: 16px; font-size: 0.85rem; background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 12px; border-radius: 6px;">
+                            <strong>Важливо:</strong> Повний токен генерується одноразово. Збережіть або підключіть посилання до вашого календаря зараз. У системі зберігається виключно криптографічний хеш SHA-256.
+                        </div>
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 6px;">
+                                Посилання підписки (webcal://) — для Apple Calendar, Google Calendar, Outlook:
+                            </label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="cal-webcal-url-input" class="portal-input" readonly style="flex: 1; font-family: monospace; font-size: 0.8rem; background: var(--bg-surface-alt, #f8fafc);">
+                                <button class="btn btn-primary btn-sm" id="btn-copy-cal-webcal">Копіювати</button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 6px;">
+                                Прямий HTTPS URL:
+                            </label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="cal-https-url-input" class="portal-input" readonly style="flex: 1; font-family: monospace; font-size: 0.8rem; background: var(--bg-surface-alt, #f8fafc);">
+                                <button class="btn btn-outline btn-sm" id="btn-copy-cal-https">Копіювати</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="portal-modal-footer">
+                        <button class="btn btn-primary" id="btn-confirm-cal-token">Зрозуміло, закрити</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -418,13 +539,18 @@ export async function initIntegrationsViewEvents() {
             if (createOrgSelect) createOrgSelect.value = currentOrgId;
             const tgOrgSelect = document.getElementById("tg-create-org");
             if (tgOrgSelect) tgOrgSelect.value = currentOrgId;
+            const calOrgSelect = document.getElementById("cal-create-org");
+            if (calOrgSelect) calOrgSelect.value = currentOrgId;
 
             const isDeliveriesActive = document.getElementById("tab-btn-deliveries")?.classList.contains("active");
             const isTelegramActive = document.getElementById("tab-btn-telegram")?.classList.contains("active");
+            const isCalendarsActive = document.getElementById("tab-btn-calendars")?.classList.contains("active");
             if (isDeliveriesActive) {
                 await loadDeliveries(currentOrgId);
             } else if (isTelegramActive) {
                 await loadTelegramDestinations(currentOrgId);
+            } else if (isCalendarsActive) {
+                await loadCalendars(currentOrgId);
             } else {
                 await loadEndpoints(currentOrgId);
             }
@@ -448,21 +574,33 @@ export async function initIntegrationsViewEvents() {
             </option>
         `).join("");
     }
+    const calCreateOrgSelect = document.getElementById("cal-create-org");
+    if (calCreateOrgSelect) {
+        calCreateOrgSelect.innerHTML = accessibleOrgs.map(o => `
+            <option value="${o.id}" ${o.id === currentOrgId ? "selected" : ""}>
+                ${escapeHtml(o.name || "Організація")}
+            </option>
+        `).join("");
+    }
 
-    // Tab Switching: Endpoints, Telegram, Deliveries
+    // Tab Switching: Endpoints, Telegram, Calendars, Deliveries
     const tabEndpoints = document.getElementById("tab-btn-endpoints");
     const tabTelegram = document.getElementById("tab-btn-telegram");
+    const tabCalendars = document.getElementById("tab-btn-calendars");
     const tabDeliveries = document.getElementById("tab-btn-deliveries");
     const secEndpoints = document.getElementById("section-endpoints");
     const secTelegram = document.getElementById("section-telegram");
+    const secCalendars = document.getElementById("section-calendars");
     const secDeliveries = document.getElementById("section-deliveries");
 
     tabEndpoints?.addEventListener("click", () => {
         tabEndpoints.classList.add("active");
         tabTelegram?.classList.remove("active");
+        tabCalendars?.classList.remove("active");
         tabDeliveries?.classList.remove("active");
         if (secEndpoints) secEndpoints.style.display = "block";
         if (secTelegram) secTelegram.style.display = "none";
+        if (secCalendars) secCalendars.style.display = "none";
         if (secDeliveries) secDeliveries.style.display = "none";
         loadEndpoints(currentOrgId);
     });
@@ -470,26 +608,43 @@ export async function initIntegrationsViewEvents() {
     tabTelegram?.addEventListener("click", () => {
         tabTelegram.classList.add("active");
         tabEndpoints?.classList.remove("active");
+        tabCalendars?.classList.remove("active");
         tabDeliveries?.classList.remove("active");
         if (secTelegram) secTelegram.style.display = "block";
         if (secEndpoints) secEndpoints.style.display = "none";
+        if (secCalendars) secCalendars.style.display = "none";
         if (secDeliveries) secDeliveries.style.display = "none";
         loadTelegramDestinations(currentOrgId);
+    });
+
+    tabCalendars?.addEventListener("click", () => {
+        tabCalendars.classList.add("active");
+        tabEndpoints?.classList.remove("active");
+        tabTelegram?.classList.remove("active");
+        tabDeliveries?.classList.remove("active");
+        if (secCalendars) secCalendars.style.display = "block";
+        if (secEndpoints) secEndpoints.style.display = "none";
+        if (secTelegram) secTelegram.style.display = "none";
+        if (secDeliveries) secDeliveries.style.display = "none";
+        loadCalendars(currentOrgId);
     });
 
     tabDeliveries?.addEventListener("click", () => {
         tabDeliveries.classList.add("active");
         tabEndpoints?.classList.remove("active");
         tabTelegram?.classList.remove("active");
+        tabCalendars?.classList.remove("active");
         if (secDeliveries) secDeliveries.style.display = "block";
         if (secEndpoints) secEndpoints.style.display = "none";
         if (secTelegram) secTelegram.style.display = "none";
+        if (secCalendars) secCalendars.style.display = "none";
         loadDeliveries(currentOrgId);
     });
 
     // Refresh buttons
     document.getElementById("btn-refresh-endpoints")?.addEventListener("click", () => loadEndpoints(currentOrgId));
     document.getElementById("btn-refresh-telegram")?.addEventListener("click", () => loadTelegramDestinations(currentOrgId));
+    document.getElementById("btn-refresh-calendars")?.addEventListener("click", () => loadCalendars(currentOrgId));
     document.getElementById("btn-refresh-deliveries")?.addEventListener("click", () => loadDeliveries(currentOrgId));
 
     // Create Webhook Modal handling
@@ -826,6 +981,157 @@ export async function initIntegrationsViewEvents() {
         }
     });
 
+    // Calendar Feed Modal Handling (Phase 7C)
+    const modalCreateCal = document.getElementById("modal-create-calendar");
+    const btnCreateCal = document.getElementById("btn-create-calendar");
+    const btnCloseCreateCal = document.getElementById("btn-close-create-cal-modal");
+    const btnCancelCreateCal = document.getElementById("btn-cancel-create-cal");
+    const btnSubmitCreateCal = document.getElementById("btn-submit-create-cal");
+    const calScopeSelect = document.getElementById("cal-scope");
+    const calProjectGroup = document.getElementById("cal-project-group");
+    const calProjectSelect = document.getElementById("cal-project");
+    const createCalError = document.getElementById("create-cal-error");
+
+    const modalShowCalToken = document.getElementById("modal-show-calendar-token");
+    const btnCloseCalToken = document.getElementById("btn-close-cal-token-modal");
+    const btnConfirmCalToken = document.getElementById("btn-confirm-cal-token");
+    const calWebcalInput = document.getElementById("cal-webcal-url-input");
+    const calHttpsInput = document.getElementById("cal-https-url-input");
+    const btnCopyWebcal = document.getElementById("btn-copy-cal-webcal");
+    const btnCopyHttps = document.getElementById("btn-copy-cal-https");
+
+    btnCreateCal?.addEventListener("click", async () => {
+        if (modalCreateCal) modalCreateCal.style.display = "flex";
+        if (createCalError) createCalError.style.display = "none";
+        const cOrg = document.getElementById("cal-create-org");
+        if (cOrg && currentOrgId) cOrg.value = currentOrgId;
+        const nameInput = document.getElementById("cal-name");
+        if (nameInput) nameInput.value = "";
+        if (calScopeSelect) calScopeSelect.value = "personal";
+        if (calProjectGroup) calProjectGroup.style.display = "none";
+
+        // Preload active projects for dropdown
+        if (calProjectSelect && currentOrgId) {
+            calProjectSelect.innerHTML = `<option value="">Завантаження проєктів...</option>`;
+            const { data: projects } = await DataClient.getProjects({ organizationId: currentOrgId, status: "active" });
+            if (!projects || projects.length === 0) {
+                calProjectSelect.innerHTML = `<option value="">Немає активних проєктів</option>`;
+            } else {
+                calProjectSelect.innerHTML = projects.map(p => `
+                    <option value="${p.id}">${escapeHtml(p.name)}</option>
+                `).join("");
+            }
+        }
+    });
+
+    const hideCreateCalModal = () => {
+        if (modalCreateCal) modalCreateCal.style.display = "none";
+    };
+    btnCloseCreateCal?.addEventListener("click", hideCreateCalModal);
+    btnCancelCreateCal?.addEventListener("click", hideCreateCalModal);
+
+    calScopeSelect?.addEventListener("change", (e) => {
+        const val = e.target.value;
+        if (val === "project" || val === "client") {
+            if (calProjectGroup) calProjectGroup.style.display = "block";
+        } else {
+            if (calProjectGroup) calProjectGroup.style.display = "none";
+        }
+    });
+
+    btnSubmitCreateCal?.addEventListener("click", async () => {
+        const chosenOrgId = document.getElementById("cal-create-org")?.value || currentOrgId;
+        const name = document.getElementById("cal-name")?.value?.trim();
+        const scope = calScopeSelect?.value || "personal";
+        const projectId = (scope === "project" || scope === "client") ? calProjectSelect?.value : null;
+
+        if (!chosenOrgId) {
+            if (createCalError) {
+                createCalError.textContent = "Оберіть організацію";
+                createCalError.style.display = "block";
+            }
+            return;
+        }
+        if (!name) {
+            if (createCalError) {
+                createCalError.textContent = "Вкажіть назву підписки на календар";
+                createCalError.style.display = "block";
+            }
+            return;
+        }
+        if ((scope === "project" || scope === "client") && !projectId) {
+            if (createCalError) {
+                createCalError.textContent = "Для обраної області необхідно обрати конкретний проєкт";
+                createCalError.style.display = "block";
+            }
+            return;
+        }
+
+        btnSubmitCreateCal.disabled = true;
+        btnSubmitCreateCal.innerText = "Генерація...";
+
+        try {
+            const { data, error } = await DataClient.createCalendarFeed({
+                organizationId: chosenOrgId,
+                name,
+                feedScope: scope,
+                projectId
+            });
+
+            if (error) {
+                if (createCalError) {
+                    createCalError.textContent = error.message || "Помилка створення календарної підписки";
+                    createCalError.style.display = "block";
+                }
+                btnSubmitCreateCal.disabled = false;
+                btnSubmitCreateCal.innerText = "Згенерувати посилання";
+                return;
+            }
+
+            hideCreateCalModal();
+
+            // Display single-use presentation modal
+            if (modalShowCalToken && data) {
+                if (calWebcalInput) calWebcalInput.value = data.webcal_url || "";
+                if (calHttpsInput) calHttpsInput.value = data.https_url || "";
+                modalShowCalToken.style.display = "flex";
+            }
+
+            tabCalendars?.click();
+            await loadCalendars(currentOrgId);
+        } catch (e) {
+            if (createCalError) {
+                createCalError.textContent = e.message || "Непередбачена помилка";
+                createCalError.style.display = "block";
+            }
+        } finally {
+            btnSubmitCreateCal.disabled = false;
+            btnSubmitCreateCal.innerText = "Згенерувати посилання";
+        }
+    });
+
+    const hideShowTokenModal = () => {
+        if (modalShowCalToken) modalShowCalToken.style.display = "none";
+    };
+    btnCloseCalToken?.addEventListener("click", hideShowTokenModal);
+    btnConfirmCalToken?.addEventListener("click", hideShowTokenModal);
+
+    btnCopyWebcal?.addEventListener("click", () => {
+        if (calWebcalInput?.value) {
+            navigator.clipboard.writeText(calWebcalInput.value);
+            btnCopyWebcal.textContent = "Скопійовано!";
+            setTimeout(() => { btnCopyWebcal.textContent = "Копіювати"; }, 2000);
+        }
+    });
+
+    btnCopyHttps?.addEventListener("click", () => {
+        if (calHttpsInput?.value) {
+            navigator.clipboard.writeText(calHttpsInput.value);
+            btnCopyHttps.textContent = "Скопійовано!";
+            setTimeout(() => { btnCopyHttps.textContent = "Копіювати"; }, 2000);
+        }
+    });
+
     // Initial Load
     await loadEndpoints(currentOrgId);
 }
@@ -1064,6 +1370,151 @@ async function loadTelegramDestinations(orgId = currentOrgId) {
                 return;
             }
             await loadTelegramDestinations(currentOrgId);
+        });
+    });
+}
+
+async function loadCalendars(orgId = currentOrgId) {
+    const tbody = document.getElementById("calendars-table-body");
+    if (!tbody) return;
+
+    if (!orgId) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                    Оберіть організацію для перегляду календарних підписок.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="9" style="text-align: center; padding: 24px;">
+                <div class="portal-spinner" style="margin: 0 auto;"></div>
+            </td>
+        </tr>
+    `;
+
+    const { data: feeds, error } = await DataClient.getCalendarFeeds(orgId);
+    if (error || !feeds || feeds.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                    Немає створених календарних підписок. Натисніть «Додати Календар (iCal)», щоб згенерувати посилання для Apple Calendar, Google Calendar чи Outlook.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const scopeLabels = {
+        personal: "Персональний",
+        project: "Проєкт",
+        organization: "Організація",
+        client: "Клієнтський"
+    };
+
+    tbody.innerHTML = feeds.map(feed => {
+        const scopeLabel = scopeLabels[feed.feed_scope] || feed.feed_scope;
+        let scopeBadgeClass = "badge-neutral";
+        if (feed.feed_scope === "personal") scopeBadgeClass = "badge-subtle";
+        else if (feed.feed_scope === "project") scopeBadgeClass = "badge-primary";
+        else if (feed.feed_scope === "organization") scopeBadgeClass = "badge-warning";
+        else if (feed.feed_scope === "client") scopeBadgeClass = "badge-success";
+
+        const statusBadge = feed.is_active
+            ? `<span class="badge badge-success">Активний</span>`
+            : `<span class="badge badge-danger">Відкликаний</span>`;
+
+        const lastAccess = feed.last_accessed_at ? new Date(feed.last_accessed_at).toLocaleString("uk-UA") : "—";
+        const dateStr = feed.created_at ? new Date(feed.created_at).toLocaleDateString("uk-UA") : "—";
+
+        return `
+            <tr data-feed-id="${feed.id}">
+                <td>
+                    <div style="font-weight: 500;">
+                        <i data-lucide="calendar" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; color: #0284c7;"></i>
+                        ${escapeHtml(feed.name)}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Створено: ${dateStr}</div>
+                </td>
+                <td><span class="badge ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span></td>
+                <td style="font-size: 0.85rem;">${escapeHtml(feed.project_name || "—")}</td>
+                <td style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHtml(feed.creator_name || "—")}</td>
+                <td><code style="font-size: 0.75rem; background: var(--bg-surface-alt, #f1f5f9); padding: 2px 6px; border-radius: 4px;">${escapeHtml(feed.token_preview)}...</code></td>
+                <td style="font-size: 0.85rem; color: var(--text-muted);">${lastAccess}</td>
+                <td style="font-size: 0.85rem; font-weight: 600; text-align: center;">${feed.access_count || 0}</td>
+                <td>${statusBadge}</td>
+                <td style="text-align: right; white-space: nowrap;">
+                    <button class="btn btn-sm btn-ghost btn-rotate-cal" data-id="${feed.id}" title="Перевипустити токен">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost btn-revoke-cal" data-id="${feed.id}" data-active="${feed.is_active}" title="${feed.is_active ? 'Відкликати доступ' : 'Активувати'}">
+                        <i data-lucide="${feed.is_active ? 'slash' : 'check-circle'}"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost text-danger btn-delete-cal" data-id="${feed.id}" title="Видалити">
+                        <i data-lucide="trash-2"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // Attach row action listeners
+    tbody.querySelectorAll(".btn-revoke-cal").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            btn.disabled = true;
+            await DataClient.revokeCalendarFeed(id, currentOrgId);
+            await loadCalendars(currentOrgId);
+        });
+    });
+
+    tbody.querySelectorAll(".btn-rotate-cal").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            if (!confirm("Ви впевнені, що бажаєте перевипустити токен для цього календаря? Попереднє посилання негайно перестане працювати.")) {
+                return;
+            }
+            btn.disabled = true;
+            const { data, error } = await DataClient.rotateCalendarFeed(id, currentOrgId);
+            if (error) {
+                alert("Помилка перевипуску: " + error.message);
+                btn.disabled = false;
+                return;
+            }
+            if (data) {
+                const modalShowCalToken = document.getElementById("modal-show-calendar-token");
+                const calWebcalInput = document.getElementById("cal-webcal-url-input");
+                const calHttpsInput = document.getElementById("cal-https-url-input");
+                if (modalShowCalToken && calWebcalInput && calHttpsInput) {
+                    calWebcalInput.value = data.webcal_url || "";
+                    calHttpsInput.value = data.https_url || "";
+                    modalShowCalToken.style.display = "flex";
+                }
+            }
+            await loadCalendars(currentOrgId);
+        });
+    });
+
+    tbody.querySelectorAll(".btn-delete-cal").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            if (!confirm("Видалити цю календарну підписку назавжди?")) {
+                return;
+            }
+            btn.disabled = true;
+            const { error } = await DataClient.deleteCalendarFeed(id, currentOrgId);
+            if (error) {
+                alert("Помилка видалення: " + error.message);
+                btn.disabled = false;
+                return;
+            }
+            await loadCalendars(currentOrgId);
         });
     });
 }

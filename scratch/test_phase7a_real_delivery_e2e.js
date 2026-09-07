@@ -31,6 +31,67 @@ function fetchWebhookSiteRequests(token) {
     });
 }
 
+function clearWebhookSiteRequests(token) {
+    return new Promise((resolve) => {
+        const req = https.request(`https://webhook.site/token/${token}/request`, { method: 'DELETE' }, () => {
+            resolve();
+        });
+        req.on('error', () => resolve());
+        req.end();
+    });
+}
+
+async function getFreshWebhookSiteToken(pool) {
+    const tokenData = await new Promise((resolve, reject) => {
+        const req = https.request('https://webhook.site/token', { method: 'POST', headers: { 'Content-Type': 'application/json' } }, res => {
+            let body = '';
+            res.on('data', c => body += c);
+            res.on('end', () => {
+                try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+            });
+        });
+        req.on('error', reject);
+        req.end();
+    });
+
+    const token = tokenData.uuid;
+    const targetUrl = `https://webhook.site/${token}`;
+
+    const secRes = await pool.query(
+        "SELECT vault.create_secret($1, $2, $3) AS sec_id",
+        [targetUrl, 'endpoint_url_' + Date.now(), 'Target URL for webhook endpoint: Demo Client Corp']
+    );
+    const newSecId = secRes.rows[0].sec_id;
+
+    await pool.query(
+        "UPDATE public.integration_endpoints SET url_secret_id = $1, url_hostname = 'webhook.site', is_active = true WHERE organization_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'",
+        [newSecId]
+    );
+
+    return token;
+}
+
+async function resolveWebhookToken(pool) {
+    let token = 'dceda492-20ac-455a-a1d8-c1d34011b334';
+    const isRateLimited = await new Promise((resolve) => {
+        const req = https.request(`https://webhook.site/${token}`, { method: 'POST' }, res => {
+            resolve(res.statusCode === 429);
+        });
+        req.on('error', () => resolve(true));
+        req.write('{}');
+        req.end();
+    });
+
+    if (isRateLimited) {
+        console.log("Current webhook.site token is rate-limited (HTTP 429). Generating fresh webhook.site token...");
+        token = await getFreshWebhookSiteToken(pool);
+        console.log(`Fresh webhook.site token configured: ${token}`);
+    } else {
+        await clearWebhookSiteRequests(token);
+    }
+    return token;
+}
+
 async function run() {
     console.log("=== Starting Real Chromium Phase 7A Webhook Delivery E2E Suite ===");
 
@@ -76,7 +137,7 @@ async function run() {
         console.log("Owner authenticated successfully!");
 
         // 2. Fetch baseline request count from webhook.site
-        const token = 'dceda492-20ac-455a-a1d8-c1d34011b334';
+        const token = await resolveWebhookToken(pool);
         const initialRequests = await fetchWebhookSiteRequests(token);
         const baselineTotal = initialRequests.total || 0;
         console.log(`Baseline webhook.site total requests: ${baselineTotal}`);
