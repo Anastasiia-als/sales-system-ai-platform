@@ -58,6 +58,22 @@
    - Використовується авторитетний механізм через `DataClient.getOrganizations()` та `PortalState.currentOrganization` / `PortalAuth.getMemberships()`.
 10. **Автономний воркер диспетчера Outbox**:
     - Інтегрований у `server.js` фоновий диспетчер (`js/portal/api/dispatcher-worker.js`), що використовує `FOR UPDATE SKIP LOCKED`, підтримує автоматичну доставку кожні 2.5 секунди та наскрізні повторні спроби (exponential backoff).
+11. **Production Event Allowlist для Telegram (Phase 7B)**:
+    - Суворий список подій: `task.completed`, `stage.completed`, `document.approved`, `client_action.completed`.
+    - Будь-який вибір `*` у UI розгортається на сервері виключно у цей allowlist. Заборона підписки на майбутні/сторонні події.
+12. **Канонічна ідентичність Telegram дестинації та дедуплікація (Phase 7B)**:
+    - Ідентичність: `(organization_id, bot_id, chat_id, COALESCE(thread_id, 0))`.
+    - Частковий унікальний індекс забороняє створення дублюючих активних дестинацій (`WHERE is_active = true`).
+13. **Посилена перевірка підключення Telegram (Phase 7B)**:
+    - Двоетапний серверний валідаційний ланцюжок: `getMe` (токен) + `getChat` (доступність чату) + валідація сумісності `thread_id` з `is_forum`.
+    - Жоден Bot Token не повертається у клієнтський UI, DOM чи прикладні таблиці. Збереження виключно у `vault.secrets`.
+14. **RBAC / RLS / SECURITY DEFINER Hardening для Telegram (Phase 7B)**:
+    - Керування дестинаціями дозволено виключно Owner / Org Admin (`profiles.global_role = 'owner'` або `org_role IN ('admin', 'owner')`).
+    - Клієнти мають суворий Default Deny. `organization_id` валідується сервером.
+15. **Контракт Chat ID / Topic ID та MarkdownV2 Escaping (Phase 7B)**:
+    - `chat_id` зберігається як `TEXT NOT NULL` без втрати точності для від'ємних 64-бітних ID (`-100...`).
+    - `thread_id` зберігається як `BIGINT` (nullable).
+    - Обов'язкове екранування 18 спецсимволів Telegram MarkdownV2 усуває помилки 400 Bad Request.
 
 ---
 
