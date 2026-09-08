@@ -18,11 +18,11 @@
   - [x] **Phase 6D.3**: PM Management UI & Magic Link Lifecycle (CLOSED)
   - [x] **Phase 6D.4**: Client Portal Integration & Authenticated Actions (CLOSED / Manually Accepted)
   - [x] **Phase 6D.5**: Production Hardening, Edge-Case Auditing & Full E2E Verification (CLOSED / Manually Accepted)
-- [ ] **Phase 7**: External Integrations & Outbound Delivery Engine (Architecture APPROVED)
+- [x] **Phase 7**: External Integrations & Outbound Delivery Engine (CLOSED / Fully Accepted)
   - [x] **Phase 7A**: Integration Core & Outbound Webhooks (CLOSED / Manually Accepted)
   - [x] **Phase 7B**: Telegram Notifications Integration (CLOSED / Manually Accepted)
-  - [ ] **Phase 7C**: Calendar Read-Only Feed (One-Way RFC 5545 iCal, Hash-Only Tokens, Zero Write-Back) — Implementation Complete / Ready for Manual Acceptance
+  - [x] **Phase 7C**: Calendar Read-Only Feed (One-Way RFC 5545 iCal, Hash-Only Tokens, Zero Write-Back) (CLOSED / Manually Accepted)
   - [ ] **Phase 7D**: Additional Communication (Slack Integration — Deferred)
-- [ ] **Phase 8**: AI Delivery Layer (Upcoming)
+- [ ] **Phase 8**: AI Delivery Layer (Architecture & Planning Proposal Pending Review)
 
 

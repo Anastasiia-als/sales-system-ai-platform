@@ -151,8 +151,12 @@ gantt
 
 ---
 
-### 🔹 Phase 7 — Integrations (Інтеграції)
-**Мета**: Зв'язати платформу з зовнішніми сервісами.
+### 🔹 Phase 7 — External Integrations & Outbound Delivery Engine *(ЗАВЕРШЕНО)*
+**Мета**: Зв'язати платформу з зовнішніми сервісами через надійний Transactional Outbox, вебхуки, Telegram-сповіщення та iCalendar-підписки.
+- [x] **Phase 7A**: Integration Core & Outbound Webhooks (SSRF protection, exact-byte HMAC-SHA256, Vault-backed secrets, dispatcher worker). *(CLOSED / Manually Accepted)*
+- [x] **Phase 7B**: Telegram Notifications Integration (Dedicated Outbox channel, Vault bot tokens, MarkdownV2 parser, connection verification, rate-limiting, deduplication). *(CLOSED / Manually Accepted)*
+- [x] **Phase 7C**: Calendar Read-Only Feed (RFC 5545 iCal, SHA-256 hash-only tokens, zero write-back, ETag/304 caching, canonical `project.id` identity). *(CLOSED / Manually Accepted)*
+- [ ] **Phase 7D**: Additional Communication (Slack Integration — Deferred).
 
 ---
 
