@@ -49,7 +49,9 @@ const suites = [
     'test_phase7c_modal_and_project_selector_e2e.js',
     'test_phase8a_gateway_and_schemas.js',
     'test_phase8a_quotas_and_security.js',
-    'test_phase8a_vault_and_keys.js'
+    'test_phase8a_vault_and_keys.js',
+    'test_phase8a_dlp_and_injection.js',
+    'test_phase8a_auth_and_rpc_abuse.js'
 ];
 
 async function run() {

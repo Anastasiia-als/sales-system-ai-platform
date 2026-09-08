@@ -3,6 +3,7 @@
 
 const { Pool } = require('pg');
 const { AIGateway } = require('../js/portal/api/ai-gateway.js');
+const { getOwnerAuthToken } = require('./auth_test_helper.js');
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
@@ -128,9 +129,13 @@ async function run() {
         assert(logRow.total_tokens === genResult.usage.totalTokens, "Log record recorded exact token count");
 
         // 7. Test HTTP API Endpoint over Node Server
+        const token = await getOwnerAuthToken();
         const httpResp = await fetch("http://localhost:8002/api/v1/ai/generate-structured", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
             body: JSON.stringify({
                 organizationId: orgId,
                 projectId: projId,

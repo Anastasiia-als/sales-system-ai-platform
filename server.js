@@ -35,8 +35,94 @@ const {
     getTelegramMockMode
 } = require('./js/portal/api/dispatcher-worker.js');
 const { handleCalendarFeedRequest } = require('./js/portal/api/calendar-handler.js');
-const { AIGateway } = require('./js/portal/api/ai-gateway.js');
+const { AIGateway, ALLOWED_PROVIDERS, ALLOWED_MODELS } = require('./js/portal/api/ai-gateway.js');
+const { createClient } = require('@supabase/supabase-js');
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://aayqydcdfxhlwizhfjun.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_CZwi_JF1vSKX2q-9XAiojg_6TopfxZY';
+const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const aiGateway = new AIGateway();
+
+async function authenticateAndAuthorizeAIRequest(req, payload) {
+    const authHeader = req.headers['authorization'] || '';
+    if (!authHeader.startsWith('Bearer ')) {
+        const err = new Error('Missing or invalid Authorization header');
+        err.statusCode = 401;
+        err.code = 'UNAUTHORIZED';
+        throw err;
+    }
+    const token = authHeader.slice(7).trim();
+    if (!token) {
+        const err = new Error('Empty Bearer token');
+        err.statusCode = 401;
+        err.code = 'UNAUTHORIZED';
+        throw err;
+    }
+
+    let authUserId = null;
+    let isOwner = false;
+
+    // Check if service-role token is passed (internal trusted service calls)
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY && token === process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        isOwner = true;
+        authUserId = null;
+    } else {
+        // Authoritative verification via Supabase GoTrue Auth
+        const { data, error } = await authClient.auth.getUser(token);
+        if (error || !data?.user) {
+            const err = new Error(`Invalid or expired session token: ${error ? error.message : 'User not found'}`);
+            err.statusCode = 401;
+            err.code = 'UNAUTHORIZED';
+            throw err;
+        }
+        authUserId = data.user.id;
+
+        // Check global role from profiles
+        const profileRes = await aiGateway.pool.query(
+            "SELECT id, global_role FROM public.profiles WHERE id = $1",
+            [authUserId]
+        );
+        isOwner = profileRes.rows.length > 0 && profileRes.rows[0].global_role === 'owner';
+    }
+
+    const orgId = payload.organizationId;
+    if (!orgId) {
+        const err = new Error('organizationId is required');
+        err.statusCode = 400;
+        err.code = 'BAD_REQUEST';
+        throw err;
+    }
+
+    // Verify organization authorization if not platform Owner
+    if (!isOwner && authUserId) {
+        const memRes = await aiGateway.pool.query(
+            "SELECT org_role, is_active FROM public.organization_memberships WHERE user_id = $1 AND organization_id = $2 AND is_active = true",
+            [authUserId, orgId]
+        );
+        if (memRes.rows.length === 0 || !['owner', 'admin', 'pm'].includes(memRes.rows[0].org_role)) {
+            const err = new Error('Forbidden: user is not authorized for the requested organization');
+            err.statusCode = 403;
+            err.code = 'FORBIDDEN';
+            throw err;
+        }
+    }
+
+    // Cross-tenant project isolation: verify projectId belongs strictly to organizationId
+    if (payload.projectId) {
+        const projRes = await aiGateway.pool.query(
+            "SELECT 1 FROM public.projects WHERE id = $1 AND organization_id = $2",
+            [payload.projectId, orgId]
+        );
+        if (projRes.rows.length === 0) {
+            const err = new Error('Forbidden: project does not belong to specified organization or does not exist');
+            err.statusCode = 403;
+            err.code = 'FORBIDDEN';
+            throw err;
+        }
+    }
+
+    return { authUserId, isOwner };
+}
 
 const server = http.createServer(async (req, res) => {
     let reqPath = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
@@ -184,15 +270,19 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const payload = JSON.parse(bodyStr || '{}');
+
+                // Authoritative Server-Side Identity & Context Authorization
+                const { authUserId } = await authenticateAndAuthorizeAIRequest(req, payload);
+
                 const result = await aiGateway.generateStructured({
                     organizationId: payload.organizationId,
-                    projectId: payload.projectId,
-                    userId: payload.userId,
+                    projectId: payload.projectId || null,
+                    userId: authUserId, // Enforce authenticated identity (ignores client-spoofed userId)
                     featureName: payload.featureName,
                     templateKey: payload.templateKey,
                     variables: payload.variables || {},
-                    provider: payload.provider,
-                    model: payload.model,
+                    provider: payload.provider || null,
+                    model: payload.model || null,
                     estimatedTokens: payload.estimatedTokens || 1500
                 });
                 res.writeHead(200, {
@@ -201,8 +291,14 @@ const server = http.createServer(async (req, res) => {
                 });
                 res.end(JSON.stringify(result));
             } catch (err) {
-                const statusCode = err.code === 'QUOTA_EXCEEDED' ? 429 :
-                                   (err.code === 'SCHEMA_VIOLATION' || err.code === 'MALFORMED_JSON') ? 422 : 400;
+                const statusCode = err.statusCode || (
+                    err.code === 'QUOTA_EXCEEDED' ? 429 :
+                    (err.code === 'SCHEMA_VIOLATION' || err.code === 'MALFORMED_JSON') ? 422 :
+                    err.code === 'UNAUTHORIZED' ? 401 :
+                    err.code === 'FORBIDDEN' ? 403 :
+                    (err.code === 'INVALID_PROVIDER' || err.code === 'INVALID_MODEL') ? 400 :
+                    400
+                );
                 res.writeHead(statusCode, {
                     'Content-Type': 'application/json; charset=utf-8',
                     'Access-Control-Allow-Origin': '*'
@@ -218,8 +314,22 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // AI Mock Transport Toggle Endpoint (for automated tests)
+    // AI Mock Transport Toggle Endpoint (for automated tests / dev only)
     if (reqPath === '/api/v1/ai/mock-mode') {
+        const isProduction = process.env.NODE_ENV === 'production' || req.headers['x-test-env-mode'] === 'production';
+        if (isProduction) {
+            res.writeHead(403, {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify({
+                ok: false,
+                error: 'AI Mock Mode endpoint is disabled in production environment',
+                code: 'FORBIDDEN_IN_PRODUCTION'
+            }));
+            return;
+        }
+
         if (req.method === 'OPTIONS') {
             res.writeHead(204, {
                 'Access-Control-Allow-Origin': '*',

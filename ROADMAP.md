@@ -24,8 +24,8 @@
   - [x] **Phase 7C**: Calendar Read-Only Feed (One-Way RFC 5545 iCal, Hash-Only Tokens, Zero Write-Back) (CLOSED / Manually Accepted)
   - [ ] **Phase 7D**: Additional Communication (Slack Integration — Deferred)
 - [ ] **Phase 8**: AI Delivery Layer (In Progress)
-  - [x] **Phase 8A**: Core AI Gateway, Quotas & Schemas (CLOSED / Automated Verification 100%)
-  - [ ] **Phase 8B**: Meeting Intelligence & Action Item Extraction (Next Active Phase)
+  - [ ] **Phase 8A**: Core AI Gateway, Quotas & Schemas (IMPLEMENTED — PENDING ARCHITECTURE/MANUAL ACCEPTANCE)
+  - [ ] **Phase 8B**: Meeting Intelligence & Action Item Extraction (NOT STARTED)
   - [ ] **Phase 8C**: Delivery Risk & Predictive Health Advisor
   - [ ] **Phase 8D**: Client Action & Brief Assistant
 

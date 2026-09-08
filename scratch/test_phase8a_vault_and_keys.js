@@ -2,6 +2,7 @@
 // Phase 8A: Zero-Leakage & API Key Security Suite
 
 const { Pool } = require('pg');
+const { getOwnerAuthToken } = require('./auth_test_helper.js');
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
 });
@@ -53,9 +54,13 @@ async function run() {
         assert(logsAudit.rows.length === 0, "No raw provider API keys leaked into ai_generation_logs error_message");
 
         // 3. Invariant 3: HTTP API does not leak provider credentials or stack traces
+        const token = await getOwnerAuthToken();
         const invalidTplResp = await fetch("http://localhost:8002/api/v1/ai/generate-structured", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
             body: JSON.stringify({
                 organizationId: orgId,
                 featureName: "invalid_test",

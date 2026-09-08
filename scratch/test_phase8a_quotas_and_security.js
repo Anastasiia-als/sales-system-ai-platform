@@ -3,6 +3,7 @@
 
 const { Pool } = require('pg');
 const { AIGateway } = require('../js/portal/api/ai-gateway.js');
+const { getOwnerAuthToken } = require('./auth_test_helper.js');
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
@@ -132,9 +133,13 @@ async function run() {
         assert(deleteBlocked === true, "Direct client deletion of ai_generation_logs is forbidden by append-only trigger");
 
         // 7. Test HTTP 429 Status Code over Network
+        const token = await getOwnerAuthToken();
         const httpResp429 = await fetch("http://localhost:8002/api/v1/ai/generate-structured", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
             body: JSON.stringify({
                 organizationId: orgA,
                 featureName: "meeting_summary",

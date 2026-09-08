@@ -3,6 +3,9 @@
 
 const { Pool } = require('pg');
 
+const ALLOWED_PROVIDERS = ['gemini', 'mock'];
+const ALLOWED_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+
 class AIGateway {
     constructor(options = {}) {
         this.pool = options.pool || new Pool({
@@ -11,6 +14,58 @@ class AIGateway {
         this.defaultProvider = options.defaultProvider || 'gemini';
         this.defaultModel = options.defaultModel || 'gemini-2.5-flash';
         this.requestTimeoutMs = options.requestTimeoutMs || 30000;
+    }
+
+    /**
+     * Comprehensive Content-Level DLP / Sanitizer
+     * Masks PII, financial info, tokens, passwords, and API keys before sending to LLM or persisting logs
+     */
+    sanitizeContent(input) {
+        if (input == null) return input;
+        if (typeof input === 'object') {
+            if (Array.isArray(input)) {
+                return input.map(item => this.sanitizeContent(item));
+            }
+            const sanitizedObj = {};
+            for (const [k, v] of Object.entries(input)) {
+                sanitizedObj[k] = this.sanitizeContent(v);
+            }
+            return sanitizedObj;
+        }
+        if (typeof input !== 'string') return input;
+
+        let text = input;
+
+        // 1. Secrets / Auth tokens / JWTs / API Keys:
+        // JWT tokens (eyJ...)
+        text = text.replace(/\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/g, '[REDACTED_SECRET]');
+        // Google AI / Cloud API keys (AIza...)
+        text = text.replace(/\bAIza[0-9A-Za-z-_]{30,45}\b/g, '[REDACTED_SECRET]');
+        // OpenAI / Anthropic / Generic API keys (sk-...)
+        text = text.replace(/\bsk-(?:live|test|proj|ant)?[a-zA-Z0-9_-]{20,}\b/g, '[REDACTED_SECRET]');
+        // Telegram Bot tokens (digits:alphanumeric)
+        text = text.replace(/\b\d{8,12}:[a-zA-Z0-9_-]{30,45}\b/g, '[REDACTED_SECRET]');
+        // Bearer headers
+        text = text.replace(/Bearer\s+[a-zA-Z0-9_.\-~+/=]{20,}/gi, 'Bearer [REDACTED_SECRET]');
+        // Key-value pairs for passwords, tokens, secrets
+        text = text.replace(/\b(?:secret|password|token|api_key|apikey|webhook_secret)\s*[:=]\s*['"]?([^\s'"]{6,})['"]?/gi, (match, val) => {
+            return match.replace(val, '[REDACTED_SECRET]');
+        });
+
+        // 2. Financial data:
+        // IBAN (International Bank Account Number)
+        text = text.replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g, '[REDACTED_FINANCIAL]');
+        // Payment Card numbers (13-19 digits with optional hyphens/spaces)
+        text = text.replace(/\b(?:\d{4}[-\s]?){3}\d{4}\b/g, '[REDACTED_FINANCIAL]');
+
+        // 3. Email addresses:
+        text = text.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]');
+
+        // 4. Phone numbers (Ukrainian and international):
+        text = text.replace(/(?:\+380|0)\s*\(?\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}\b/g, '[REDACTED_PHONE]');
+        text = text.replace(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[REDACTED_PHONE]');
+
+        return text;
     }
 
     /**
@@ -113,19 +168,40 @@ class AIGateway {
 
         const targetProvider = provider || this.defaultProvider;
         const targetModel = model || this.defaultModel;
+
+        // Security Check: Provider and Model Allowlist
+        if (!ALLOWED_PROVIDERS.includes(targetProvider)) {
+            const err = new Error(`Provider '${targetProvider}' is not allowed. Approved providers: [${ALLOWED_PROVIDERS.join(', ')}]`);
+            err.code = 'INVALID_PROVIDER';
+            throw err;
+        }
+        if (!ALLOWED_MODELS.includes(targetModel)) {
+            const err = new Error(`Model '${targetModel}' is not allowed. Approved models: [${ALLOWED_MODELS.join(', ')}]`);
+            err.code = 'INVALID_MODEL';
+            throw err;
+        }
+
+        // Server-Side Bounded Quota Estimation (cannot be bypassed by client-spoofed small values)
+        const rawPayloadSize = JSON.stringify(variables || {}).length;
+        const computedTokens = Math.max(500, Math.min(10000, Math.ceil(rawPayloadSize / 3) + 1200));
+        const effectiveEstimatedTokens = Math.max(computedTokens, Number(estimatedTokens) || 0);
+
         const startTime = Date.now();
 
         // 1. Fetch template
         const tpl = await this.getTemplate(templateKey);
         const systemPrompt = tpl.system_prompt;
-        const userPrompt = this.interpolatePrompt(tpl.user_prompt_template, variables);
+        
+        // DLP Sanitization before prompt interpolation
+        const sanitizedVariables = this.sanitizeContent(variables);
+        const userPrompt = this.interpolatePrompt(tpl.user_prompt_template, sanitizedVariables);
         const expectedSchema = tpl.expected_schema;
         const temperature = tpl.temperature || 0.2;
 
-        // 2. Check & consume quota
+        // 2. Check & consume quota (via service_role / pool)
         const quotaRes = await this.pool.query(
             "SELECT public.check_and_consume_ai_quota($1, $2) as q",
-            [organizationId, estimatedTokens]
+            [organizationId, effectiveEstimatedTokens]
         );
         const quotaCheck = quotaRes.rows[0].q;
         if (!quotaCheck.allowed) {
@@ -147,7 +223,7 @@ class AIGateway {
 
         try {
             if (targetProvider === 'mock' || process.env.AI_MOCK_TRANSPORT === 'true') {
-                const mockResult = this._generateMockResponse(templateKey, variables);
+                const mockResult = this._generateMockResponse(templateKey, sanitizedVariables);
                 rawResponseText = JSON.stringify(mockResult.data);
                 promptTokens = mockResult.promptTokens || 120;
                 completionTokens = mockResult.completionTokens || 85;
@@ -169,7 +245,6 @@ class AIGateway {
             // 4. Parse JSON
             let parsedData;
             try {
-                // Strip markdown code fences if model enclosed JSON in ```json ... ```
                 let cleaned = rawResponseText.trim();
                 if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
                 else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
@@ -178,7 +253,7 @@ class AIGateway {
                 const latency = Date.now() - startTime;
                 await this.pool.query(`
                     SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'schema_invalid', $11, $12)
-                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, `Malformed JSON: ${jsonErr.message}`, estimatedTokens]);
+                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, `Malformed JSON: ${jsonErr.message}`, effectiveEstimatedTokens]);
 
                 const err = new Error(`AI generated malformed JSON: ${jsonErr.message}`);
                 err.code = 'MALFORMED_JSON';
@@ -191,7 +266,7 @@ class AIGateway {
                 const latency = Date.now() - startTime;
                 await this.pool.query(`
                     SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'schema_invalid', $11, $12)
-                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, `Schema violation: ${schemaCheck.error}`, estimatedTokens]);
+                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, `Schema violation: ${schemaCheck.error}`, effectiveEstimatedTokens]);
 
                 const err = new Error(`AI output violated schema: ${schemaCheck.error}`);
                 err.code = 'SCHEMA_VIOLATION';
@@ -202,7 +277,7 @@ class AIGateway {
             const latency = Date.now() - startTime;
             const logRes = await this.pool.query(`
                 SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'success', NULL, $11) as log_id
-            `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, estimatedTokens]);
+            `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, effectiveEstimatedTokens]);
 
             return {
                 ok: true,
@@ -220,9 +295,10 @@ class AIGateway {
         } catch (execErr) {
             const latency = Date.now() - startTime;
             if (execErr.code !== 'QUOTA_EXCEEDED' && execErr.code !== 'MALFORMED_JSON' && execErr.code !== 'SCHEMA_VIOLATION') {
+                const sanitizedErrMsg = this.sanitizeContent(execErr.message);
                 await this.pool.query(`
                     SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'failed', $11, $12)
-                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, execErr.message, estimatedTokens]);
+                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, sanitizedErrMsg, effectiveEstimatedTokens]);
             }
             throw execErr;
         }
@@ -268,7 +344,9 @@ class AIGateway {
 
             if (!resp.ok) {
                 const errBody = await resp.text();
-                throw new Error(`Gemini API HTTP ${resp.status}: ${errBody}`);
+                // Never leak API key in error messages
+                const safeErr = this.sanitizeContent(errBody).replace(new RegExp(apiKey, 'g'), '[REDACTED_API_KEY]');
+                throw new Error(`Gemini API HTTP ${resp.status}: ${safeErr}`);
             }
 
             const json = await resp.json();
@@ -344,4 +422,4 @@ class AIGateway {
     }
 }
 
-module.exports = { AIGateway };
+module.exports = { AIGateway, ALLOWED_PROVIDERS, ALLOWED_MODELS };
