@@ -1012,21 +1012,18 @@ export async function initIntegrationsViewEvents() {
             }
 
             const seenIds = new Set();
-            const seenNames = new Set();
             const deduplicated = [];
 
-            // Sort by created_at DESC so the newest project for any given name is prioritized
+            // Sort by created_at DESC, filter out archived projects
             const validProjects = (projects || [])
                 .filter(p => p.status !== 'archived')
                 .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
             for (const p of validProjects) {
-                const normName = (p.name || p.title || '').trim().toLowerCase();
-                if (!p.id || seenIds.has(p.id) || seenNames.has(normName)) {
+                if (!p.id || seenIds.has(p.id)) {
                     continue;
                 }
                 seenIds.add(p.id);
-                seenNames.add(normName);
                 deduplicated.push(p);
             }
 

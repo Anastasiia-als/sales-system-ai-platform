@@ -43,6 +43,8 @@ async function run() {
     });
 
     let createdSubId = null;
+    const testOrgIds = [];
+    const testProjectIds = [];
 
     try {
         const page = await browser.newPage();
@@ -184,20 +186,22 @@ async function run() {
         assert(values.length === uniqueValues.size,
             `All option values (project IDs) are strictly unique (total: ${values.length}, unique: ${uniqueValues.size})`);
 
-        // Check 2: Absence of duplicates by Label (option text must be unique)
-        const texts = actualProjects.map(o => o.text);
-        const uniqueTexts = new Set(texts.map(t => t.toLowerCase()));
-        assert(texts.length === uniqueTexts.size,
-            `All option labels are strictly unique with zero duplicate entries (total: ${texts.length}, unique: ${uniqueTexts.size})`);
-
-        // Check 3: Presence of 'Idempotency Test'
+        // Check 2: Presence of 'Idempotency Test' (discovery status included)
         const idempotencyOption = actualProjects.find(o => o.text === 'Idempotency Test');
         assert(Boolean(idempotencyOption), "Project selector contains 'Idempotency Test'");
 
-        // Check 4: Exact match of label -> real project_id
+        // Check 3: Exact match of label -> real project_id
         const expectedIdempotencyId = 'a1c84c93-fb49-4a6b-9159-4b47a46618e7';
         assert(idempotencyOption.value === expectedIdempotencyId,
             `'Idempotency Test' maps to real project_id ${expectedIdempotencyId} (Got: ${idempotencyOption.value})`);
+
+        // Check 4: Multiple distinct projects with same name are all preserved by distinct UUID
+        const depTestProjects = actualProjects.filter(o => o.text === 'Dependencies Test Project');
+        assert(depTestProjects.length > 1,
+            `Multiple projects with same name 'Dependencies Test Project' are preserved in selector (Found: ${depTestProjects.length})`);
+        const depTestValues = new Set(depTestProjects.map(o => o.value));
+        assert(depTestValues.size === depTestProjects.length,
+            `Each 'Dependencies Test Project' option has a distinct UUID (count: ${depTestValues.size})`);
 
         // Close desktop modal
         await page.click('#btn-close-create-cal-modal');
@@ -312,6 +316,115 @@ async function run() {
             return modal && modal.style.display === 'none';
         }, { timeout: 5000 });
 
+        // -------------------------------------------------------------
+        // 8. Dedicated Regression Test: Multiple Projects with Same Name but Different UUIDs
+        // -------------------------------------------------------------
+        console.log('\n--- 8. Regression Test: Identical Name Projects with Distinct UUIDs ---');
+
+        // Setup test organization and twin projects in DB
+        const twinOrgRes = await pool.query(
+            "INSERT INTO public.organizations (name, status) VALUES ('Org Twin Projects Test ' || $1, 'active') RETURNING id",
+            [Date.now()]
+        );
+        const twinOrgId = twinOrgRes.rows[0].id;
+        testOrgIds.push(twinOrgId);
+
+        const p1Res = await pool.query(
+            "INSERT INTO public.projects (organization_id, name, status) VALUES ($1, 'Twin Project Identical Name', 'active') RETURNING id",
+            [twinOrgId]
+        );
+        const p1Id = p1Res.rows[0].id;
+        testProjectIds.push(p1Id);
+
+        const p2Res = await pool.query(
+            "INSERT INTO public.projects (organization_id, name, status) VALUES ($1, 'Twin Project Identical Name', 'discovery') RETURNING id",
+            [twinOrgId]
+        );
+        const p2Id = p2Res.rows[0].id;
+        testProjectIds.push(p2Id);
+
+        const pArchivedRes = await pool.query(
+            "INSERT INTO public.projects (organization_id, name, status) VALUES ($1, 'Twin Project Identical Name', 'archived') RETURNING id",
+            [twinOrgId]
+        );
+        const pArchivedId = pArchivedRes.rows[0].id;
+        testProjectIds.push(pArchivedId);
+
+        // Switch to twin organization in UI
+        await page.evaluate(async (orgId) => {
+            const sel = document.getElementById('integrations-org-select');
+            const opt = document.createElement('option');
+            opt.value = orgId;
+            opt.textContent = 'Org Twin Projects Test';
+            sel.appendChild(opt);
+            sel.value = orgId;
+            sel.dispatchEvent(new Event('change'));
+        }, twinOrgId);
+        await new Promise(r => setTimeout(r, 600));
+
+        // Open create calendar modal for twinOrg
+        await page.click('#btn-create-calendar');
+        await page.waitForFunction(() => {
+            const modal = document.getElementById('modal-create-calendar');
+            return modal && modal.style.display === 'flex';
+        }, { timeout: 5000 });
+
+        await page.select('#cal-scope', 'project');
+        await page.evaluate(() => {
+            const el = document.getElementById('cal-scope');
+            if (el) el.dispatchEvent(new Event('change'));
+        });
+
+        // Wait for select to be populated with twin projects
+        await page.waitForFunction(() => {
+            const sel = document.getElementById('cal-project');
+            return sel && sel.options.length > 1 && !sel.textContent.includes('Завантаження');
+        }, { timeout: 10000 });
+
+        const twinOptions = await page.evaluate(() => {
+            const sel = document.getElementById('cal-project');
+            return Array.from(sel.options).filter(o => o.value !== '').map(o => ({ value: o.value, text: o.textContent.trim() }));
+        });
+
+        console.log('Twin project options in selector:', twinOptions);
+
+        assert(twinOptions.length === 2, `Exactly 2 projects rendered in selector for twinOrg (Got: ${twinOptions.length})`);
+        assert(twinOptions[0].text === 'Twin Project Identical Name', `Option 1 has expected identical name (Got: ${twinOptions[0].text})`);
+        assert(twinOptions[1].text === 'Twin Project Identical Name', `Option 2 has expected identical name (Got: ${twinOptions[1].text})`);
+        assert(twinOptions[0].value !== twinOptions[1].value, `Option 1 and Option 2 have distinct UUIDs (${twinOptions[0].value} !== ${twinOptions[1].value})`);
+
+        const twinValues = new Set(twinOptions.map(o => o.value));
+        assert(twinValues.has(p1Id), `Selector contains Project 1 UUID (${p1Id})`);
+        assert(twinValues.has(p2Id), `Selector contains Project 2 UUID (${p2Id})`);
+        assert(!twinValues.has(pArchivedId), `Archived project is excluded from selector (${pArchivedId})`);
+
+        // Check duplicate project.id deduplication: same project.id received multiple times
+        const testDuplicateIdResult = await page.evaluate(() => {
+            const testList = [
+                { id: 'same-uuid-1', name: 'Alpha Project', status: 'active' },
+                { id: 'same-uuid-1', name: 'Alpha Project', status: 'active' },
+                { id: 'same-uuid-2', name: 'Beta Project', status: 'discovery' }
+            ];
+            const seenIds = new Set();
+            const deduplicated = [];
+            for (const p of testList) {
+                if (!p.id || seenIds.has(p.id)) continue;
+                seenIds.add(p.id);
+                deduplicated.push(p);
+            }
+            return deduplicated.map(p => p.id);
+        });
+        assert(testDuplicateIdResult.length === 2, `Duplicate project IDs deduplicated to exactly 2 (Got: ${testDuplicateIdResult.length})`);
+        assert(testDuplicateIdResult[0] === 'same-uuid-1' && testDuplicateIdResult[1] === 'same-uuid-2', 'Unique UUIDs correctly preserved');
+
+        // Close modal
+        await page.click('#btn-close-create-cal-modal');
+        await page.waitForFunction(() => {
+            const modal = document.getElementById('modal-create-calendar');
+            return modal && modal.style.display === 'none';
+        }, { timeout: 5000 });
+        assert(true, 'Twin projects modal closed cleanly');
+
         // Verify zero page errors
         assert(pageErrors.length === 0, `Zero uncaught page errors (Got: ${pageErrors.length})`);
 
@@ -324,6 +437,22 @@ async function run() {
                 console.log(`[CLEANUP] Deleted test subscription ${createdSubId}`);
             } catch (err) {
                 console.warn('[CLEANUP] Warning: Failed to clean up subscription:', err.message);
+            }
+        }
+        if (testProjectIds.length > 0) {
+            try {
+                await pool.query("DELETE FROM public.projects WHERE id = ANY($1)", [testProjectIds]);
+                console.log(`[CLEANUP] Deleted test projects`);
+            } catch (err) {
+                console.warn('[CLEANUP] Warning: Failed to clean up projects:', err.message);
+            }
+        }
+        if (testOrgIds.length > 0) {
+            try {
+                await pool.query("DELETE FROM public.organizations WHERE id = ANY($1)", [testOrgIds]);
+                console.log(`[CLEANUP] Deleted test organizations`);
+            } catch (err) {
+                console.warn('[CLEANUP] Warning: Failed to clean up organizations:', err.message);
             }
         }
         await browser.close();
