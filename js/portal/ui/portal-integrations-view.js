@@ -191,7 +191,7 @@ export function renderIntegrationsView() {
             </div>
 
             <!-- Create Webhook Modal -->
-            <div id="modal-create-webhook" class="portal-modal-backdrop" style="display: none;">
+            <div id="modal-create-webhook" class="portal-modal-backdrop portal-modal-overlay" style="display: none;">
                 <div class="portal-modal" style="max-width: 540px;">
                     <div class="portal-modal-header">
                         <h3 class="portal-modal-title">Створити Webhook Endpoint</h3>
@@ -252,7 +252,7 @@ export function renderIntegrationsView() {
             </div>
 
             <!-- One-Time Secret Reveal Modal -->
-            <div id="modal-webhook-secret-reveal" class="portal-modal-backdrop" style="display: none;">
+            <div id="modal-webhook-secret-reveal" class="portal-modal-backdrop portal-modal-overlay" style="display: none;">
                 <div class="portal-modal" style="max-width: 520px;">
                     <div class="portal-modal-header">
                         <h3 class="portal-modal-title" style="color: var(--color-success, #10b981);">Секрет Webhook згенеровано</h3>
@@ -283,7 +283,7 @@ export function renderIntegrationsView() {
             </div>
 
             <!-- Create Telegram Destination Modal -->
-            <div id="modal-create-telegram" class="portal-modal-backdrop" style="display: none;">
+            <div id="modal-create-telegram" class="portal-modal-backdrop portal-modal-overlay" style="display: none;">
                 <div class="portal-modal" style="max-width: 560px;">
                     <div class="portal-modal-header">
                         <h3 class="portal-modal-title">Підключити Telegram канал або групу</h3>
@@ -369,7 +369,7 @@ export function renderIntegrationsView() {
             </div>
 
             <!-- Create Calendar Feed Modal (Phase 7C) -->
-            <div id="modal-create-calendar" class="portal-modal-backdrop" style="display: none;">
+            <div id="modal-create-calendar" class="portal-modal-backdrop portal-modal-overlay" style="display: none;">
                 <div class="portal-modal" style="max-width: 540px;">
                     <div class="portal-modal-header">
                         <h3 class="portal-modal-title">Створити iCal календарну підписку</h3>
@@ -414,7 +414,7 @@ export function renderIntegrationsView() {
             </div>
 
             <!-- Show Calendar Token Modal (Phase 7C) -->
-            <div id="modal-show-calendar-token" class="portal-modal-backdrop" style="display: none;">
+            <div id="modal-show-calendar-token" class="portal-modal-backdrop portal-modal-overlay" style="display: none;">
                 <div class="portal-modal" style="max-width: 600px;">
                     <div class="portal-modal-header">
                         <h3 class="portal-modal-title">Посилання на iCal календар</h3>
@@ -1000,6 +1000,52 @@ export async function initIntegrationsViewEvents() {
     const btnCopyWebcal = document.getElementById("btn-copy-cal-webcal");
     const btnCopyHttps = document.getElementById("btn-copy-cal-https");
 
+    async function loadProjectsForCalendarSelect(orgId) {
+        if (!calProjectSelect || !orgId) return;
+        calProjectSelect.innerHTML = `<option value="">Завантаження проєктів...</option>`;
+        try {
+            const { data: projects, error } = await DataClient.getProjects({ organizationId: orgId, status: "all" });
+            if (error) {
+                console.error("Failed to load projects for calendar select:", error);
+                calProjectSelect.innerHTML = `<option value="">Помилка завантаження проєктів</option>`;
+                return;
+            }
+
+            const seenIds = new Set();
+            const seenNames = new Set();
+            const deduplicated = [];
+
+            // Sort by created_at DESC so the newest project for any given name is prioritized
+            const validProjects = (projects || [])
+                .filter(p => p.status !== 'archived')
+                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+            for (const p of validProjects) {
+                const normName = (p.name || p.title || '').trim().toLowerCase();
+                if (!p.id || seenIds.has(p.id) || seenNames.has(normName)) {
+                    continue;
+                }
+                seenIds.add(p.id);
+                seenNames.add(normName);
+                deduplicated.push(p);
+            }
+
+            if (deduplicated.length === 0) {
+                calProjectSelect.innerHTML = `<option value="">Немає доступних проєктів</option>`;
+            } else {
+                calProjectSelect.innerHTML = `
+                    <option value="">Оберіть проєкт...</option>
+                    ${deduplicated.map(p => `
+                        <option value="${p.id}">${escapeHtml(p.name || p.title)}</option>
+                    `).join("")}
+                `;
+            }
+        } catch (err) {
+            console.error("Error populating calendar projects:", err);
+            calProjectSelect.innerHTML = `<option value="">Помилка завантаження проєктів</option>`;
+        }
+    }
+
     btnCreateCal?.addEventListener("click", async () => {
         if (modalCreateCal) modalCreateCal.style.display = "flex";
         if (createCalError) createCalError.style.display = "none";
@@ -1010,18 +1056,8 @@ export async function initIntegrationsViewEvents() {
         if (calScopeSelect) calScopeSelect.value = "personal";
         if (calProjectGroup) calProjectGroup.style.display = "none";
 
-        // Preload active projects for dropdown
-        if (calProjectSelect && currentOrgId) {
-            calProjectSelect.innerHTML = `<option value="">Завантаження проєктів...</option>`;
-            const { data: projects } = await DataClient.getProjects({ organizationId: currentOrgId, status: "active" });
-            if (!projects || projects.length === 0) {
-                calProjectSelect.innerHTML = `<option value="">Немає активних проєктів</option>`;
-            } else {
-                calProjectSelect.innerHTML = projects.map(p => `
-                    <option value="${p.id}">${escapeHtml(p.name)}</option>
-                `).join("");
-            }
-        }
+        // Preload projects for dropdown
+        await loadProjectsForCalendarSelect(currentOrgId);
     });
 
     const hideCreateCalModal = () => {
@@ -1030,10 +1066,11 @@ export async function initIntegrationsViewEvents() {
     btnCloseCreateCal?.addEventListener("click", hideCreateCalModal);
     btnCancelCreateCal?.addEventListener("click", hideCreateCalModal);
 
-    calScopeSelect?.addEventListener("change", (e) => {
+    calScopeSelect?.addEventListener("change", async (e) => {
         const val = e.target.value;
         if (val === "project" || val === "client") {
             if (calProjectGroup) calProjectGroup.style.display = "block";
+            await loadProjectsForCalendarSelect(currentOrgId);
         } else {
             if (calProjectGroup) calProjectGroup.style.display = "none";
         }

@@ -1383,7 +1383,7 @@ export function showOneTimeRevealModal(rawToken, publicUrl, onClosed) {
     const modalEl = document.createElement("div");
     modalEl.id = "modal-one-time-reveal";
     modalEl.className = "portal-modal-overlay";
-    modalEl.style.zIndex = "9999";
+    modalEl.style.zIndex = "11000";
     modalEl.innerHTML = `
         <div class="portal-modal" style="max-width: 560px; background: #0F172A; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.6);">
             <div class="portal-modal-header" style="border-bottom: 1px solid #1E293B;">

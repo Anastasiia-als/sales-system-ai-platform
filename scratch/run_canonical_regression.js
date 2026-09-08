@@ -45,7 +45,8 @@ const suites = [
     'test_phase7b_auth_task_completed_fanout.js',
     'test_phase7c_token_hash_security.js', 'test_phase7c_rfc5545_compliance.js',
     'test_phase7c_etag_and_caching.js', 'test_phase7c_scope_and_isolation.js',
-    'test_phase7c_revocation_lifecycle.js', 'test_phase7c_browser_e2e.js'
+    'test_phase7c_revocation_lifecycle.js', 'test_phase7c_browser_e2e.js',
+    'test_phase7c_modal_and_project_selector_e2e.js'
 ];
 
 async function run() {
