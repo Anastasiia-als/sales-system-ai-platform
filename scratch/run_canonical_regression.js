@@ -46,7 +46,10 @@ const suites = [
     'test_phase7c_token_hash_security.js', 'test_phase7c_rfc5545_compliance.js',
     'test_phase7c_etag_and_caching.js', 'test_phase7c_scope_and_isolation.js',
     'test_phase7c_revocation_lifecycle.js', 'test_phase7c_browser_e2e.js',
-    'test_phase7c_modal_and_project_selector_e2e.js'
+    'test_phase7c_modal_and_project_selector_e2e.js',
+    'test_phase8a_gateway_and_schemas.js',
+    'test_phase8a_quotas_and_security.js',
+    'test_phase8a_vault_and_keys.js'
 ];
 
 async function run() {
@@ -58,10 +61,18 @@ async function run() {
             body: JSON.stringify({ enabled: true })
         });
         console.log('[REGRESSION RUNNER] Enabled Telegram mock transport mode on server.');
+
+        await fetch('http://localhost:8002/api/v1/ai/mock-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true })
+        });
+        console.log('[REGRESSION RUNNER] Enabled AI mock transport mode on server.');
     } catch (err) {
         console.warn('[REGRESSION RUNNER] Warning: Could not reach server mock mode endpoint:', err.message);
     }
     process.env.TELEGRAM_MOCK_TRANSPORT = 'true';
+    process.env.AI_MOCK_TRANSPORT = 'true';
 
     let beforeRules = [];
     try {
@@ -82,7 +93,7 @@ async function run() {
                     encoding: 'utf8',
                     stdio: 'pipe',
                     timeout: 120000,
-                    env: { ...process.env, TELEGRAM_MOCK_TRANSPORT: 'true' }
+                    env: { ...process.env, TELEGRAM_MOCK_TRANSPORT: 'true', AI_MOCK_TRANSPORT: 'true' }
                 });
                 const matches = output.match(/PASS/g);
                 passCount = matches ? matches.length : 1;
@@ -136,6 +147,16 @@ async function run() {
             console.log('[REGRESSION RUNNER] Restored live Telegram delivery on server.');
         } catch (_) {}
         delete process.env.TELEGRAM_MOCK_TRANSPORT;
+
+        try {
+            await fetch('http://localhost:8002/api/v1/ai/mock-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: false })
+            });
+            console.log('[REGRESSION RUNNER] Restored live AI provider mode on server.');
+        } catch (_) {}
+        delete process.env.AI_MOCK_TRANSPORT;
 
         // Reset Demo Client Corp task state to 'todo' so manual acceptance test is ready
         try {

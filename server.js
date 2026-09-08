@@ -35,6 +35,8 @@ const {
     getTelegramMockMode
 } = require('./js/portal/api/dispatcher-worker.js');
 const { handleCalendarFeedRequest } = require('./js/portal/api/calendar-handler.js');
+const { AIGateway } = require('./js/portal/api/ai-gateway.js');
+const aiGateway = new AIGateway();
 
 const server = http.createServer(async (req, res) => {
     let reqPath = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
@@ -147,6 +149,102 @@ const server = http.createServer(async (req, res) => {
                         'Content-Type': 'application/json; charset=utf-8',
                         'Access-Control-Allow-Origin': '*'
                     });
+                    res.end(JSON.stringify({ ok: false, error: err.message }));
+                }
+            });
+            return;
+        }
+        res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        return;
+    }
+
+    // AI Gateway Generate Structured Endpoint (Phase 8A)
+    if (reqPath === '/api/v1/ai/generate-structured') {
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            });
+            res.end();
+            return;
+        }
+        if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+            return;
+        }
+
+        let bodyStr = '';
+        req.on('data', chunk => {
+            bodyStr += chunk;
+            if (bodyStr.length > 2e6) req.destroy();
+        });
+        req.on('end', async () => {
+            try {
+                const payload = JSON.parse(bodyStr || '{}');
+                const result = await aiGateway.generateStructured({
+                    organizationId: payload.organizationId,
+                    projectId: payload.projectId,
+                    userId: payload.userId,
+                    featureName: payload.featureName,
+                    templateKey: payload.templateKey,
+                    variables: payload.variables || {},
+                    provider: payload.provider,
+                    model: payload.model,
+                    estimatedTokens: payload.estimatedTokens || 1500
+                });
+                res.writeHead(200, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify(result));
+            } catch (err) {
+                const statusCode = err.code === 'QUOTA_EXCEEDED' ? 429 :
+                                   (err.code === 'SCHEMA_VIOLATION' || err.code === 'MALFORMED_JSON') ? 422 : 400;
+                res.writeHead(statusCode, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                res.end(JSON.stringify({
+                    ok: false,
+                    error: err.message,
+                    code: err.code || 'AI_ERROR',
+                    quota: err.quota || null
+                }));
+            }
+        });
+        return;
+    }
+
+    // AI Mock Transport Toggle Endpoint (for automated tests)
+    if (reqPath === '/api/v1/ai/mock-mode') {
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            });
+            res.end();
+            return;
+        }
+        if (req.method === 'GET') {
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ mock: process.env.AI_MOCK_TRANSPORT === 'true' }));
+            return;
+        }
+        if (req.method === 'POST') {
+            let bodyStr = '';
+            req.on('data', chunk => { bodyStr += chunk; });
+            req.on('end', () => {
+                try {
+                    const data = JSON.parse(bodyStr || '{}');
+                    process.env.AI_MOCK_TRANSPORT = data.enabled ? 'true' : 'false';
+                    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+                    res.end(JSON.stringify({ ok: true, mock: process.env.AI_MOCK_TRANSPORT === 'true' }));
+                } catch (err) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
                     res.end(JSON.stringify({ ok: false, error: err.message }));
                 }
             });

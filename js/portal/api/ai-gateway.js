@@ -1,0 +1,347 @@
+// js/portal/api/ai-gateway.js
+// Phase 8A: Core AI Gateway, Provider Abstraction, Quotas, Schemas & Audit Logging
+
+const { Pool } = require('pg');
+
+class AIGateway {
+    constructor(options = {}) {
+        this.pool = options.pool || new Pool({
+            connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
+        });
+        this.defaultProvider = options.defaultProvider || 'gemini';
+        this.defaultModel = options.defaultModel || 'gemini-2.5-flash';
+        this.requestTimeoutMs = options.requestTimeoutMs || 30000;
+    }
+
+    /**
+     * Resolve template from DB
+     */
+    async getTemplate(templateKey) {
+        const res = await this.pool.query(
+            "SELECT template_key, title, system_prompt, user_prompt_template, expected_schema, temperature FROM public.ai_prompt_templates WHERE template_key = $1 AND is_active = true",
+            [templateKey]
+        );
+        if (res.rows.length === 0) {
+            throw new Error(`AI Prompt Template '${templateKey}' not found or inactive`);
+        }
+        return res.rows[0];
+    }
+
+    /**
+     * Interpolate variables into template string: {{variable_name}}
+     */
+    interpolatePrompt(templateStr, variables = {}) {
+        let result = templateStr;
+        for (const [key, val] of Object.entries(variables)) {
+            const pattern = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+            const replacement = typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val != null ? val : '');
+            result = result.replace(pattern, replacement);
+        }
+        return result;
+    }
+
+    /**
+     * Basic JSON Schema validator (zero-dependency)
+     */
+    validateSchema(data, schema) {
+        if (!schema || typeof schema !== 'object') return { valid: true };
+
+        if (schema.type === 'object') {
+            if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+                return { valid: false, error: `Expected object, got ${Array.isArray(data) ? 'array' : typeof data}` };
+            }
+            if (Array.isArray(schema.required)) {
+                for (const reqKey of schema.required) {
+                    if (data[reqKey] === undefined || data[reqKey] === null) {
+                        return { valid: false, error: `Missing required property: '${reqKey}'` };
+                    }
+                }
+            }
+            if (schema.properties) {
+                for (const [propKey, propSchema] of Object.entries(schema.properties)) {
+                    if (data[propKey] !== undefined) {
+                        const propVal = data[propKey];
+                        if (propSchema.type === 'string' && typeof propVal !== 'string') {
+                            return { valid: false, error: `Property '${propKey}' must be a string` };
+                        }
+                        if (propSchema.type === 'number' && typeof propVal !== 'number') {
+                            return { valid: false, error: `Property '${propKey}' must be a number` };
+                        }
+                        if (propSchema.type === 'boolean' && typeof propVal !== 'boolean') {
+                            return { valid: false, error: `Property '${propKey}' must be a boolean` };
+                        }
+                        if (propSchema.type === 'array') {
+                            if (!Array.isArray(propVal)) {
+                                return { valid: false, error: `Property '${propKey}' must be an array` };
+                            }
+                            if (propSchema.items && propSchema.items.type === 'object') {
+                                for (let i = 0; i < propVal.length; i++) {
+                                    const subCheck = this.validateSchema(propVal[i], propSchema.items);
+                                    if (!subCheck.valid) {
+                                        return { valid: false, error: `Array '${propKey}[${i}]' invalid: ${subCheck.error}` };
+                                    }
+                                }
+                            }
+                        }
+                        if (Array.isArray(propSchema.enum) && !propSchema.enum.includes(propVal)) {
+                            return { valid: false, error: `Property '${propKey}' value '${propVal}' not in allowed enum: [${propSchema.enum.join(', ')}]` };
+                        }
+                    }
+                }
+            }
+        }
+        return { valid: true };
+    }
+
+    /**
+     * Dispatch structured generation request
+     */
+    async generateStructured({
+        organizationId,
+        projectId = null,
+        userId = null,
+        featureName,
+        templateKey,
+        variables = {},
+        provider = null,
+        model = null,
+        estimatedTokens = 1500
+    }) {
+        if (!organizationId) throw new Error("organizationId is required");
+        if (!featureName) throw new Error("featureName is required");
+        if (!templateKey) throw new Error("templateKey is required");
+
+        const targetProvider = provider || this.defaultProvider;
+        const targetModel = model || this.defaultModel;
+        const startTime = Date.now();
+
+        // 1. Fetch template
+        const tpl = await this.getTemplate(templateKey);
+        const systemPrompt = tpl.system_prompt;
+        const userPrompt = this.interpolatePrompt(tpl.user_prompt_template, variables);
+        const expectedSchema = tpl.expected_schema;
+        const temperature = tpl.temperature || 0.2;
+
+        // 2. Check & consume quota
+        const quotaRes = await this.pool.query(
+            "SELECT public.check_and_consume_ai_quota($1, $2) as q",
+            [organizationId, estimatedTokens]
+        );
+        const quotaCheck = quotaRes.rows[0].q;
+        if (!quotaCheck.allowed) {
+            const latency = Date.now() - startTime;
+            await this.pool.query(`
+                SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, 0, 0, $8, 'quota_exceeded', $9, 0)
+            `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, latency, `Quota error: ${quotaCheck.reason}`]);
+
+            const err = new Error(`AI Quota Exceeded: ${quotaCheck.reason}`);
+            err.code = 'QUOTA_EXCEEDED';
+            err.quota = quotaCheck;
+            throw err;
+        }
+
+        // 3. Dispatch to Provider
+        let rawResponseText = null;
+        let promptTokens = 0;
+        let completionTokens = 0;
+
+        try {
+            if (targetProvider === 'mock' || process.env.AI_MOCK_TRANSPORT === 'true') {
+                const mockResult = this._generateMockResponse(templateKey, variables);
+                rawResponseText = JSON.stringify(mockResult.data);
+                promptTokens = mockResult.promptTokens || 120;
+                completionTokens = mockResult.completionTokens || 85;
+            } else if (targetProvider === 'gemini') {
+                const geminiResult = await this._callGeminiAPI({
+                    systemPrompt,
+                    userPrompt,
+                    expectedSchema,
+                    temperature,
+                    model: targetModel
+                });
+                rawResponseText = geminiResult.text;
+                promptTokens = geminiResult.promptTokens;
+                completionTokens = geminiResult.completionTokens;
+            } else {
+                throw new Error(`Unsupported AI Provider: '${targetProvider}'`);
+            }
+
+            // 4. Parse JSON
+            let parsedData;
+            try {
+                // Strip markdown code fences if model enclosed JSON in ```json ... ```
+                let cleaned = rawResponseText.trim();
+                if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+                else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+                parsedData = JSON.parse(cleaned);
+            } catch (jsonErr) {
+                const latency = Date.now() - startTime;
+                await this.pool.query(`
+                    SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'schema_invalid', $11, $12)
+                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, `Malformed JSON: ${jsonErr.message}`, estimatedTokens]);
+
+                const err = new Error(`AI generated malformed JSON: ${jsonErr.message}`);
+                err.code = 'MALFORMED_JSON';
+                throw err;
+            }
+
+            // 5. Validate Schema
+            const schemaCheck = this.validateSchema(parsedData, expectedSchema);
+            if (!schemaCheck.valid) {
+                const latency = Date.now() - startTime;
+                await this.pool.query(`
+                    SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'schema_invalid', $11, $12)
+                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, `Schema violation: ${schemaCheck.error}`, estimatedTokens]);
+
+                const err = new Error(`AI output violated schema: ${schemaCheck.error}`);
+                err.code = 'SCHEMA_VIOLATION';
+                throw err;
+            }
+
+            // 6. Success: record log and reconcile quota
+            const latency = Date.now() - startTime;
+            const logRes = await this.pool.query(`
+                SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'success', NULL, $11) as log_id
+            `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, estimatedTokens]);
+
+            return {
+                ok: true,
+                logId: logRes.rows[0].log_id,
+                data: parsedData,
+                provider: targetProvider,
+                model: targetModel,
+                usage: {
+                    promptTokens,
+                    completionTokens,
+                    totalTokens: promptTokens + completionTokens,
+                    latencyMs: latency
+                }
+            };
+        } catch (execErr) {
+            const latency = Date.now() - startTime;
+            if (execErr.code !== 'QUOTA_EXCEEDED' && execErr.code !== 'MALFORMED_JSON' && execErr.code !== 'SCHEMA_VIOLATION') {
+                await this.pool.query(`
+                    SELECT public.record_ai_generation_log($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'failed', $11, $12)
+                `, [organizationId, projectId, userId, featureName, templateKey, targetProvider, targetModel, promptTokens, completionTokens, latency, execErr.message, estimatedTokens]);
+            }
+            throw execErr;
+        }
+    }
+
+    /**
+     * Google Gemini REST API Client
+     */
+    async _callGeminiAPI({ systemPrompt, userPrompt, expectedSchema, temperature, model }) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("GEMINI_API_KEY environment variable is not configured");
+        }
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        
+        const payload = {
+            contents: [
+                {
+                    role: "user",
+                    parts: [{ text: userPrompt }]
+                }
+            ],
+            systemInstruction: {
+                parts: [{ text: systemPrompt }]
+            },
+            generationConfig: {
+                temperature: temperature || 0.2,
+                responseMimeType: "application/json"
+            }
+        };
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+
+        try {
+            const resp = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+
+            if (!resp.ok) {
+                const errBody = await resp.text();
+                throw new Error(`Gemini API HTTP ${resp.status}: ${errBody}`);
+            }
+
+            const json = await resp.json();
+            const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) throw new Error("Empty content in Gemini API response");
+
+            const usageMetadata = json.usageMetadata || {};
+            return {
+                text,
+                promptTokens: usageMetadata.promptTokenCount || 0,
+                completionTokens: usageMetadata.candidatesTokenCount || 0
+            };
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /**
+     * Deterministic Mock Provider for Testing / Offline Execution
+     */
+    _generateMockResponse(templateKey, variables = {}) {
+        if (templateKey === 'meeting_intelligence_v1') {
+            return {
+                promptTokens: 250,
+                completionTokens: 180,
+                data: {
+                    summary: `Узгоджено ключові вимоги для проєкту ${variables.project_name || 'Project'} та розподілено задачі між командою делівері та клієнтом.`,
+                    decisions: [
+                        "Затвердити структуру ролей та розклад щотижневих синків",
+                        "Підготувати комерційні умови та план оплат на наступний спринт"
+                    ],
+                    candidate_actions: [
+                        {
+                            title: "Підготувати оновлену технічну специфікацію",
+                            description: "Внести зміни згідно з коментарями щодо інтеграції зовнішніх сервісів",
+                            responsibility: "internal",
+                            priority: "high"
+                        },
+                        {
+                            title: "Надати тестові доступи до Google Calendar",
+                            description: "Надіслати сервісний обліковий запис для перевірки підписок",
+                            responsibility: "client",
+                            priority: "medium"
+                        }
+                    ]
+                }
+            };
+        }
+
+        if (templateKey === 'project_health_analysis_v1') {
+            return {
+                promptTokens: 180,
+                completionTokens: 140,
+                data: {
+                    health_verdict: "on_track",
+                    executive_summary: `Проєкт ${variables.project_name || 'Project'} рухається згідно із запланованим графіком. Прогрес становить ${variables.stage_progress_pct || 75}%.`,
+                    risk_factors: [
+                        "Потенційна затримка з погодженням другої ітерації дизайну клієнтом"
+                    ],
+                    recommended_interventions: [
+                        "Запланувати короткий чек-ін з клієнтом за 48 годин до дедлайну етапу"
+                    ]
+                }
+            };
+        }
+
+        // Generic mock fallback
+        return {
+            promptTokens: 50,
+            completionTokens: 50,
+            data: { message: "Mock response", variables }
+        };
+    }
+}
+
+module.exports = { AIGateway };
