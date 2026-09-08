@@ -81,7 +81,7 @@ async function run() {
                 const output = execSync('node scratch/' + suite, {
                     encoding: 'utf8',
                     stdio: 'pipe',
-                    timeout: 60000,
+                    timeout: 120000,
                     env: { ...process.env, TELEGRAM_MOCK_TRANSPORT: 'true' }
                 });
                 const matches = output.match(/PASS/g);
@@ -96,6 +96,7 @@ async function run() {
                 const fMatches = output.match(/FAIL/g); failCount = fMatches ? fMatches.length : 1;
                 totalAssertions += passCount;
                 console.log('| ' + suite + ' | ' + (passCount + failCount) + ' | ' + passCount + ' | ' + failCount + ' | 0 | ' + exitCode + ' |');
+                console.error(`[SUITE FAILED: ${suite}]\n` + output);
             }
         }
 

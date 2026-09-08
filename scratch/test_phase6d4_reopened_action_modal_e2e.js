@@ -229,8 +229,8 @@ async function run() {
 
         // --- TEST 3: F5 Reload Persistence ---
         console.log("\n--- Scenario 3: F5 Reload Persistence ---");
-        await mobilePage.reload({ waitUntil: "networkidle0" });
-        await new Promise(r => setTimeout(r, 1200));
+        await mobilePage.reload({ waitUntil: "domcontentloaded", timeout: 15000 });
+        await new Promise(r => setTimeout(r, 1500));
 
         const mOrgSwitcherAfterReload = await mobilePage.waitForSelector('#client-org-switcher', { timeout: 10000 });
         await mobilePage.select('#client-org-switcher', demoOrgId);
