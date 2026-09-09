@@ -1,11 +1,11 @@
 # Поточне завдання: Phase 8 — AI Delivery Layer
 
-## Активний етап: Phase 8A — Core AI Gateway, Quotas & Schemas (Architecture & Acceptance Gate)
+## Активний етап: Phase 8B — Meeting Intelligence & Action Item Extraction (Architecture Planning & Contract)
 
 ### Архітектурний бейслайн
-- **Поточний статус Phase 8A (Core AI Gateway, Quotas & Hardening)**: РЕАЛІЗОВАНО — ОЧІКУЄ РУЧНОГО ПРИЙМАННЯ (IMPLEMENTED — PENDING ARCHITECTURE/MANUAL ACCEPTANCE). Проведено 8 виправлень безпеки та контракту, 93/93 сьютів (1763 асерції) пройдено на 100%.
-- **Наступний етап (Phase 8B)**: НЕ РОЗПОЧАТО (NOT STARTED) — нульова імплементація до явного підтвердження від користувача.
-- **Обсяг етапу (Scope Phase 8A — Реалізовано та загартовано)**: Провайдер-агностичний шлюз `AIGateway` (Google Gemini 2.5 Flash / Pro, детермінований mock transport), валідатор структурованих схем JSON, управління операційними лімітами токенів (`ai_usage_quotas`) з UTC-скиданням, append-only журнал аудиту (`ai_generation_logs`) з тригером захисту від мутацій (23514), безпечні ендпоінти в `server.js` (`/api/v1/ai/generate-structured`, `/api/v1/ai/mock-mode`), авторитетна валідація сесії, DLP-санітизація чутливих даних (PII/секретів), захист від prompt-ін'єкцій та блокування mock-mode у production.
+- **Статус Phase 8A (Core AI Gateway, Quotas & Schemas)**: **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED / APPROVED)**. Успішно підтверджено у Manual Acceptance: авторизація порталу, регресія Core Gateway 22/22, Unauthorized 401, авторизована структурована генерація 200, Provider allowlist 400.
+- **Статус Gemini Production Provider Activation**: `PENDING_LIVE_ACTIVATION` (Окремий неблокуючий статус, очікує передачі `GEMINI_API_KEY` у середовищі).
+- **Поточний статус Phase 8B (Meeting Intelligence & Action Item Extraction)**: **АРХІТЕКТУРНЕ ПЛАНУВАННЯ (PLANNING / NOT STARTED)** — формування суворого архітектурного контракту, security/privacy контракту, RTM, DoD та плану ручного приймання. Нульова імплементація коду до явного погодження користувачем.
 
 ---
 
@@ -13,8 +13,8 @@
 
 | Підетап | Компонент | Пріоритет | Статус | Опис |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phase 8A** | Core AI Gateway, Quotas & Schemas | **Обов'язковий** | **РЕАЛІЗОВАНО — ОЧІКУЄ ПРИЙМАННЯ** | Провайдер-агностичний шлюз `AIGateway`, підтримка Gemini 2.5, детермінований mock transport, операційні квоти токенів з UTC-скиданням, валідація JSON Schema, append-only аудит, DLP-санітизація, авторитетна авторизація сесії та захист від prompt-ін'єкцій. 93/93 сьютів 100% PASS. |
-| **Phase 8B** | Meeting Intelligence & Action Item Extraction | **Обов'язковий** | **НЕ РОЗПОЧАТО** | Автоматична генерація протоколу зустрічі з сирих нотаток/транскриптів (Рішення, Нотатки), інтерактивний інтерфейс попереднього перегляду кандидатів у завдання (Human-in-the-Loop), створення задач у `tasks` в 1 клік. Нульова імплементація до закриття Phase 8A. |
+| **Phase 8A** | Core AI Gateway, Quotas & Schemas | **Обов'язковий** | **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED)** | Провайдер-агностичний шлюз `AIGateway`, підтримка Gemini 2.5, детермінований mock transport, операційні квоти токенів з UTC-скиданням, валідація JSON Schema, append-only аудит, DLP-санітизація, детерміністична деідентифікація учасників, авторитетна авторизація сесії та захист від prompt-ін'єкцій. 93/93 сьютів (1771 твердження) 100% PASS. Gemini Live Activation: PENDING_LIVE_ACTIVATION. |
+| **Phase 8B** | Meeting Intelligence & Action Item Extraction | **Обов'язковий** | **АРХІТЕКТУРНЕ ПЛАНУВАННЯ (NOT STARTED)** | Автоматична генерація протоколу зустрічі з сирих нотаток/транскриптів (Рішення, Нотатки), інтерактивний інтерфейс попереднього перегляду кандидатів у завдання (Human-in-the-Loop), створення задач у `tasks` в 1 клік. Нульова імплементація до погодження специфікації. |
 | **Phase 8C** | Delivery Risk & Predictive Health Advisor | **Обов'язковий** | **ЗАПЛАНОВАНО** | Аналіз ланцюжків блокуючих залежностей, прострочених дій клієнта, генерація щотижневого дайджесту ризиків для Власника та PM. |
 | **Phase 8D** | Client Action & Brief Assistant | **Опціональний** | **ЗАПЛАНОВАНО** | Поліпшення клієнтських брифів, авто-валідація повноти відповідей перед відправленням. |
 
