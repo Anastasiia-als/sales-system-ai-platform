@@ -12,15 +12,20 @@ async function main() {
 
     await c.connect();
 
-    // Set Owner test password for automated verification runner
+    const ownerPassword = process.env.OWNER_PASSWORD;
+    if (!ownerPassword) {
+        throw new Error("OWNER_PASSWORD environment variable is not defined");
+    }
+
+    // Set Owner test password from environment variable
     await c.query(`
         UPDATE auth.users
-        SET encrypted_password = crypt('Password123!', gen_salt('bf')),
+        SET encrypted_password = crypt($1, gen_salt('bf', 10)),
             email_confirmed_at = NOW(),
             updated_at = NOW()
         WHERE email = 'anzaitseva96@gmail.com';
-    `);
-    console.log("✔ Owner password set for automated browser verification runner.");
+    `, [ownerPassword]);
+    console.log("✔ Owner password set from environment variable.");
     await c.end();
 }
 

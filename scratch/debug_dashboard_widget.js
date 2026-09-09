@@ -15,7 +15,7 @@ async function main() {
     await page.goto('http://localhost:8002/#/portal', { waitUntil: 'networkidle0' });
     await page.waitForSelector('#auth-email-pwd');
     await page.type('#auth-email-pwd', 'anzaitseva96@gmail.com');
-    await page.type('#auth-password', process.env.TEST_OWNER_PASSWORD || 'Password123!');
+    await page.type('#auth-password', process.env.TEST_OWNER_PASSWORD || process.env.OWNER_PASSWORD);
     await page.click('#btn-submit-pwd');
     await new Promise(r => setTimeout(r, 2000));
 

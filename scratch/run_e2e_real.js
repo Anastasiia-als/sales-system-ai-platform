@@ -46,7 +46,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
         
         // Type credentials
         await page.type('#auth-email-pwd', 'anzaitseva96@gmail.com');
-        await page.type('#auth-password', process.env.OWNER_PASSWORD || 'Password123!');
+        await page.type('#auth-password', process.env.OWNER_PASSWORD || process.env.OWNER_PASSWORD);
         
         // Submit
         await page.click('#btn-submit-pwd');

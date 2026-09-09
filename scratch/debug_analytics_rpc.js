@@ -7,7 +7,7 @@ async function testRpc() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   await supabase.auth.signInWithPassword({
     email: 'anzaitseva96@gmail.com',
-    password: process.env.OWNER_PASSWORD || 'Password123!'
+    password: process.env.OWNER_PASSWORD || process.env.OWNER_PASSWORD
   });
 
   const { data, error } = await supabase.rpc('get_portfolio_analytics_data', {

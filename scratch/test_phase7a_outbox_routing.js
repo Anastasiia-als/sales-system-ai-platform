@@ -208,7 +208,7 @@ async function run() {
         );
         const updatedRow = updatedRowRes.rows[0];
         assert(updatedRow.status === 'retrying', 'Delivery row status updated to retrying');
-        assert(updatedRow.attempts_count === 1, 'Delivery attempts_count incremented to 1');
+        assert(updatedRow.attempts_count === targetRow.attempts_count + 1, 'Delivery attempts_count incremented');
         assert(updatedRow.last_http_status === 500, 'Last HTTP status recorded on same row');
 
         const totalDeliveriesCheck = await client.query(

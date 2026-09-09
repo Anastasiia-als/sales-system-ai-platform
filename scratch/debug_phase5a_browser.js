@@ -18,7 +18,7 @@ async function main() {
     console.log("Is auth-email input found?", Boolean(emailInput));
     if (emailInput) {
         await page.type('#auth-email', 'anzaitseva96@gmail.com');
-        await page.type('#auth-password', process.env.TEST_OWNER_PASSWORD || 'Password123!');
+        await page.type('#auth-password', process.env.TEST_OWNER_PASSWORD || process.env.OWNER_PASSWORD);
         await page.click('#btn-portal-submit-login');
         await new Promise(r => setTimeout(r, 2500));
     }

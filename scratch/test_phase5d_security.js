@@ -24,7 +24,7 @@ async function runSecuritySuite() {
   const ownerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   await ownerClient.auth.signInWithPassword({
     email: 'anzaitseva96@gmail.com',
-    password: process.env.OWNER_PASSWORD || 'Password123!'
+    password: process.env.OWNER_PASSWORD || process.env.OWNER_PASSWORD
   });
 
   const { data: ownerAnalytics, error: ownerErr } = await ownerClient.rpc('get_portfolio_analytics_data', {
@@ -50,7 +50,7 @@ async function runSecuritySuite() {
   const pmClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const { error: pmAuthErr } = await pmClient.auth.signInWithPassword({
     email: 'pm.alpha@firstwin.io',
-    password: 'Password123!'
+    password: process.env.OWNER_PASSWORD
   });
 
   if (!pmAuthErr) {
@@ -84,7 +84,7 @@ async function runSecuritySuite() {
   const specClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const { error: specAuthErr } = await specClient.auth.signInWithPassword({
     email: 'specialist@firstwin.io',
-    password: 'Password123!'
+    password: process.env.OWNER_PASSWORD
   });
 
   if (!specAuthErr) {
@@ -107,7 +107,7 @@ async function runSecuritySuite() {
   const clientUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const { error: clientAuthErr } = await clientUser.auth.signInWithPassword({
     email: 'client@firstwin.io',
-    password: 'Password123!'
+    password: process.env.OWNER_PASSWORD
   });
 
   if (!clientAuthErr) {

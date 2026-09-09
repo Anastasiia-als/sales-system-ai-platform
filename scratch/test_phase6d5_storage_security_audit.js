@@ -40,7 +40,7 @@ async function run() {
         // Sign in as Owner to authorize Storage operations
         const authRes = await supabase.auth.signInWithPassword({
             email: ownerEmail,
-            password: 'Password123!'
+            password: process.env.OWNER_PASSWORD
         });
         assert(!authRes.error && authRes.data.session, "Authorized Supabase session established as Owner");
 

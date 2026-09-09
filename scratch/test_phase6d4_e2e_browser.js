@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 const { Pool } = require('pg');
+const { getOwnerPassword } = require('./auth_test_helper.js');
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
@@ -124,11 +125,11 @@ async function run() {
             await page.waitForNetworkIdle({ timeout: 5000 }).catch(() => {});
 
             // Authenticate in browser
-            await page.evaluate(async () => {
+            await page.evaluate(async (pwd) => {
                 const { PortalAuth } = await import('./js/portal/auth/auth-service.js');
                 await PortalAuth.init();
-                await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', 'Password123!');
-            });
+                await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', pwd);
+            }, getOwnerPassword());
             await new Promise(r => setTimeout(r, 1000));
 
             // Mount and render ClientActionsView

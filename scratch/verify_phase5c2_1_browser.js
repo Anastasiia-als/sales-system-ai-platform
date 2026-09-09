@@ -40,7 +40,7 @@ async function runBrowserAcceptance() {
     const authResult = await page.evaluate(async () => {
       const { PortalAuth } = await import('./js/portal/auth/auth-service.js');
       await PortalAuth.init();
-      const res = await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', 'Password123!');
+      const res = await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', process.env.OWNER_PASSWORD);
       return { success: !res.error, error: res.error?.message };
     });
     console.log('Auth result:', authResult);

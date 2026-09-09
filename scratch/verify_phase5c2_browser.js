@@ -3,7 +3,7 @@ const path = require('path');
 
 const APP_URL = 'http://localhost:8002';
 const OWNER_EMAIL = 'anzaitseva96@gmail.com';
-const OWNER_PASS = process.env.TEST_OWNER_PASSWORD || 'Password123!';
+const OWNER_PASS = process.env.TEST_OWNER_PASSWORD || process.env.OWNER_PASSWORD;
 const ARTIFACTS_DIR = 'C:\\Users\\UA\\.gemini\\antigravity\\brain\\87fdd05b-039b-4dcb-9b04-faa32d097b20';
 
 async function runBrowserVerification() {

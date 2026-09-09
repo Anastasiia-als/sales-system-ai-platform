@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer');
 
 const APP_URL = 'http://localhost:8002';
 const OWNER_EMAIL = 'anzaitseva96@gmail.com';
-const OWNER_PASS = process.env.TEST_OWNER_PASSWORD || 'Password123!';
+const OWNER_PASS = process.env.TEST_OWNER_PASSWORD || process.env.OWNER_PASSWORD;
 
 async function verifyBrowser() {
   console.log('=== Phase 5C.1 In-Browser Finance Verification ===');

@@ -31,7 +31,7 @@ const { Pool } = require('pg');
         await page.keyboard.press('Enter');
         
         await new Promise(r => setTimeout(r, 2000));
-        await page.keyboard.type('Password123!');
+        await page.keyboard.type(process.env.OWNER_PASSWORD);
         await page.keyboard.press('Enter');
 
         await page.waitForSelector('.btn-clone-template', { visible: true, timeout: 10000 });

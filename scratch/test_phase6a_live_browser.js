@@ -27,7 +27,7 @@ async function run() {
     console.log("Logging in as Owner...");
     await page.waitForSelector('#auth-email-pwd', { timeout: 10000 });
     await page.type('#auth-email-pwd', 'anzaitseva96@gmail.com');
-    await page.type('#auth-password', 'Password123!');
+    await page.type('#auth-password', process.env.OWNER_PASSWORD);
     await page.click('#portal-form-pwd button[type="submit"]'); // Or whatever the submit button is, let's just do page.keyboard.press('Enter')
     await page.keyboard.press('Enter');
     await new Promise(r => setTimeout(r, 4000));

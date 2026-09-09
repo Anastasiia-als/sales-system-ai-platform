@@ -4,6 +4,7 @@ const path = require('path');
 const puppeteer = require('puppeteer');
 const { Pool } = require('pg');
 const { createClient } = require('@supabase/supabase-js');
+const { getOwnerPassword } = require('./auth_test_helper.js');
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
@@ -240,11 +241,11 @@ async function run() {
             await page.goto(`${baseUrl}/index.html#/client/actions`, { waitUntil: 'networkidle2' });
 
             // Authenticate in browser as Owner (who also has full access) or client
-            await page.evaluate(async () => {
+            await page.evaluate(async (pwd) => {
                 const { PortalAuth } = await import('./js/portal/auth/auth-service.js');
                 await PortalAuth.init();
-                await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', 'Password123!');
-            });
+                await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', pwd);
+            }, getOwnerPassword());
             await new Promise(r => setTimeout(r, 1000));
 
             // Open Action Detail Modal

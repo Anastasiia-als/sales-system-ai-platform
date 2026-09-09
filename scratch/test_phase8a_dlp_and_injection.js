@@ -105,6 +105,41 @@ async function run() {
         const storedError = auditLog.rows[0].error_message || '';
         assert(!storedError.includes("petro@dlp.test") && !storedError.includes("987654321:XYZ"), "Audit log error message contains no raw PII or tokens");
 
+        // 3.1. Test Deterministic Participant De-Identification
+        console.log("\n--- 3.1. Testing Deterministic Participant De-Identification ---");
+        const participantsMeta = [
+            { name: "Олександр Коваленко", role: "PM" },
+            { name: "Тетяна Мельник", role: "Designer" },
+            { name: "Василь Бондаренко", role: "Client" }
+        ];
+
+        const transcriptWithNames = "Олександр Коваленко відкрив зустріч. Тетяна Мельник презентувала макет головного екрана. Василь Бондаренко схвалив дизайн, але Василь попросив Тетяна доробити форму замовлення.";
+        const deidentified = gateway.deidentifyParticipants(transcriptWithNames, participantsMeta);
+
+        assert(!deidentified.includes("Олександр Коваленко"), "Full name Олександр Коваленко replaced");
+        assert(!deidentified.includes("Тетяна Мельник"), "Full name Тетяна Мельник replaced");
+        assert(!deidentified.includes("Василь Бондаренко"), "Full name Василь Бондаренко replaced");
+        assert(!deidentified.includes("Коваленко") && !deidentified.includes("Мельник") && !deidentified.includes("Бондаренко"), "Last names removed");
+        assert(deidentified.includes("PM"), "PM role alias present in de-identified text");
+        assert(deidentified.includes("Designer"), "Designer role alias present in de-identified text");
+        assert(deidentified.includes("Client"), "Client role alias present in de-identified text");
+
+        // End-to-end Gateway Generation with Participant Metadata De-Identification
+        const deidentifiedGen = await gateway.generateStructured({
+            organizationId: testOrg,
+            featureName: "meeting_intelligence",
+            templateKey: "meeting_intelligence_v1",
+            variables: {
+                project_name: "Privacy Guarded Project",
+                meeting_date: "2026-09-09",
+                participants: participantsMeta,
+                raw_notes: transcriptWithNames
+            },
+            provider: "mock"
+        });
+
+        assert(deidentifiedGen.ok === true, "De-identified meeting generation succeeded");
+
         // 4. Test Adversarial Prompt Injection Defense
         console.log("\n--- 4. Testing Adversarial Prompt Injection Defense ---");
         const injectionPayload = `

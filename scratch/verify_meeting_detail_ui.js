@@ -17,7 +17,7 @@ async function main() {
     await page.goto('http://localhost:8002/#/client/login', { waitUntil: 'networkidle0' });
     await page.waitForSelector('#client-login-email');
     await page.type('#client-login-email', 'client_alpha_4a@firstwin.io');
-    await page.type('#client-login-password', process.env.TEST_CLIENT_PASSWORD || 'Password123!');
+    await page.type('#client-login-password', process.env.TEST_CLIENT_PASSWORD || process.env.OWNER_PASSWORD);
     await page.click('#btn-submit-password-login');
     await new Promise(r => setTimeout(r, 2500));
 

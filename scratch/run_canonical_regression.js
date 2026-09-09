@@ -1,6 +1,27 @@
 const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+// Ensure .env is loaded for child test processes
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+            const idx = trimmed.indexOf('=');
+            const k = trimmed.substring(0, idx).trim();
+            const v = trimmed.substring(idx + 1).trim();
+            if (!process.env[k]) {
+                process.env[k] = v;
+            }
+        }
+    }
+}
+
 const { Pool } = require('pg');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres' });
+
 
 const suites = [
     'test_eval_dashboard.js', 'test_owner_dashboard_data.js', 'test_phase5c2_1_final_acceptance.js',

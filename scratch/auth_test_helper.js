@@ -8,11 +8,41 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_CZwi_
 
 let cachedOwnerToken = null;
 
+function loadEnv() {
+    const fs = require('fs');
+    const path = require('path');
+    const envPath = path.resolve(__dirname, '../.env');
+    if (fs.existsSync(envPath)) {
+        const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+                const idx = trimmed.indexOf('=');
+                const k = trimmed.substring(0, idx).trim();
+                const v = trimmed.substring(idx + 1).trim();
+                if (!process.env[k]) {
+                    process.env[k] = v;
+                }
+            }
+        }
+    }
+}
+loadEnv();
+
+function getOwnerPassword() {
+    loadEnv();
+    return process.env.OWNER_PASSWORD;
+}
+
 async function getOwnerAuthToken() {
     if (cachedOwnerToken) return cachedOwnerToken;
 
     const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const pass = process.env.OWNER_PASSWORD || process.env.TEST_OWNER_PASSWORD || Buffer.from('UGFzc3dvcmQxMjMh', 'base64').toString();
+    const pass = getOwnerPassword();
+    if (!pass) {
+        throw new Error("OWNER_PASSWORD is not configured in process.env or .env");
+    }
+
     const { data, error } = await client.auth.signInWithPassword({
         email: 'anzaitseva96@gmail.com',
         password: pass
@@ -24,4 +54,4 @@ async function getOwnerAuthToken() {
     return cachedOwnerToken;
 }
 
-module.exports = { getOwnerAuthToken, SUPABASE_URL, SUPABASE_ANON_KEY };
+module.exports = { getOwnerAuthToken, getOwnerPassword, loadEnv, SUPABASE_URL, SUPABASE_ANON_KEY };

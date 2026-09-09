@@ -11,7 +11,7 @@ async function runCalculationsSuite() {
   // 1. Authenticate as Owner
   const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
     email: 'anzaitseva96@gmail.com',
-    password: process.env.OWNER_PASSWORD || 'Password123!'
+    password: process.env.OWNER_PASSWORD || process.env.OWNER_PASSWORD
   });
   
   if (authErr) {

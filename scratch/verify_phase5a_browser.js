@@ -30,7 +30,7 @@ async function main() {
     await page.waitForSelector('#auth-email-pwd', { timeout: 10000 });
 
     await page.type('#auth-email-pwd', 'anzaitseva96@gmail.com');
-    await page.type('#auth-password', process.env.TEST_OWNER_PASSWORD || 'Password123!');
+    await page.type('#auth-password', process.env.TEST_OWNER_PASSWORD || process.env.OWNER_PASSWORD);
     await page.click('#btn-submit-pwd');
 
     console.log("\n=== 2. Navigate to Dashboard (#/portal/dashboard) ===");

@@ -69,6 +69,71 @@ class AIGateway {
     }
 
     /**
+     * Deterministic Participant De-Identification
+     * Replaces real participant names in text with neutral aliases (e.g., PM, Designer, Client, Participant 1)
+     */
+    deidentifyParticipants(input, participantsMetadata = []) {
+        if (!input || !participantsMetadata || participantsMetadata.length === 0) return input;
+        if (typeof input === 'object') {
+            if (Array.isArray(input)) {
+                return input.map(item => this.deidentifyParticipants(item, participantsMetadata));
+            }
+            const res = {};
+            for (const [k, v] of Object.entries(input)) {
+                if (k === 'participants' || k === 'known_participants') {
+                    if (Array.isArray(v)) {
+                        res[k] = v.map((p, idx) => {
+                            if (typeof p === 'object' && p !== null) {
+                                return {
+                                    role: p.role || p.alias || `Participant ${idx + 1}`,
+                                    alias: p.alias || p.role || `Participant ${idx + 1}`
+                                };
+                            }
+                            return typeof p === 'string' ? (participantsMetadata.find(m => m.name === p)?.alias || `Participant ${idx + 1}`) : p;
+                        });
+                        continue;
+                    }
+                }
+                res[k] = this.deidentifyParticipants(v, participantsMetadata);
+            }
+            return res;
+        }
+        if (typeof input !== 'string') return input;
+
+        let text = input;
+
+        // Sort participants by name length descending to avoid partial matching
+        const sorted = [...participantsMetadata].sort((a, b) => {
+            const nameA = typeof a === 'string' ? a : a.name || '';
+            const nameB = typeof b === 'string' ? b : b.name || '';
+            return nameB.length - nameA.length;
+        });
+
+        for (let i = 0; i < sorted.length; i++) {
+            const p = sorted[i];
+            const name = (typeof p === 'string' ? p : p.name || '').trim();
+            if (!name || name.length < 2) continue;
+
+            const alias = (typeof p === 'object' && (p.alias || p.role)) ? (p.alias || p.role) : `Participant ${i + 1}`;
+
+            // Replace full name (case-insensitive, unicode boundaries)
+            const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const pattern = new RegExp(`(?<=^|[\\s.,!?;:()'"])${escapedName}(?=$|[\\s.,!?;:()'"])`, 'gi');
+            text = text.replace(pattern, alias);
+
+            // If name has multiple words (e.g., "Петро Іванов"), also replace individual first/last names if >= 3 characters
+            const parts = name.split(/\s+/).filter(part => part.length >= 3);
+            for (const part of parts) {
+                const escapedPart = part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const partPattern = new RegExp(`(?<=^|[\\s.,!?;:()'"])${escapedPart}(?=$|[\\s.,!?;:()'"])`, 'gi');
+                text = text.replace(partPattern, alias);
+            }
+        }
+
+        return text;
+    }
+
+    /**
      * Resolve template from DB
      */
     async getTemplate(templateKey) {
@@ -192,8 +257,12 @@ class AIGateway {
         const tpl = await this.getTemplate(templateKey);
         const systemPrompt = tpl.system_prompt;
         
-        // DLP Sanitization before prompt interpolation
-        const sanitizedVariables = this.sanitizeContent(variables);
+        // DLP Sanitization + Deterministic Participant De-Identification before prompt interpolation
+        let sanitizedVariables = this.sanitizeContent(variables);
+        const participantsMetadata = variables.participants || variables.known_participants || [];
+        if (Array.isArray(participantsMetadata) && participantsMetadata.length > 0) {
+            sanitizedVariables = this.deidentifyParticipants(sanitizedVariables, participantsMetadata);
+        }
         const userPrompt = this.interpolatePrompt(tpl.user_prompt_template, sanitizedVariables);
         const expectedSchema = tpl.expected_schema;
         const temperature = tpl.temperature || 0.2;

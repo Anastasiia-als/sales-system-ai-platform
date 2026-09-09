@@ -47,7 +47,7 @@ async function runComprehensiveBrowserTest() {
     await page.evaluate(async () => {
       const { PortalAuth } = await import('./js/portal/auth/auth-service.js');
       await PortalAuth.init();
-      await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', 'Password123!');
+      await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', process.env.OWNER_PASSWORD);
     });
     await new Promise(r => setTimeout(r, 1000));
 

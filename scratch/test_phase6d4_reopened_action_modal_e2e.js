@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const { Pool } = require('pg');
+const { getOwnerPassword } = require('./auth_test_helper.js');
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
@@ -75,11 +76,11 @@ async function run() {
         await new Promise(r => setTimeout(r, 1000));
 
         // Sign in via PortalAuth
-        await page.evaluate(async () => {
+        await page.evaluate(async (pwd) => {
             const { PortalAuth } = await import('./js/portal/auth/auth-service.js');
             await PortalAuth.init();
-            await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', 'Password123!');
-        });
+            await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', pwd);
+        }, getOwnerPassword());
 
         // Refresh client routing
         await page.evaluate(async () => {
@@ -193,11 +194,11 @@ async function run() {
         await mobilePage.goto("http://localhost:8002/index.html#/client/actions", { waitUntil: "domcontentloaded" });
         await new Promise(r => setTimeout(r, 1000));
 
-        await mobilePage.evaluate(async () => {
+        await mobilePage.evaluate(async (pwd) => {
             const { PortalAuth } = await import('./js/portal/auth/auth-service.js');
             await PortalAuth.init();
-            await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', 'Password123!');
-        });
+            await PortalAuth.signInWithPassword('anzaitseva96@gmail.com', pwd);
+        }, getOwnerPassword());
 
         await mobilePage.evaluate(async () => {
             window.location.hash = '#/client/actions';
