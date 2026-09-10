@@ -435,35 +435,181 @@ class AIGateway {
         }
     }
 
+    _extractMeetingProtocolFromRawNotes(rawNotes = '', variables = {}) {
+        const text = String(rawNotes || '').trim();
+        if (!text) {
+            return {
+                summary: "Зустріч проведено без додаткових нотаток.",
+                decisions: [],
+                candidate_actions: []
+            };
+        }
+
+        const rawSentences = text
+            .split(/(?<=[.!?])\s+|\n+|(?:;\s*)/)
+            .map(s => s.trim())
+            .filter(s => s.length > 3);
+
+        const decisions = [];
+        const candidateActions = [];
+        const discussionPoints = [];
+
+        const ukrMonths = {
+            'січня': '01', 'лютого': '02', 'березня': '03', 'квітня': '04',
+            'травня': '05', 'червня': '06', 'липня': '07', 'серпня': '08',
+            'вересня': '09', 'жовтня': '10', 'листопада': '11', 'грудня': '12'
+        };
+
+        const currentYear = new Date().getFullYear();
+
+        function parseDueDate(sentence) {
+            const monthMatch = sentence.match(/(?:до|на|термін)\s+(\d{1,2})\s+(січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня)/iu);
+            if (monthMatch) {
+                const day = monthMatch[1].padStart(2, '0');
+                const month = ukrMonths[monthMatch[2].toLowerCase()];
+                if (month) return `${currentYear}-${month}-${day}`;
+            }
+            const numMatch = sentence.match(/(?:до|на)\s+(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/iu);
+            if (numMatch) {
+                const day = numMatch[1].padStart(2, '0');
+                const month = numMatch[2].padStart(2, '0');
+                const year = numMatch[3] ? (numMatch[3].length === 2 ? `20${numMatch[3]}` : numMatch[3]) : currentYear;
+                return `${year}-${month}-${day}`;
+            }
+            const isoMatch = sentence.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+            if (isoMatch) return isoMatch[1];
+            return null;
+        }
+
+        for (const sentence of rawSentences) {
+            const cleanSentence = sentence.replace(/[.!?]+$/, '').trim();
+
+            // 1. Decision Matchers
+            const isExplicitDecision = /^(?:рішення|погоджено|погодилися|decision)[:\s]/iu.test(cleanSentence);
+            const startsWithDecision = /^(?:також\s+)?(?:погодили|вирішили|домовилися|затвердили|прийнято рішення|узгодили)(?!\p{L})/iu.test(cleanSentence);
+            const containsDecision = /(?<!\p{L})(?:вирішили|погодили|домовилися|затвердили|прийнято рішення|узгодили|також погодили)(?!\p{L})/iu.test(cleanSentence);
+
+            // 2. Action Matchers
+            const isExplicitAction = /^(?:дія\s*\d*|завдання|задача|action\s*\d*|task|todo)[:\s]/iu.test(cleanSentence);
+            const startsWithAction = /^(?:потрібно|необхідно|слід)(?!\p{L})/iu.test(cleanSentence);
+            const isActionVerb = /(?<!\p{L})(?:підготує|перевірить|надасть|розробить|налаштує|має надати|повинен|зобов'язався|організує|проведе|виконає|створить)(?!\p{L})/iu.test(cleanSentence)
+                || (parseDueDate(cleanSentence) && /(?<!\p{L})(?:підготувати|перевірити|надати|зробити|виконати|створити)(?!\p{L})/iu.test(cleanSentence));
+
+            if (isExplicitDecision || startsWithDecision || (containsDecision && !isExplicitAction && !isActionVerb)) {
+                let decText = cleanSentence
+                    .replace(/^(?:рішення|погоджено|decision)[:\s]*/iu, '')
+                    .replace(/^(?:також\s+)?(?:погодили,\s*що|вирішили,\s*що|домовилися,\s*що|прийнято рішення,\s*що)\s*/iu, '')
+                    .replace(/^(?:також\s+)?(?:вирішили|погодили|домовилися|затвердили)\s*/iu, '')
+                    .trim();
+                if (decText) {
+                    decText = decText.charAt(0).toUpperCase() + decText.slice(1);
+                    decisions.push(decText);
+                }
+            } else if (isExplicitAction || startsWithAction || isActionVerb) {
+                const dueDate = parseDueDate(cleanSentence);
+                const isClient = /(?<!\p{L})(?:клієнт|замовник|client)(?!\p{L})/iu.test(cleanSentence);
+
+                let priority = dueDate ? 'high' : 'medium';
+                if (/(?<!\p{L})(?:high|висок)/iu.test(cleanSentence)) priority = 'high';
+                if (/(?<!\p{L})(?:low|низьк)/iu.test(cleanSentence)) priority = 'low';
+
+                let assigneeName = null;
+                if (isClient) {
+                    assigneeName = "Клієнт";
+                } else {
+                    const nameMatch = cleanSentence.match(/^([А-ЯІЇЄҐA-Z][а-яіїєґa-z]+)\s+(?:підготує|перевірить|надасть|розробить|налаштує|має|виконає|створить)/u);
+                    if (nameMatch) {
+                        assigneeName = nameMatch[1];
+                    } else if (Array.isArray(variables.participants)) {
+                        for (const p of variables.participants) {
+                            const pName = p.name || p.alias || '';
+                            if (pName && new RegExp(`(?<!\\p{L})${pName}(?!\\p{L})`, 'iu').test(cleanSentence)) {
+                                assigneeName = pName;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                let title = cleanSentence;
+                // Strip explicit action prefix e.g. "Дія 1: ", "Завдання: "
+                title = title.replace(/^(?:дія\s*\d*|завдання|задача|action\s*\d*|task|todo)[:\s]*/iu, '');
+                // Strip "Потрібно ", "Необхідно "
+                title = title.replace(/^(?:потрібно|необхідно|слід)\s+/iu, '');
+                // Strip assignee name from beginning
+                if (assigneeName) {
+                    title = title.replace(new RegExp(`^${assigneeName}\\s+`, 'iu'), '');
+                }
+                // Strip trailing metadata like (internal, high) or due dates
+                title = title.replace(/\s*\([^)]*\)\s*$/, '');
+                title = title.replace(/\s+до\s+\d{1,2}.*$/iu, '');
+
+                // Conjugate verb to infinitive
+                title = title
+                    .replace(/^має\s+надати(?!\p{L})/iu, 'Надати')
+                    .replace(/^має(?!\p{L})/iu, '')
+                    .replace(/^підготує(?!\p{L})/iu, 'Підготувати')
+                    .replace(/^перевірить(?!\p{L})/iu, 'Перевірити')
+                    .replace(/^надасть(?!\p{L})/iu, 'Надати')
+                    .replace(/^розробить(?!\p{L})/iu, 'Розробити')
+                    .replace(/^налаштує(?!\p{L})/iu, 'Налаштувати')
+                    .replace(/^виконає(?!\p{L})/iu, 'Виконати')
+                    .replace(/^створить(?!\p{L})/iu, 'Створити')
+                    .replace(/(?<!\p{L})та\s+надасть(?!\p{L})/iu, 'та надати')
+                    .replace(/(?<!\p{L})та\s+підготує(?!\p{L})/iu, 'та підготувати')
+                    .replace(/(?<!\p{L})та\s+перевірить(?!\p{L})/iu, 'та перевірити')
+                    .trim();
+                if (title) {
+                    title = title.charAt(0).toUpperCase() + title.slice(1);
+                }
+
+                candidateActions.push({
+                    title: title || cleanSentence,
+                    description: cleanSentence,
+                    responsibility: isClient ? 'client' : 'internal',
+                    priority,
+                    due_date: dueDate,
+                    assignee_name: assigneeName
+                });
+            } else {
+                discussionPoints.push(cleanSentence);
+            }
+        }
+
+        let summaryParts = [];
+        if (discussionPoints.length > 0) {
+            summaryParts.push(discussionPoints.slice(0, 2).join(". ") + ".");
+        }
+        if (decisions.length > 0) {
+            summaryParts.push(`Узгоджено: ${decisions.join(", ")}.`);
+        }
+        if (candidateActions.length > 0) {
+            summaryParts.push(`Визначено ${candidateActions.length} підготовчих завдань.`);
+        }
+
+        let summary = summaryParts.join(" ");
+        if (!summary) {
+            summary = rawSentences.slice(0, 2).join(". ") + ".";
+        }
+
+        return {
+            summary,
+            decisions,
+            candidate_actions: candidateActions
+        };
+    }
+
     /**
      * Deterministic Mock Provider for Testing / Offline Execution
      */
     _generateMockResponse(templateKey, variables = {}) {
         if (templateKey === 'meeting_intelligence_v1') {
+            const rawNotes = variables.raw_notes || variables.meeting_notes || '';
+            const extracted = this._extractMeetingProtocolFromRawNotes(rawNotes, variables);
             return {
                 promptTokens: 250,
                 completionTokens: 180,
-                data: {
-                    summary: `Узгоджено ключові вимоги для проєкту ${variables.project_name || 'Project'} та розподілено задачі між командою делівері та клієнтом.`,
-                    decisions: [
-                        "Затвердити структуру ролей та розклад щотижневих синків",
-                        "Підготувати комерційні умови та план оплат на наступний спринт"
-                    ],
-                    candidate_actions: [
-                        {
-                            title: "Підготувати оновлену технічну специфікацію",
-                            description: "Внести зміни згідно з коментарями щодо інтеграції зовнішніх сервісів",
-                            responsibility: "internal",
-                            priority: "high"
-                        },
-                        {
-                            title: "Надати тестові доступи до Google Calendar",
-                            description: "Надіслати сервісний обліковий запис для перевірки підписок",
-                            responsibility: "client",
-                            priority: "medium"
-                        }
-                    ]
-                }
+                data: extracted
             };
         }
 

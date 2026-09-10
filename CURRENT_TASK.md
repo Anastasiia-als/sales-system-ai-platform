@@ -5,7 +5,7 @@
 ### Архітектурний бейслайн
 - **Статус Phase 8A (Core AI Gateway, Quotas & Schemas)**: **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED / APPROVED)**. Успішно підтверджено у Manual Acceptance: авторизація порталу, регресія Core Gateway 22/22, Unauthorized 401, авторизована структурована генерація 200, Provider allowlist 400.
 - **Статус Gemini Production Provider Activation**: `PENDING_LIVE_ACTIVATION` (Окремий неблокуючий статус, очікує передачі `GEMINI_API_KEY` у середовищі).
-- **Поточний статус Phase 8B (Meeting Intelligence & Action Item Extraction)**: **ІМПЛЕМЕНТОВАНО — ОЧІКУЄ РУЧНОГО ПРИЙМАННЯ (IMPLEMENTED — PENDING ACCEPTANCE)**. Повністю реалізовано: міграція БД `meeting_ai_artifacts`, атомарна RPC `apply_meeting_intelligence_items`, шаблон `meeting_intelligence_v1`, DLP-деідентифікація учасників, двоетапний UI Human-in-the-Loop в `portal-meeting-detail-view.js`. 6/6 виділених сьютів (95 тверджень) 100% PASS, канонічна регресія платформи 96/96 сьютів (1864 твердження) 100% PASS.
+- **Поточний статус Phase 8B (Meeting Intelligence & Action Item Extraction)**: **ІМПЛЕМЕНТОВАНО — ОЧІКУЄ РУЧНОГО ПРИЙМАННЯ (IMPLEMENTED — PENDING ACCEPTANCE)**. Усунуто блокуючий дефект ручного тестування: впроваджено семантичний екстрактор нотаток у `AIGateway`, інвалідовано старий чернетковий артефакт (міграція `20260910000035_phase8b_grounded_notes_extraction.sql`), оновлено шаблон `meeting_intelligence_v1` із правилами Zero-Hallucination, реалізовано автоприв'язку дедлайнів та виконавців у UI `portal-meeting-detail-view.js`. 7/7 виділених сьютів (131 твердження) 100% PASS, канонічна регресія платформи 97/97 сьютів (1906 тверджень) 100% PASS.
 
 ---
 

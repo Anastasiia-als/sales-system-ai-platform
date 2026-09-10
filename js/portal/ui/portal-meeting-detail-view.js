@@ -1248,6 +1248,34 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
             <div id="ai-candidates-container" style="display: flex; flex-direction: column; gap: 12px;">
                 ${actions.map((act, idx) => {
                     const isClient = act.responsibility === "client";
+                    const dueDate = act.due_date || "";
+                    const assigneeName = (act.assignee_name || "").toLowerCase().trim();
+
+                    // Match internal user by name
+                    let matchedUserId = "";
+                    if (!isClient && assigneeName) {
+                        const matched = internalUsers.find(u => {
+                            const name = (u.full_name || u.email || "").toLowerCase();
+                            return name.includes(assigneeName) || assigneeName.includes(name.split(" ")[0]);
+                        });
+                        if (matched) matchedUserId = matched.id;
+                    }
+
+                    // Match client contact by name or fallback if single contact
+                    let matchedContactId = "";
+                    if (isClient) {
+                        if (assigneeName && assigneeName !== "клієнт") {
+                            const matched = clientContacts.find(c => {
+                                const name = `${c.first_name || ""} ${c.last_name || ""}`.toLowerCase();
+                                return name.includes(assigneeName) || (c.email && c.email.toLowerCase().includes(assigneeName));
+                            });
+                            if (matched) matchedContactId = matched.id;
+                        }
+                        if (!matchedContactId && clientContacts.length === 1) {
+                            matchedContactId = clientContacts[0].id;
+                        }
+                    }
+
                     return `
                         <div class="ai-candidate-card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
                             <div style="display: flex; align-items: flex-start; gap: 10px;">
@@ -1274,11 +1302,11 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
                                         <option value="">— Не призначено —</option>
                                         ${isClient ? (
                                             clientContacts.map(c => `
-                                                <option value="${c.id}">${escapeHtml(c.first_name || "")} ${escapeHtml(c.last_name || "")} (${escapeHtml(c.position || "Клієнт")})</option>
+                                                <option value="${c.id}" ${c.id === matchedContactId ? "selected" : ""}>${escapeHtml(c.first_name || "")} ${escapeHtml(c.last_name || "")} (${escapeHtml(c.position || "Клієнт")})</option>
                                             `).join("")
                                         ) : (
                                             internalUsers.map(u => `
-                                                <option value="${u.id}">${escapeHtml(u.full_name || u.email)}</option>
+                                                <option value="${u.id}" ${u.id === matchedUserId ? "selected" : ""}>${escapeHtml(u.full_name || u.email)}</option>
                                             `).join("")
                                         )}
                                     </select>
@@ -1295,7 +1323,7 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
 
                                 <div>
                                     <label style="color: var(--text-muted); margin-bottom: 3px; display: block;">Термін виконання</label>
-                                    <input type="date" class="portal-input ai-candidate-due" style="font-size: 0.82rem; padding: 4px 8px;">
+                                    <input type="date" class="portal-input ai-candidate-due" style="font-size: 0.82rem; padding: 4px 8px;" value="${escapeHtml(dueDate)}">
                                 </div>
                             </div>
                         </div>
