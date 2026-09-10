@@ -1055,16 +1055,137 @@ async function openLinkDocumentModal(meeting, onLinked) {
 }
 
 /**
+ * Phase 8B: Robust Name Matching across Ukrainian Cyrillic, Latin Transliteration, Declensions & Roles
+ */
+function normalizeName(str = '') {
+    return String(str || '')
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, ' ') // Strip role parentheses e.g. (Owner), (PM), (CEO)
+        .replace(/[^\p{L}\d\s]/gu, ' ')
+        .trim();
+}
+
+function toLatinPhonetic(str = '') {
+    const text = normalizeName(str);
+    const map = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e',
+        'є': 'ye', 'ж': 'zh', 'з': 'z', 'и': 'y', 'і': 'i', 'ї': 'yi', 'й': 'y',
+        'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r',
+        'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch',
+        'ш': 'sh', 'щ': 'shch', 'ь': '', 'ю': 'yu', 'я': 'ya',
+        'ы': 'y', 'э': 'e', 'ё': 'yo', 'ъ': ''
+    };
+    let out = '';
+    for (const char of text) {
+        out += map[char] !== undefined ? map[char] : char;
+    }
+    out = out
+        .replace(/ii+/g, 'i')
+        .replace(/yi+/g, 'i')
+        .replace(/ya+/g, 'ia')
+        .replace(/ye+/g, 'ie')
+        .replace(/yu+/g, 'iu');
+    return out.trim();
+}
+
+function getStem(name = '') {
+    const lat = toLatinPhonetic(name);
+    const words = lat.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return '';
+    const firstWord = words[0];
+    // Strip common Ukrainian & Latin inflection endings (відмінки)
+    return firstWord
+        .replace(/(?:a|e|u|i|o|om|em|evi|ovi|am|iam|yu|ya|ia|ie)$/i, '')
+        .replace(/(?:y|iy)$/i, '');
+}
+
+export function matchAssigneeByName(assigneeName, candidates = [], isClient = false) {
+    if (!assigneeName) return '';
+    const normQuery = normalizeName(assigneeName);
+    if (!normQuery) return '';
+
+    // If client task has generic name ("Клієнт", "Замовник", etc.), do not invent a specific person
+    const genericClientWords = ['клієнт', 'клиент', 'client', 'customer', 'замовник', 'контакт', 'не призначено', 'unassigned'];
+    if (isClient && genericClientWords.includes(normQuery)) {
+        return '';
+    }
+
+    const queryStem = getStem(normQuery);
+    const queryLatin = toLatinPhonetic(normQuery);
+
+    for (const cand of candidates) {
+        if (!cand || !cand.id) continue;
+        const candFullName = cand.full_name || `${cand.first_name || ''} ${cand.last_name || ''}`.trim() || '';
+        const candEmail = cand.email || '';
+
+        const candNorm = normalizeName(candFullName);
+        const candLatin = toLatinPhonetic(candFullName);
+        const candEmailLatin = toLatinPhonetic(candEmail.split('@')[0]);
+
+        // 1. Exact or substring match in original scripts
+        if (normQuery && candNorm && (candNorm.includes(normQuery) || normQuery.includes(candNorm.split(' ')[0]))) {
+            return cand.id;
+        }
+
+        // 2. Latin transliteration match
+        if (queryLatin && candLatin) {
+            const candFirstLatin = candLatin.split(/\s+/)[0];
+            if (candLatin.includes(queryLatin) || candFirstLatin === queryLatin || queryLatin.includes(candFirstLatin)) {
+                return cand.id;
+            }
+        }
+
+        // 3. Email match (e.g. anastasiia or petro)
+        if (queryLatin && candEmailLatin) {
+            if (candEmailLatin.includes(queryLatin) || queryLatin.includes(candEmailLatin)) {
+                return cand.id;
+            }
+        }
+
+        // 4. Stem / Declension match (e.g. Анастасії -> Anastasiia, Петра -> Петро)
+        if (queryStem.length >= 3) {
+            const candStem = getStem(candFullName);
+            if (candStem.length >= 3 && (candStem.startsWith(queryStem) || queryStem.startsWith(candStem))) {
+                return cand.id;
+            }
+        }
+    }
+
+    return '';
+}
+if (typeof window !== 'undefined') {
+    window.matchAssigneeByName = matchAssigneeByName;
+}
+
+/**
  * Phase 8B: Interactive Human-in-the-Loop Meeting Intelligence Modal
  */
 async function openMeetingIntelligenceModal(meeting, onApplied) {
     const mount = document.getElementById("meeting-detail-modal-mount") || document.body;
 
-    // Load available contacts & users for assignment
-    const { data: contactsData } = await DataClient.getContactsByOrg(meeting.organization_id);
-    const { data: staffData } = await DataClient.getStaffProfiles();
-    const clientContacts = contactsData || (meeting.participants || []).filter(p => p.contact).map(p => p.contact);
-    const internalUsers = staffData || (meeting.participants || []).filter(p => p.user).map(p => p.user);
+    // Load available contacts & users for assignment with complete deduplication & fallback
+    const contactsRes = await DataClient.getContactsByOrg(meeting.organization_id);
+    const staffRes = await DataClient.getStaffProfiles();
+
+    // Merge staff profiles + meeting participants (users) with deduplication by id
+    const internalUsersMap = new Map();
+    (staffRes?.data || []).forEach(u => { if (u && u.id) internalUsersMap.set(u.id, u); });
+    (meeting.participants || []).forEach(p => {
+        if (p.user && p.user.id && !internalUsersMap.has(p.user.id)) {
+            internalUsersMap.set(p.user.id, p.user);
+        }
+    });
+    const internalUsers = Array.from(internalUsersMap.values());
+
+    // Merge org contacts + meeting participants (contacts) with deduplication by id
+    const clientContactsMap = new Map();
+    (contactsRes?.data || []).forEach(c => { if (c && c.id) clientContactsMap.set(c.id, c); });
+    (meeting.participants || []).forEach(p => {
+        if (p.contact && p.contact.id && !clientContactsMap.has(p.contact.id)) {
+            clientContactsMap.set(p.contact.id, p.contact);
+        }
+    });
+    const clientContacts = Array.from(clientContactsMap.values());
 
     const modalHtml = `
         <div class="portal-modal-backdrop" id="ai-meeting-backdrop">
@@ -1260,31 +1381,18 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
                 ${actions.map((act, idx) => {
                     const isClient = act.responsibility === "client";
                     const dueDate = act.due_date || "";
-                    const assigneeName = (act.assignee_name || "").toLowerCase().trim();
+                    const rawAssigneeName = act.assignee_name || "";
 
                     // Match internal user by name
                     let matchedUserId = "";
-                    if (!isClient && assigneeName) {
-                        const matched = internalUsers.find(u => {
-                            const name = (u.full_name || u.email || "").toLowerCase();
-                            return name.includes(assigneeName) || assigneeName.includes(name.split(" ")[0]);
-                        });
-                        if (matched) matchedUserId = matched.id;
+                    if (!isClient && rawAssigneeName) {
+                        matchedUserId = matchAssigneeByName(rawAssigneeName, internalUsers, false);
                     }
 
-                    // Match client contact by name or fallback if single contact
+                    // Match client contact by name (only if specific contact is named)
                     let matchedContactId = "";
-                    if (isClient) {
-                        if (assigneeName && assigneeName !== "клієнт") {
-                            const matched = clientContacts.find(c => {
-                                const name = `${c.first_name || ""} ${c.last_name || ""}`.toLowerCase();
-                                return name.includes(assigneeName) || (c.email && c.email.toLowerCase().includes(assigneeName));
-                            });
-                            if (matched) matchedContactId = matched.id;
-                        }
-                        if (!matchedContactId && clientContacts.length === 1) {
-                            matchedContactId = clientContacts[0].id;
-                        }
+                    if (isClient && rawAssigneeName) {
+                        matchedContactId = matchAssigneeByName(rawAssigneeName, clientContacts, true);
                     }
 
                     return `
@@ -1309,7 +1417,7 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
 
                                 <div>
                                     <label style="color: var(--text-muted); margin-bottom: 3px; display: block;">Виконавець</label>
-                                    <select class="portal-select ai-candidate-assignee" style="font-size: 0.82rem; padding: 4px 8px;">
+                                    <select class="portal-select ai-candidate-assignee" data-matched-assignee="${isClient ? matchedContactId : matchedUserId}" style="font-size: 0.82rem; padding: 4px 8px;">
                                         <option value="">— Не призначено —</option>
                                         ${isClient ? (
                                             clientContacts.map(c => `
@@ -1351,6 +1459,14 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
             </button>
         </div>
     `;
+
+    // Explicitly synchronize select.value with matched id in the DOM
+    reviewStage.querySelectorAll(".ai-candidate-assignee").forEach(sel => {
+        const target = sel.getAttribute("data-matched-assignee");
+        if (target) {
+            sel.value = target;
+        }
+    });
 
     if (window.lucide) window.lucide.createIcons();
 
@@ -1400,6 +1516,8 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
                     `).join("")
                 )
             );
+            assigneeSelect.value = "";
+            assigneeSelect.removeAttribute("data-matched-assignee");
         });
     });
 

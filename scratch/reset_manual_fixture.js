@@ -25,6 +25,19 @@ async function main() {
 
     console.log('--- 1. Resetting Canonical Meeting & Workspace Fixtures ---');
 
+    // 0. Ensure Petro Ivanov fixture user exists for Phase 8B assignee matching
+    const PETRO_ID = '77777777-7777-7777-7777-777777777777';
+    await c.query(`
+        INSERT INTO auth.users (id, email, raw_user_meta_data)
+        VALUES ($1, 'petro.ivanov@firstwin.io', '{"full_name": "Петро Іванов", "global_role": "specialist"}')
+        ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
+    `, [PETRO_ID]);
+    await c.query(`
+        INSERT INTO public.profiles (id, full_name, email, global_role)
+        VALUES ($1, 'Петро Іванов', 'petro.ivanov@firstwin.io', 'specialist')
+        ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, global_role = EXCLUDED.global_role;
+    `, [PETRO_ID]);
+
     // 1. Update Contact Position
     await c.query(`
         UPDATE public.contacts
