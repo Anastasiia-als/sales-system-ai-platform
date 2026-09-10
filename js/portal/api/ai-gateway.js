@@ -14,6 +14,63 @@ class AIGateway {
         this.defaultProvider = options.defaultProvider || 'gemini';
         this.defaultModel = options.defaultModel || 'gemini-2.5-flash';
         this.requestTimeoutMs = options.requestTimeoutMs || 30000;
+        this.env = options.env || process.env.NODE_ENV || 'development';
+    }
+
+    /**
+     * Resolves active AI provider with strict server/environment authority:
+     * - Production: requires live provider ('gemini'). If GEMINI_API_KEY is missing -> FAIL CLOSED (no mock fallback).
+     * - Dev / Test / Manual Acceptance: defaults to controlled 'mock' provider while Gemini activation is PENDING_LIVE_ACTIVATION.
+     */
+    resolveTargetProvider(clientRequestedProvider = null) {
+        const isProduction = (process.env.NODE_ENV === 'production') || (this.env === 'production');
+        const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim());
+
+        // 1. Production Mode: Strict Live Provider & Fail-Closed
+        if (isProduction) {
+            if (clientRequestedProvider === 'mock') {
+                const err = new Error("Forbidden: Mock AI provider is disallowed in production environment");
+                err.statusCode = 403;
+                err.code = 'FORBIDDEN_PROVIDER';
+                throw err;
+            }
+            if (!hasGeminiKey) {
+                const err = new Error("Production Live AI provider error: GEMINI_API_KEY environment variable is not configured. Automated mock fallback is strictly forbidden in production.");
+                err.statusCode = 503;
+                err.code = 'LIVE_AI_UNAVAILABLE';
+                throw err;
+            }
+            return 'gemini';
+        }
+
+        // 2. Non-Production Mode (Dev / Test / Manual Acceptance):
+        // Explicit mock transport flag takes precedence
+        if (process.env.AI_MOCK_TRANSPORT === 'true') {
+            return 'mock';
+        }
+
+        // If client/caller explicitly requested gemini (e.g. live test):
+        if (clientRequestedProvider === 'gemini') {
+            if (!hasGeminiKey) {
+                const err = new Error("Gemini live provider requested, but GEMINI_API_KEY is not configured");
+                err.statusCode = 503;
+                err.code = 'LIVE_AI_UNAVAILABLE';
+                throw err;
+            }
+            return 'gemini';
+        }
+
+        if (clientRequestedProvider === 'mock') {
+            return 'mock';
+        }
+
+        if (process.env.AI_PROVIDER === 'gemini' && hasGeminiKey) {
+            return 'gemini';
+        }
+
+        // Default in non-production while Gemini is PENDING_LIVE_ACTIVATION:
+        // Controlled mock provider without external API calls
+        return 'mock';
     }
 
     /**
@@ -233,18 +290,21 @@ class AIGateway {
         if (!featureName) throw new Error("featureName is required");
         if (!templateKey) throw new Error("templateKey is required");
 
-        const targetProvider = provider || this.defaultProvider;
-        const targetModel = model || this.defaultModel;
-
         // Security Check: Provider and Model Allowlist
-        if (!ALLOWED_PROVIDERS.includes(targetProvider)) {
-            const err = new Error(`Provider '${targetProvider}' is not allowed. Approved providers: [${ALLOWED_PROVIDERS.join(', ')}]`);
+        if (provider && !ALLOWED_PROVIDERS.includes(provider)) {
+            const err = new Error(`Provider '${provider}' is not allowed. Approved providers: [${ALLOWED_PROVIDERS.join(', ')}]`);
             err.code = 'INVALID_PROVIDER';
+            err.statusCode = 400;
             throw err;
         }
+
+        const targetProvider = this.resolveTargetProvider(provider);
+        const targetModel = model || this.defaultModel;
+
         if (!ALLOWED_MODELS.includes(targetModel)) {
             const err = new Error(`Model '${targetModel}' is not allowed. Approved models: [${ALLOWED_MODELS.join(', ')}]`);
             err.code = 'INVALID_MODEL';
+            err.statusCode = 400;
             throw err;
         }
 

@@ -1141,8 +1141,10 @@ async function openMeetingIntelligenceModal(meeting, onApplied) {
     });
 
     // Run AI Generation
-    document.getElementById("btn-run-ai-generation")?.addEventListener("click", async () => {
-        const notes = document.getElementById("ai-raw-notes-input")?.value?.trim();
+    const runBtn = document.getElementById("btn-run-ai-generation");
+    runBtn?.addEventListener("click", async () => {
+        const rawNotesInput = document.getElementById("ai-raw-notes-input");
+        const notes = rawNotesInput?.value?.trim();
         if (!notes) {
             alert("Будь ласка, введіть або вставте нотатки зустрічі для аналізу.");
             return;
@@ -1151,20 +1153,29 @@ async function openMeetingIntelligenceModal(meeting, onApplied) {
         const inputStage = document.getElementById("ai-stage-input");
         const loadingStage = document.getElementById("ai-stage-loading");
 
+        runBtn.disabled = true;
         inputStage.style.display = "none";
         loadingStage.style.display = "block";
 
-        const res = await DataClient.generateMeetingIntelligence(meeting.id, notes);
-        loadingStage.style.display = "none";
+        try {
+            const res = await DataClient.generateMeetingIntelligence(meeting.id, notes);
+            loadingStage.style.display = "none";
 
-        if (res.error || !res.data) {
-            alert("Помилка аналізу ШІ: " + (res.error?.message || "Не вдалося згенерувати протокол"));
+            if (res.error || !res.data) {
+                alert("Помилка аналізу ШІ: " + (res.error?.message || "Не вдалося згенерувати протокол"));
+                inputStage.style.display = "block";
+                runBtn.disabled = false;
+                return;
+            }
+
+            const { artifact, aiResult } = res.data;
+            renderReviewStage(artifact, aiResult, clientContacts, internalUsers, meeting, closeModal, onApplied);
+        } catch (unhandledErr) {
+            loadingStage.style.display = "none";
             inputStage.style.display = "block";
-            return;
+            runBtn.disabled = false;
+            alert("Несподівана помилка: " + (unhandledErr?.message || unhandledErr));
         }
-
-        const { artifact, aiResult } = res.data;
-        renderReviewStage(artifact, aiResult, clientContacts, internalUsers, meeting, closeModal, onApplied);
     });
 }
 

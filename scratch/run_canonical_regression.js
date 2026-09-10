@@ -79,7 +79,8 @@ const suites = [
     'test_phase8b_atomic_apply_rpc.js',
     'test_phase8b_browser_e2e.js',
     'test_phase8b_rls_and_isolation.js',
-    'test_phase8b_raw_notes_fidelity.js'
+    'test_phase8b_raw_notes_fidelity.js',
+    'test_phase8b_provider_routing.js'
 ];
 
 async function run() {

@@ -295,7 +295,7 @@ const server = http.createServer(async (req, res) => {
                     featureName: payload.featureName,
                     templateKey: payload.templateKey,
                     variables: payload.variables || {},
-                    provider: payload.provider || (getAIMockMode() ? 'mock' : null),
+                    provider: payload.provider || null,
                     model: payload.model || null,
                     estimatedTokens: payload.estimatedTokens || 1500
                 });
@@ -309,8 +309,9 @@ const server = http.createServer(async (req, res) => {
                     err.code === 'QUOTA_EXCEEDED' ? 429 :
                     (err.code === 'SCHEMA_VIOLATION' || err.code === 'MALFORMED_JSON') ? 422 :
                     err.code === 'UNAUTHORIZED' ? 401 :
-                    err.code === 'FORBIDDEN' ? 403 :
+                    (err.code === 'FORBIDDEN' || err.code === 'FORBIDDEN_PROVIDER') ? 403 :
                     (err.code === 'INVALID_PROVIDER' || err.code === 'INVALID_MODEL') ? 400 :
+                    err.code === 'LIVE_AI_UNAVAILABLE' ? 503 :
                     400
                 );
                 res.writeHead(statusCode, {
