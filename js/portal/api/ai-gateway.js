@@ -45,6 +45,8 @@ class AIGateway {
         text = text.replace(/\bsk-(?:live|test|proj|ant)?[a-zA-Z0-9_-]{20,}\b/g, '[REDACTED_SECRET]');
         // Telegram Bot tokens (digits:alphanumeric)
         text = text.replace(/\b\d{8,12}:[a-zA-Z0-9_-]{30,45}\b/g, '[REDACTED_SECRET]');
+        // Firstwin action tokens (fwa_...)
+        text = text.replace(/\bfwa_[a-zA-Z0-9_-]{20,}\b/g, '[REDACTED_SECRET]');
         // Bearer headers
         text = text.replace(/Bearer\s+[a-zA-Z0-9_.\-~+/=]{20,}/gi, 'Bearer [REDACTED_SECRET]');
         // Key-value pairs for passwords, tokens, secrets

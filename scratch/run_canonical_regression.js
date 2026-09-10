@@ -72,7 +72,13 @@ const suites = [
     'test_phase8a_quotas_and_security.js',
     'test_phase8a_vault_and_keys.js',
     'test_phase8a_dlp_and_injection.js',
-    'test_phase8a_auth_and_rpc_abuse.js'
+    'test_phase8a_auth_and_rpc_abuse.js',
+    'test_phase8b_dlp_and_deidentification.js',
+    'test_phase8b_protocol_generation.js',
+    'test_phase8b_hitl_invariants.js',
+    'test_phase8b_atomic_apply_rpc.js',
+    'test_phase8b_browser_e2e.js',
+    'test_phase8b_rls_and_isolation.js'
 ];
 
 async function run() {

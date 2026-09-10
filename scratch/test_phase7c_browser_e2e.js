@@ -16,6 +16,7 @@
 
 const puppeteer = require('puppeteer');
 const http = require('http');
+const { getOwnerPassword } = require('./auth_test_helper.js');
 
 function assert(condition, message) {
     if (!condition) {
@@ -75,7 +76,7 @@ async function run() {
 
         await page.waitForSelector('#auth-email-pwd', { timeout: 10000 });
         await page.type('#auth-email-pwd', 'anzaitseva96@gmail.com');
-        await page.type('#auth-password', process.env.OWNER_PASSWORD || process.env.OWNER_PASSWORD);
+        await page.type('#auth-password', getOwnerPassword());
         await page.click('#btn-submit-pwd');
 
         await page.waitForSelector('.portal-sidebar', { timeout: 15000 });
@@ -165,8 +166,12 @@ async function run() {
 
         // 9. Test Revoke Action
         console.log("\n--- 9. Testing Revoke Action ---");
-        await page.waitForSelector('.btn-revoke-cal', { timeout: 5000 });
-        await page.click('.btn-revoke-cal');
+        await page.waitForSelector('.btn-revoke-cal', { visible: true, timeout: 5000 });
+        await new Promise(r => setTimeout(r, 400));
+        await page.evaluate(() => {
+            const btn = document.querySelector('.btn-revoke-cal');
+            if (btn) btn.click();
+        });
         await page.waitForFunction(() => {
             const tbody = document.getElementById('calendars-table-body');
             return tbody && tbody.textContent.includes('Відкликаний');
@@ -179,8 +184,12 @@ async function run() {
 
         // 10. Test Delete Action
         console.log("\n--- 10. Testing Delete Action ---");
-        await page.waitForSelector('.btn-delete-cal', { timeout: 5000 });
-        await page.click('.btn-delete-cal');
+        await page.waitForSelector('.btn-delete-cal', { visible: true, timeout: 5000 });
+        await new Promise(r => setTimeout(r, 400));
+        await page.evaluate(() => {
+            const btn = document.querySelector('.btn-delete-cal');
+            if (btn) btn.click();
+        });
         await page.waitForFunction((deletedName) => {
             const tbody = document.getElementById('calendars-table-body');
             return tbody && !tbody.textContent.includes(deletedName);

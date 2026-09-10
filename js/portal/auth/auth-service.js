@@ -241,6 +241,10 @@ class AuthService {
 
 
 
+    getAccessToken() {
+        return this.session?.access_token || null;
+    }
+
     /**
      * Sign out current user.
      */

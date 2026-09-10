@@ -86,6 +86,9 @@ export async function initMeetingDetailEvents(meetingId) {
                     ` : ""}
 
                     ${canManage ? `
+                        <button class="btn btn-sm btn-primary" id="btn-ai-meeting-intelligence" style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border: none; color: #fff; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                            <i data-lucide="sparkles" style="width: 14px; height: 14px;"></i> AI Протокол та Задачі
+                        </button>
                         <button class="btn btn-sm btn-primary" id="btn-schedule-next-meeting">
                             <i data-lucide="calendar-plus" style="width: 14px; height: 14px;"></i> Запланувати наступну
                         </button>
@@ -529,6 +532,11 @@ export async function initMeetingDetailEvents(meetingId) {
 function setupMeetingDetailActions(meeting, reload) {
     const meetingId = meeting.id;
 
+    // 0. AI Meeting Intelligence
+    document.getElementById("btn-ai-meeting-intelligence")?.addEventListener("click", () => {
+        openMeetingIntelligenceModal(meeting, reload);
+    });
+
     // 1. Complete Meeting
     document.getElementById("btn-complete-meeting")?.addEventListener("click", async () => {
         if (!confirm("Завершити зустріч? Всі зафіксовані рішення та Action Items залишаться активними.")) return;
@@ -559,6 +567,7 @@ function setupMeetingDetailActions(meeting, reload) {
             meeting.organization_id
         );
     });
+
 
     // 4. Add Recording URL
     document.getElementById("btn-add-recording")?.addEventListener("click", async () => {
@@ -1041,6 +1050,391 @@ async function openLinkDocumentModal(meeting, onLinked) {
         else {
             closeModal();
             onLinked();
+        }
+    });
+}
+
+/**
+ * Phase 8B: Interactive Human-in-the-Loop Meeting Intelligence Modal
+ */
+async function openMeetingIntelligenceModal(meeting, onApplied) {
+    const mount = document.getElementById("meeting-detail-modal-mount") || document.body;
+
+    // Load available contacts & users for assignment
+    const { data: contactsData } = await DataClient.getContactsByOrg(meeting.organization_id);
+    const { data: staffData } = await DataClient.getStaffProfiles();
+    const clientContacts = contactsData || (meeting.participants || []).filter(p => p.contact).map(p => p.contact);
+    const internalUsers = staffData || (meeting.participants || []).filter(p => p.user).map(p => p.user);
+
+    const modalHtml = `
+        <div class="portal-modal-backdrop" id="ai-meeting-backdrop">
+            <div class="portal-modal" style="max-width: 820px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="portal-modal-header" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%); border-bottom: 1px solid rgba(99, 102, 241, 0.2);">
+                    <div class="portal-modal-title" style="display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="sparkles" style="color: #6366f1;"></i>
+                        <span>AI Meeting Intelligence: Протокол та Кандидати в завдання</span>
+                    </div>
+                    <button class="portal-modal-close" id="btn-close-ai-modal">&times;</button>
+                </div>
+
+                <div id="ai-modal-body" class="portal-modal-body" style="overflow-y: auto; flex: 1; padding: 20px;">
+                    <!-- Stage 1: Input -->
+                    <div id="ai-stage-input">
+                        <div style="margin-bottom: 14px; font-size: 0.92rem; color: var(--text-secondary); line-height: 1.5;">
+                            Введіть або вставте сирі нотатки зустрічі чи транскрипт. Штучний інтелект сформує структуроване резюме, список рішень та кандидатів у задачі:
+                        </div>
+
+                        <div class="portal-form-group" style="margin-bottom: 12px;">
+                            <textarea id="ai-raw-notes-input" class="portal-textarea" style="min-height: 180px; font-family: inherit; font-size: 0.9rem;" placeholder="Наприклад: Обговорили перенесення релізу. Олександр Коваленко зобов'язався надати макети до п'ятниці. Клієнт затвердить бриф до середи. Вирішили перенести реліз на 2 дні..."></textarea>
+                        </div>
+
+                        ${(meeting.notes && meeting.notes.length > 0) ? `
+                            <div style="margin-bottom: 14px;">
+                                <button type="button" class="btn btn-sm btn-outline" id="btn-import-existing-notes" style="font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i data-lucide="file-text" style="width: 13px; height: 13px;"></i> Підтягнути наявні нотатки (${meeting.notes.length})
+                                </button>
+                            </div>
+                        ` : ""}
+
+                        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; gap: 10px; font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 18px;">
+                            <i data-lucide="shield-check" style="color: var(--color-success); width: 20px; height: 20px; flex-shrink: 0;"></i>
+                            <span><strong>Захист конфіденційності (DLP):</strong> Імена учасників та контактні дані автоматично деідентифікуються перед відправкою до ШІ. Зворотне призначення виконавців здійснюється локально у вашому браузері.</span>
+                        </div>
+
+                        <div class="portal-modal-actions" style="border-top: 1px solid var(--border-color); padding-top: 14px;">
+                            <button type="button" class="btn btn-outline" id="btn-cancel-ai-modal">Скасувати</button>
+                            <button type="button" class="btn btn-primary" id="btn-run-ai-generation" style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border: none;">
+                                <i data-lucide="sparkles" style="width: 14px; height: 14px;"></i> Проаналізувати зустріч (AI)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="ai-stage-loading" style="display: none; text-align: center; padding: 40px 20px;">
+                        <div class="portal-spinner" style="width: 40px; height: 40px; margin: 0 auto 16px auto; border-top-color: #6366f1;"></div>
+                        <div style="font-weight: 600; font-size: 1.05rem; color: var(--text-primary); margin-bottom: 6px;">ШІ аналізує матеріали зустрічі...</div>
+                        <div style="font-size: 0.88rem; color: var(--text-muted);">Застосовується DLP-маскування, деідентифікація та витяг структурованого протоколу.</div>
+                    </div>
+
+                    <!-- Stage 2: Review & Curation (Human-in-the-Loop) -->
+                    <div id="ai-stage-review" style="display: none; flex-direction: column; gap: 20px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const div = document.createElement("div");
+    div.innerHTML = modalHtml;
+    mount.appendChild(div);
+    if (window.lucide) window.lucide.createIcons();
+
+    const closeModal = () => div.remove();
+    document.getElementById("btn-close-ai-modal")?.addEventListener("click", closeModal);
+    document.getElementById("btn-cancel-ai-modal")?.addEventListener("click", closeModal);
+
+    // Import existing notes
+    document.getElementById("btn-import-existing-notes")?.addEventListener("click", () => {
+        const text = (meeting.notes || []).map(n => n.body).join("\n\n");
+        const textarea = document.getElementById("ai-raw-notes-input");
+        if (textarea) textarea.value = text;
+    });
+
+    // Run AI Generation
+    document.getElementById("btn-run-ai-generation")?.addEventListener("click", async () => {
+        const notes = document.getElementById("ai-raw-notes-input")?.value?.trim();
+        if (!notes) {
+            alert("Будь ласка, введіть або вставте нотатки зустрічі для аналізу.");
+            return;
+        }
+
+        const inputStage = document.getElementById("ai-stage-input");
+        const loadingStage = document.getElementById("ai-stage-loading");
+
+        inputStage.style.display = "none";
+        loadingStage.style.display = "block";
+
+        const res = await DataClient.generateMeetingIntelligence(meeting.id, notes);
+        loadingStage.style.display = "none";
+
+        if (res.error || !res.data) {
+            alert("Помилка аналізу ШІ: " + (res.error?.message || "Не вдалося згенерувати протокол"));
+            inputStage.style.display = "block";
+            return;
+        }
+
+        const { artifact, aiResult } = res.data;
+        renderReviewStage(artifact, aiResult, clientContacts, internalUsers, meeting, closeModal, onApplied);
+    });
+}
+
+function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, meeting, closeModal, onApplied) {
+    const reviewStage = document.getElementById("ai-stage-review");
+    if (!reviewStage) return;
+
+    reviewStage.style.display = "flex";
+
+    const summary = aiResult.summary || "";
+    const decisions = Array.isArray(aiResult.decisions) ? aiResult.decisions : [];
+    const actions = Array.isArray(aiResult.candidate_actions) ? aiResult.candidate_actions : [];
+
+    reviewStage.innerHTML = `
+        <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: var(--text-primary); margin-bottom: 4px;">
+                <i data-lucide="check-circle" style="color: var(--color-success); width: 18px; height: 18px;"></i>
+                <span>Чернетка протоколу сформована (Human-in-the-Loop)</span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Перевірте та за потреби відредагуйте зміст. Жодна задача не створюється автоматично без вашого підтвердження.
+            </div>
+        </div>
+
+        <!-- Section 1: Summary -->
+        <div class="portal-card" style="padding: 16px; border-left: 4px solid #6366f1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <label style="font-weight: 700; font-size: 0.92rem; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="file-text" style="width: 15px; height: 15px; color: #6366f1;"></i>
+                    <span>Резюме зустрічі (Summary)</span>
+                </label>
+                <label style="font-size: 0.82rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="cb-apply-summary" checked>
+                    <span>Зберегти в нотатки зустрічі</span>
+                </label>
+            </div>
+            <textarea id="edit-ai-summary" class="portal-textarea" style="min-height: 80px; font-size: 0.88rem;">${escapeHtml(summary)}</textarea>
+        </div>
+
+        <!-- Section 2: Decisions -->
+        <div class="portal-card" style="padding: 16px; border-left: 4px solid var(--color-success);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="check-square" style="width: 15px; height: 15px; color: var(--color-success);"></i>
+                    <span>Зафіксовані рішення (<span id="decisions-count-badge">${decisions.length}</span>)</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline" id="btn-add-ai-decision" style="font-size: 0.78rem;">
+                    <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Додати рішення
+                </button>
+            </div>
+
+            <div id="ai-decisions-container" style="display: flex; flex-direction: column; gap: 8px;">
+                ${decisions.map((dec, idx) => `
+                    <div class="ai-decision-row" style="display: flex; gap: 8px; align-items: center; background: var(--bg-surface); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                        <input type="text" class="portal-input ai-decision-text" style="flex: 1; font-size: 0.88rem;" value="${escapeHtml(dec)}">
+                        <label style="font-size: 0.78rem; display: flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--text-secondary); cursor: pointer;" title="Видимо клієнту в кабінеті">
+                            <input type="checkbox" class="ai-decision-client-vis" checked> Клієнту
+                        </label>
+                        <button type="button" class="btn btn-sm btn-delete-ai-decision" style="color: var(--color-danger); padding: 4px 8px; border: none; background: transparent;">
+                            &times;
+                        </button>
+                    </div>
+                `).join("")}
+            </div>
+        </div>
+
+        <!-- Section 3: Candidate Tasks -->
+        <div class="portal-card" style="padding: 16px; border-left: 4px solid var(--color-warning);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                    <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="target" style="width: 15px; height: 15px; color: var(--color-warning);"></i>
+                        <span>Кандидати в завдання (<span id="candidates-count-badge">${actions.length}</span>)</span>
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                        Оберіть задачі для створення в проєкті та відредагуйте деталі:
+                    </div>
+                </div>
+            </div>
+
+            <div id="ai-candidates-container" style="display: flex; flex-direction: column; gap: 12px;">
+                ${actions.map((act, idx) => {
+                    const isClient = act.responsibility === "client";
+                    return `
+                        <div class="ai-candidate-card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                <input type="checkbox" class="ai-candidate-cb" style="margin-top: 4px; width: 18px; height: 18px;" checked>
+                                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                                    <input type="text" class="portal-input ai-candidate-title" style="font-weight: 600; font-size: 0.92rem;" value="${escapeHtml(act.title || "")}" placeholder="Назва завдання *">
+                                    <textarea class="portal-textarea ai-candidate-desc" style="min-height: 50px; font-size: 0.85rem;" placeholder="Опис завдання">${escapeHtml(act.description || "")}</textarea>
+                                </div>
+                            </div>
+
+                            <!-- Meta Bar: Responsibility, Assignee, Priority, Due Date -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; padding-left: 28px; font-size: 0.82rem;">
+                                <div>
+                                    <label style="color: var(--text-muted); margin-bottom: 3px; display: block;">Відповідальність</label>
+                                    <select class="portal-select ai-candidate-resp" style="font-size: 0.82rem; padding: 4px 8px;">
+                                        <option value="internal" ${!isClient ? "selected" : ""}>🔵 Внутрішня</option>
+                                        <option value="client" ${isClient ? "selected" : ""}>🟣 Дія клієнта</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style="color: var(--text-muted); margin-bottom: 3px; display: block;">Виконавець</label>
+                                    <select class="portal-select ai-candidate-assignee" style="font-size: 0.82rem; padding: 4px 8px;">
+                                        <option value="">— Не призначено —</option>
+                                        ${isClient ? (
+                                            clientContacts.map(c => `
+                                                <option value="${c.id}">${escapeHtml(c.first_name || "")} ${escapeHtml(c.last_name || "")} (${escapeHtml(c.position || "Клієнт")})</option>
+                                            `).join("")
+                                        ) : (
+                                            internalUsers.map(u => `
+                                                <option value="${u.id}">${escapeHtml(u.full_name || u.email)}</option>
+                                            `).join("")
+                                        )}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style="color: var(--text-muted); margin-bottom: 3px; display: block;">Пріоритет</label>
+                                    <select class="portal-select ai-candidate-prio" style="font-size: 0.82rem; padding: 4px 8px;">
+                                        <option value="low" ${act.priority === "low" ? "selected" : ""}>Низький</option>
+                                        <option value="medium" ${act.priority === "medium" || !act.priority ? "selected" : ""}>Середній</option>
+                                        <option value="high" ${act.priority === "high" ? "selected" : ""}>Високий</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style="color: var(--text-muted); margin-bottom: 3px; display: block;">Термін виконання</label>
+                                    <input type="date" class="portal-input ai-candidate-due" style="font-size: 0.82rem; padding: 4px 8px;">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join("")}
+            </div>
+        </div>
+
+        <!-- Sticky Footer Actions -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 10px;">
+            <button type="button" class="btn btn-outline" id="btn-cancel-ai-review">Скасувати</button>
+            <button type="button" class="btn btn-primary" id="btn-apply-ai-items" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                <i data-lucide="check" style="width: 16px; height: 16px;"></i> Застосувати та створити в проєкті
+            </button>
+        </div>
+    `;
+
+    if (window.lucide) window.lucide.createIcons();
+
+    document.getElementById("btn-cancel-ai-review")?.addEventListener("click", closeModal);
+
+    // Dynamic addition of decision rows
+    document.getElementById("btn-add-ai-decision")?.addEventListener("click", () => {
+        const container = document.getElementById("ai-decisions-container");
+        if (!container) return;
+        const newRow = document.createElement("div");
+        newRow.className = "ai-decision-row";
+        newRow.style = "display: flex; gap: 8px; align-items: center; background: var(--bg-surface); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);";
+        newRow.innerHTML = `
+            <input type="text" class="portal-input ai-decision-text" style="flex: 1; font-size: 0.88rem;" placeholder="Текст рішення...">
+            <label style="font-size: 0.78rem; display: flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--text-secondary); cursor: pointer;">
+                <input type="checkbox" class="ai-decision-client-vis" checked> Клієнту
+            </label>
+            <button type="button" class="btn btn-sm btn-delete-ai-decision" style="color: var(--color-danger); padding: 4px 8px; border: none; background: transparent;">
+                &times;
+            </button>
+        `;
+        container.appendChild(newRow);
+        newRow.querySelector(".btn-delete-ai-decision").addEventListener("click", () => newRow.remove());
+    });
+
+    // Delete decision handlers
+    reviewStage.querySelectorAll(".btn-delete-ai-decision").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.target.closest(".ai-decision-row")?.remove();
+        });
+    });
+
+    // Switch assignees when responsibility changes
+    reviewStage.querySelectorAll(".ai-candidate-card").forEach(card => {
+        const respSelect = card.querySelector(".ai-candidate-resp");
+        const assigneeSelect = card.querySelector(".ai-candidate-assignee");
+        respSelect?.addEventListener("change", () => {
+            const isClient = respSelect.value === "client";
+            assigneeSelect.innerHTML = `<option value="">— Не призначено —</option>` + (
+                isClient ? (
+                    clientContacts.map(c => `
+                        <option value="${c.id}">${escapeHtml(c.first_name || "")} ${escapeHtml(c.last_name || "")} (${escapeHtml(c.position || "Клієнт")})</option>
+                    `).join("")
+                ) : (
+                    internalUsers.map(u => `
+                        <option value="${u.id}">${escapeHtml(u.full_name || u.email)}</option>
+                    `).join("")
+                )
+            );
+        });
+    });
+
+    // Apply Handler (Atomic Commit)
+    document.getElementById("btn-apply-ai-items")?.addEventListener("click", async () => {
+        console.log('[AI Modal] apply button clicked');
+        const applyBtn = document.getElementById("btn-apply-ai-items");
+        if (applyBtn) {
+            applyBtn.disabled = true;
+            applyBtn.innerHTML = `<div class="portal-spinner" style="width: 14px; height: 14px; border-width: 2px; margin-right: 6px;"></div> Створення завдань...`;
+        }
+
+        const applySummary = document.getElementById("cb-apply-summary")?.checked || false;
+        const summaryText = document.getElementById("edit-ai-summary")?.value?.trim() || "";
+
+        // Collect decisions
+        const decisionsToApply = [];
+        reviewStage.querySelectorAll(".ai-decision-row").forEach(row => {
+            const text = row.querySelector(".ai-decision-text")?.value?.trim();
+            const vis = row.querySelector(".ai-decision-client-vis")?.checked ?? true;
+            if (text) {
+                decisionsToApply.push({ decision_text: text, is_client_visible: vis });
+            }
+        });
+
+        // Collect selected action items
+        const actionItemsToApply = [];
+        reviewStage.querySelectorAll(".ai-candidate-card").forEach(card => {
+            const isChecked = card.querySelector(".ai-candidate-cb")?.checked;
+            if (!isChecked) return;
+
+            const title = card.querySelector(".ai-candidate-title")?.value?.trim();
+            if (!title) return;
+
+            const description = card.querySelector(".ai-candidate-desc")?.value?.trim() || "";
+            const respType = card.querySelector(".ai-candidate-resp")?.value || "internal";
+            const assigneeVal = card.querySelector(".ai-candidate-assignee")?.value || null;
+            const priority = card.querySelector(".ai-candidate-prio")?.value || "medium";
+            const dueDate = card.querySelector(".ai-candidate-due")?.value || null;
+
+            actionItemsToApply.push({
+                title,
+                description,
+                responsibility_type: respType,
+                priority,
+                due_date: dueDate,
+                assignee_user_id: respType === "internal" ? assigneeVal : null,
+                client_contact_id: respType === "client" ? assigneeVal : null,
+                is_client_visible: respType === "client"
+            });
+        });
+
+        const res = await DataClient.applyMeetingIntelligence(artifact.id, {
+            applySummary,
+            summaryText,
+            decisions: decisionsToApply,
+            actionItems: actionItemsToApply
+        });
+
+        if (res.error) {
+            alert("Помилка створення: " + res.error.message);
+            if (applyBtn) {
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px;"></i> Застосувати та створити в проєкті`;
+                if (window.lucide) window.lucide.createIcons();
+            }
+            return;
+        }
+
+        try {
+            closeModal();
+            if (typeof onApplied === 'function') onApplied();
+        } catch (err) {
+            console.error('[AI Modal] error in closeModal/onApplied:', err);
         }
     });
 }

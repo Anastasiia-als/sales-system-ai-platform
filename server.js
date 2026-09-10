@@ -43,6 +43,19 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_CZwi_
 const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const aiGateway = new AIGateway();
 
+let aiMockMode = process.env.AI_MOCK_TRANSPORT === 'true';
+function setAIMockMode(enabled) {
+    aiMockMode = Boolean(enabled);
+    if (enabled) {
+        process.env.AI_MOCK_TRANSPORT = 'true';
+    } else {
+        delete process.env.AI_MOCK_TRANSPORT;
+    }
+}
+function getAIMockMode() {
+    return Boolean(aiMockMode || process.env.AI_MOCK_TRANSPORT === 'true');
+}
+
 async function authenticateAndAuthorizeAIRequest(req, payload) {
     const authHeader = req.headers['authorization'] || '';
     if (!authHeader.startsWith('Bearer ')) {
@@ -245,6 +258,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+
     // AI Gateway Generate Structured Endpoint (Phase 8A)
     if (reqPath === '/api/v1/ai/generate-structured') {
         if (req.method === 'OPTIONS') {
@@ -281,7 +295,7 @@ const server = http.createServer(async (req, res) => {
                     featureName: payload.featureName,
                     templateKey: payload.templateKey,
                     variables: payload.variables || {},
-                    provider: payload.provider || null,
+                    provider: payload.provider || (getAIMockMode() ? 'mock' : null),
                     model: payload.model || null,
                     estimatedTokens: payload.estimatedTokens || 1500
                 });
@@ -341,7 +355,7 @@ const server = http.createServer(async (req, res) => {
         }
         if (req.method === 'GET') {
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
-            res.end(JSON.stringify({ mock: process.env.AI_MOCK_TRANSPORT === 'true' }));
+            res.end(JSON.stringify({ mock: getAIMockMode() }));
             return;
         }
         if (req.method === 'POST') {
@@ -350,9 +364,9 @@ const server = http.createServer(async (req, res) => {
             req.on('end', () => {
                 try {
                     const data = JSON.parse(bodyStr || '{}');
-                    process.env.AI_MOCK_TRANSPORT = data.enabled ? 'true' : 'false';
+                    setAIMockMode(Boolean(data.enabled));
                     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
-                    res.end(JSON.stringify({ ok: true, mock: process.env.AI_MOCK_TRANSPORT === 'true' }));
+                    res.end(JSON.stringify({ ok: true, mock: getAIMockMode() }));
                 } catch (err) {
                     res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
                     res.end(JSON.stringify({ ok: false, error: err.message }));

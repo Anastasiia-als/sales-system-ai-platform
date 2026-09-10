@@ -4802,6 +4802,157 @@ export const DataClient = {
             return { data: null, error };
         }
         return { data: true, error: null };
+    },
+
+    /**
+     * Phase 8B: Generate Meeting Intelligence (Summary, Decisions, Candidate Tasks) via AIGateway
+     */
+    async generateMeetingIntelligence(meetingId, rawNotes) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        // 1. Fetch meeting with full context
+        const { data: meeting, error: mErr } = await this.getMeetingById(meetingId);
+        if (mErr || !meeting) {
+            return { data: null, error: mErr || new Error("Meeting not found") };
+        }
+
+        // 2. Prepare participants list for de-identification & prompt
+        const participantsList = (meeting.participants || []).map((p, idx) => {
+            if (p.user) {
+                return {
+                    name: p.user.full_name || p.user.email,
+                    role: 'Internal Team Member',
+                    alias: `Team Member ${idx + 1}`
+                };
+            }
+            if (p.contact) {
+                const name = `${p.contact.first_name || ''} ${p.contact.last_name || ''}`.trim();
+                return {
+                    name: name || p.contact.email,
+                    role: p.contact.position || 'Client Representative',
+                    alias: `Client Contact ${idx + 1}`
+                };
+            }
+            return { name: `Participant ${idx + 1}`, role: 'Participant', alias: `Participant ${idx + 1}` };
+        });
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) {
+            return { data: null, error: new Error("Unauthorized - please sign in") };
+        }
+
+        // 3. Request structured AI generation from server
+        const baseUrl = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost:8002';
+        const response = await fetch(`${baseUrl}/api/v1/ai/generate-structured`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                templateKey: 'meeting_intelligence_v1',
+                featureName: 'meeting_intelligence',
+                variables: {
+                    project_name: meeting.project?.name || meeting.project?.title || "Default Project",
+                    organization_name: meeting.organization?.name || "Default Organization",
+                    participants: participantsList,
+                    raw_notes: rawNotes
+                },
+                organizationId: meeting.organization_id
+            })
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+            return { data: null, error: new Error(result.error || "AI generation failed") };
+        }
+
+        // 4. Compute input hash
+        let hash = '';
+        try {
+            if (typeof crypto !== 'undefined' && crypto.subtle) {
+                const msgUint8 = new TextEncoder().encode(rawNotes);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+                hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            } else {
+                hash = 'h_' + Date.now();
+            }
+        } catch (_) {
+            hash = 'h_' + Date.now();
+        }
+
+        // 5. Store Draft Artifact
+        const { data: artifact, error: artErr } = await supabase
+            .from('meeting_ai_artifacts')
+            .insert({
+                organization_id: meeting.organization_id,
+                project_id: meeting.project_id,
+                meeting_id: meeting.id,
+                generation_log_id: result.logId || null,
+                status: 'draft',
+                raw_input_hash: hash,
+                summary: result.data?.summary || '',
+                decisions: result.data?.decisions || [],
+                candidate_actions: result.data?.candidate_actions || []
+            })
+            .select()
+            .single();
+
+        if (artErr) {
+            console.error('[DataClient] Error storing meeting_ai_artifact:', artErr);
+            return { data: null, error: artErr };
+        }
+
+        return {
+            data: {
+                artifact,
+                aiResult: result.data,
+                participantsList,
+                meeting
+            },
+            error: null
+        };
+    },
+
+    /**
+     * Phase 8B: Fetch meeting intelligence artifacts for a meeting
+     */
+    async getMeetingAIArtifacts(meetingId) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: [], error: new Error("Database not connected") };
+
+        const { data, error } = await supabase
+            .from('meeting_ai_artifacts')
+            .select('*')
+            .eq('meeting_id', meetingId)
+            .order('created_at', { ascending: false });
+
+        return { data: data || [], error };
+    },
+
+    /**
+     * Phase 8B: Apply curated meeting intelligence items (summary, decisions, tasks) atomically via RPC
+     */
+    async applyMeetingIntelligence(artifactId, payload) {
+        const supabase = await getSupabase();
+        if (!supabase) return { data: null, error: new Error("Database not connected") };
+
+        const { data, error } = await supabase.rpc('apply_meeting_intelligence_items', {
+            p_artifact_id: artifactId,
+            p_apply_summary: payload.applySummary !== false,
+            p_summary_text: payload.summaryText || '',
+            p_decisions: payload.decisions || [],
+            p_action_items: payload.actionItems || []
+        });
+
+        if (error) {
+            console.error('[DataClient] applyMeetingIntelligence error:', error);
+            return { data: null, error };
+        }
+
+        return { data, error: null };
     }
 };
 
