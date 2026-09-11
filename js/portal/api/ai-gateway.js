@@ -551,11 +551,14 @@ class AIGateway {
 
             // 2. Action Matchers
             const isExplicitAction = /^(?:дія\s*\d*|завдання|задача|action\s*\d*|task|todo)[:\s]/iu.test(cleanSentence);
-            const startsWithAction = /^(?:потрібно|необхідно|слід)(?!\p{L})/iu.test(cleanSentence);
-            const isActionVerb = /(?<!\p{L})(?:підготує|перевірить|надасть|розробить|налаштує|має надати|повинен|зобов'язався|організує|проведе|виконає|створить|виправить|опрацює|протестує|оновить)(?!\p{L})/iu.test(cleanSentence)
-                || (parseDueDate(cleanSentence) && /(?<!\p{L})(?:підготувати|перевірити|надати|зробити|виконати|створити|виправити|опрацювати|протестувати|оновити)(?!\p{L})/iu.test(cleanSentence));
+            const startsWithAction = /^(?:потрібно|необхідно|слід|варто)(?!\p{L})/iu.test(cleanSentence);
+            const isModalAction = /(?<!\p{L})(?:має|повинен|повинна|повинні|зобов'язаний|зобов'язана|зобов'язані|зобов'язався|зобов'язалася|мусить)\s+(?:[\p{L}]+\s+)?[\p{L}]+(?:ти|тися|тись|ть)(?!\p{L})/iu.test(cleanSentence);
+            const is3rdPersonAction = /(?<!\p{L})(?:підготує|перевірить|надасть|передасть|розробить|налаштує|виконає|створить|виправить|опрацює|протестує|оновить|надішле|відправить|затвердить|погодить|узгодить|організує|проведе)(?!\p{L})/iu.test(cleanSentence);
+            const hasDueDateAndInfinitive = !!(parseDueDate(cleanSentence) && /(?<!\p{L})[\p{L}]+(?:ти|тися|тись|ть)(?!\p{L})/iu.test(cleanSentence));
 
-            if (isExplicitDecision || startsWithDecision || (containsDecision && !isExplicitAction && !isActionVerb)) {
+            const isActionItem = isExplicitAction || startsWithAction || isModalAction || is3rdPersonAction || hasDueDateAndInfinitive;
+
+            if (isExplicitDecision || startsWithDecision || (containsDecision && !isExplicitAction && !isActionItem)) {
                 let decText = cleanSentence
                     .replace(/^(?:рішення|погоджено|decision)[:\s]*/iu, '')
                     .replace(/^(?:також\s+)?(?:погодили,\s*що|вирішили,\s*що|домовилися,\s*що|прийнято рішення,\s*що)\s*/iu, '')
@@ -565,19 +568,22 @@ class AIGateway {
                     decText = decText.charAt(0).toUpperCase() + decText.slice(1);
                     decisions.push(decText);
                 }
-            } else if (isExplicitAction || startsWithAction || isActionVerb) {
+            } else if (isActionItem) {
                 const dueDate = parseDueDate(cleanSentence);
                 const isClient = /(?<!\p{L})(?:клієнт|замовник|client)(?!\p{L})/iu.test(cleanSentence);
 
                 let priority = 'medium';
-                if (/(?<!\p{L})(?:high|urgent|critical|термінов\p{L}*|висок\p{L}*|критичн\p{L}*)(?!\p{L})/iu.test(cleanSentence)) priority = 'high';
-                if (/(?<!\p{L})(?:low|низьк\p{L}*)(?!\p{L})/iu.test(cleanSentence)) priority = 'low';
+                if (/(?<!\p{L})(?:low|низьк\p{L}*|не\s*термінов\p{L}*|нетермінов\p{L}*)(?!\p{L})/iu.test(cleanSentence)) {
+                    priority = 'low';
+                } else if (/(?<!\p{L})(?:high|urgent|critical|термінов\p{L}*|критичн\p{L}*|висок\p{L}*|найвищ\p{L}*|негайн\p{L}*|пріоритетн\p{L}*)(?!\p{L})/iu.test(cleanSentence)) {
+                    priority = 'high';
+                }
 
                 let assigneeName = null;
                 if (isClient) {
                     assigneeName = "Клієнт";
                 } else {
-                    const nameMatch = cleanSentence.match(/^([А-ЯІЇЄҐA-Z][а-яіїєґa-z]+)\s+(?:підготує|перевірить|надасть|розробить|налаштує|має|виконає|створить|виправить|опрацює|протестує|оновить)/u);
+                    const nameMatch = cleanSentence.match(/^([А-ЯІЇЄҐA-Z][а-яіїєґa-z]+)\s+(?:має|повинен|повинна|зобов'язаний|зобов'язана|підготує|перевірить|надасть|передасть|розробить|налаштує|виконає|створить|виправить|опрацює|протестує|оновить|надішле|відправить|затвердить|погодить|узгодить|організує|проведе)/u);
                     if (nameMatch) {
                         assigneeName = nameMatch[1];
                     } else if (Array.isArray(variables.participants)) {
@@ -594,23 +600,31 @@ class AIGateway {
                 let title = cleanSentence;
                 // Strip explicit action prefix e.g. "Дія 1: ", "Завдання: "
                 title = title.replace(/^(?:дія\s*\d*|завдання|задача|action\s*\d*|task|todo)[:\s]*/iu, '');
-                // Strip "Потрібно ", "Необхідно "
-                title = title.replace(/^(?:потрібно|необхідно|слід)\s+/iu, '');
-                // Strip assignee name from beginning
+                // Strip "Потрібно ", "Необхідно ", "Слід ", "Варто "
+                title = title.replace(/^(?:потрібно|необхідно|слід|варто)\s+/iu, '');
+                // Strip assignee name or client from beginning
                 if (assigneeName) {
                     title = title.replace(new RegExp(`^${assigneeName}\\s+`, 'iu'), '');
                 }
-                // Strip trailing metadata like (internal, high) or due dates
+                if (isClient) {
+                    title = title.replace(/^(?:клієнт|замовник|client)\s+/iu, '');
+                }
+                // Strip modal verbs from beginning: має, повинен, повинна, тощо
+                title = title.replace(/^(?:має|повинен|повинна|повинні|зобов'язаний|зобов'язана|зобов'язані|мусить)\s+/iu, '');
+                // Strip leading adverbs: терміново, обов'язково, тощо
+                title = title.replace(/^(?:терміново|негайно|оперативно|обов'язково|критично|швидко)\s+/iu, '');
+                // Strip trailing metadata like (internal, high) or due dates or priority clauses
                 title = title.replace(/\s*\([^)]*\)\s*$/, '');
-                title = title.replace(/\s+до\s+\d{1,2}.*$/iu, '');
+                title = title.replace(/,\s*(?:пріоритет\s+[\p{L}]+|[\p{L}]+\s+пріоритет|терміново|критично|low\s+priority|high\s+priority)\s*$/iu, '');
+                title = title.replace(/\s+(?:до|на)\s+\d{1,2}(?:\s+[\p{L}]+|[./]\d{1,2}(?:[./]\d{2,4})?).*$/iu, '');
+                title = title.replace(/,\s*(?:пріоритет\s+[\p{L}]+|[\p{L}]+\s+пріоритет|терміново|критично|low\s+priority|high\s+priority)\s*$/iu, '');
 
                 // Conjugate verb to infinitive
                 title = title
-                    .replace(/^має\s+надати(?!\p{L})/iu, 'Надати')
-                    .replace(/^має(?!\p{L})/iu, '')
                     .replace(/^підготує(?!\p{L})/iu, 'Підготувати')
                     .replace(/^перевірить(?!\p{L})/iu, 'Перевірити')
                     .replace(/^надасть(?!\p{L})/iu, 'Надати')
+                    .replace(/^передасть(?!\p{L})/iu, 'Передати')
                     .replace(/^розробить(?!\p{L})/iu, 'Розробити')
                     .replace(/^налаштує(?!\p{L})/iu, 'Налаштувати')
                     .replace(/^виконає(?!\p{L})/iu, 'Виконати')
@@ -619,7 +633,15 @@ class AIGateway {
                     .replace(/^опрацює(?!\p{L})/iu, 'Опрацювати')
                     .replace(/^протестує(?!\p{L})/iu, 'Протестувати')
                     .replace(/^оновить(?!\p{L})/iu, 'Оновити')
+                    .replace(/^надішле(?!\p{L})/iu, 'Надіслати')
+                    .replace(/^відправить(?!\p{L})/iu, 'Відправити')
+                    .replace(/^затвердить(?!\p{L})/iu, 'Затвердити')
+                    .replace(/^погодить(?!\p{L})/iu, 'Погодити')
+                    .replace(/^узгодить(?!\p{L})/iu, 'Узгодити')
+                    .replace(/^організує(?!\p{L})/iu, 'Організувати')
+                    .replace(/^проведе(?!\p{L})/iu, 'Провести')
                     .replace(/(?<!\p{L})та\s+надасть(?!\p{L})/iu, 'та надати')
+                    .replace(/(?<!\p{L})та\s+передасть(?!\p{L})/iu, 'та передати')
                     .replace(/(?<!\p{L})та\s+підготує(?!\p{L})/iu, 'та підготувати')
                     .replace(/(?<!\p{L})та\s+перевірить(?!\p{L})/iu, 'та перевірити')
                     .trim();

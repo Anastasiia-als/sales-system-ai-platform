@@ -1433,7 +1433,7 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
 
                                 <div>
                                     <label style="color: var(--text-muted); margin-bottom: 3px; display: block;">Пріоритет</label>
-                                    <select class="portal-select ai-candidate-prio" style="font-size: 0.82rem; padding: 4px 8px;">
+                                    <select class="portal-select ai-candidate-prio" data-action-prio="${escapeHtml(act.priority || 'medium')}" style="font-size: 0.82rem; padding: 4px 8px;">
                                         <option value="low" ${act.priority === "low" ? "selected" : ""}>Низький</option>
                                         <option value="medium" ${act.priority === "medium" || !act.priority ? "selected" : ""}>Середній</option>
                                         <option value="high" ${act.priority === "high" ? "selected" : ""}>Високий</option>
@@ -1460,9 +1460,16 @@ function renderReviewStage(artifact, aiResult, clientContacts, internalUsers, me
         </div>
     `;
 
-    // Explicitly synchronize select.value with matched id in the DOM
+    // Explicitly synchronize select.value with matched values in the DOM
     reviewStage.querySelectorAll(".ai-candidate-assignee").forEach(sel => {
         const target = sel.getAttribute("data-matched-assignee");
+        if (target) {
+            sel.value = target;
+        }
+    });
+
+    reviewStage.querySelectorAll(".ai-candidate-prio").forEach(sel => {
+        const target = sel.getAttribute("data-action-prio");
         if (target) {
             sel.value = target;
         }
