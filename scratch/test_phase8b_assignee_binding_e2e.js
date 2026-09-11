@@ -107,6 +107,9 @@ async function run() {
                 const respValue = respSelect?.value || '';
                 const respText = respSelect?.options[respSelect.selectedIndex]?.text || '';
 
+                const prioSelect = card.querySelector('.ai-candidate-prio');
+                const prioValue = prioSelect?.value || '';
+
                 const assigneeSelect = card.querySelector('.ai-candidate-assignee');
                 const assigneeValue = assigneeSelect?.value || '';
                 const assigneeSelectedText = assigneeSelect?.options[assigneeSelect.selectedIndex]?.text || '';
@@ -116,6 +119,7 @@ async function run() {
 
                 return {
                     title,
+                    prioValue,
                     respValue,
                     respText,
                     assigneeValue,
@@ -130,6 +134,7 @@ async function run() {
         console.log("Extracted Candidate DOM States:", JSON.stringify(candidateData, null, 2));
 
         assert(candidateData.length === 3, `Exactly 3 candidate cards rendered (got ${candidateData.length})`);
+        assert(candidateData.every(c => c.prioValue === "medium"), `All 3 candidate cards have select.value = 'medium' (grounded neutral default)`);
 
         // Task 1: Anastasia
         const task1 = candidateData.find(c => c.title.includes("технічне завдання"));

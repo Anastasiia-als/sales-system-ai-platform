@@ -552,8 +552,8 @@ class AIGateway {
             // 2. Action Matchers
             const isExplicitAction = /^(?:дія\s*\d*|завдання|задача|action\s*\d*|task|todo)[:\s]/iu.test(cleanSentence);
             const startsWithAction = /^(?:потрібно|необхідно|слід)(?!\p{L})/iu.test(cleanSentence);
-            const isActionVerb = /(?<!\p{L})(?:підготує|перевірить|надасть|розробить|налаштує|має надати|повинен|зобов'язався|організує|проведе|виконає|створить)(?!\p{L})/iu.test(cleanSentence)
-                || (parseDueDate(cleanSentence) && /(?<!\p{L})(?:підготувати|перевірити|надати|зробити|виконати|створити)(?!\p{L})/iu.test(cleanSentence));
+            const isActionVerb = /(?<!\p{L})(?:підготує|перевірить|надасть|розробить|налаштує|має надати|повинен|зобов'язався|організує|проведе|виконає|створить|виправить|опрацює|протестує|оновить)(?!\p{L})/iu.test(cleanSentence)
+                || (parseDueDate(cleanSentence) && /(?<!\p{L})(?:підготувати|перевірити|надати|зробити|виконати|створити|виправити|опрацювати|протестувати|оновити)(?!\p{L})/iu.test(cleanSentence));
 
             if (isExplicitDecision || startsWithDecision || (containsDecision && !isExplicitAction && !isActionVerb)) {
                 let decText = cleanSentence
@@ -569,15 +569,15 @@ class AIGateway {
                 const dueDate = parseDueDate(cleanSentence);
                 const isClient = /(?<!\p{L})(?:клієнт|замовник|client)(?!\p{L})/iu.test(cleanSentence);
 
-                let priority = dueDate ? 'high' : 'medium';
-                if (/(?<!\p{L})(?:high|висок)/iu.test(cleanSentence)) priority = 'high';
-                if (/(?<!\p{L})(?:low|низьк)/iu.test(cleanSentence)) priority = 'low';
+                let priority = 'medium';
+                if (/(?<!\p{L})(?:high|urgent|critical|термінов\p{L}*|висок\p{L}*|критичн\p{L}*)(?!\p{L})/iu.test(cleanSentence)) priority = 'high';
+                if (/(?<!\p{L})(?:low|низьк\p{L}*)(?!\p{L})/iu.test(cleanSentence)) priority = 'low';
 
                 let assigneeName = null;
                 if (isClient) {
                     assigneeName = "Клієнт";
                 } else {
-                    const nameMatch = cleanSentence.match(/^([А-ЯІЇЄҐA-Z][а-яіїєґa-z]+)\s+(?:підготує|перевірить|надасть|розробить|налаштує|має|виконає|створить)/u);
+                    const nameMatch = cleanSentence.match(/^([А-ЯІЇЄҐA-Z][а-яіїєґa-z]+)\s+(?:підготує|перевірить|надасть|розробить|налаштує|має|виконає|створить|виправить|опрацює|протестує|оновить)/u);
                     if (nameMatch) {
                         assigneeName = nameMatch[1];
                     } else if (Array.isArray(variables.participants)) {
@@ -615,6 +615,10 @@ class AIGateway {
                     .replace(/^налаштує(?!\p{L})/iu, 'Налаштувати')
                     .replace(/^виконає(?!\p{L})/iu, 'Виконати')
                     .replace(/^створить(?!\p{L})/iu, 'Створити')
+                    .replace(/^виправить(?!\p{L})/iu, 'Виправити')
+                    .replace(/^опрацює(?!\p{L})/iu, 'Опрацювати')
+                    .replace(/^протестує(?!\p{L})/iu, 'Протестувати')
+                    .replace(/^оновить(?!\p{L})/iu, 'Оновити')
                     .replace(/(?<!\p{L})та\s+надасть(?!\p{L})/iu, 'та надати')
                     .replace(/(?<!\p{L})та\s+підготує(?!\p{L})/iu, 'та підготувати')
                     .replace(/(?<!\p{L})та\s+перевірить(?!\p{L})/iu, 'та перевірити')

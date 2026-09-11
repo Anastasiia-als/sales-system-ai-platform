@@ -81,7 +81,8 @@ const suites = [
     'test_phase8b_rls_and_isolation.js',
     'test_phase8b_raw_notes_fidelity.js',
     'test_phase8b_provider_routing.js',
-    'test_phase8b_assignee_binding_e2e.js'
+    'test_phase8b_assignee_binding_e2e.js',
+    'test_phase8b_priority_grounding.js'
 ];
 
 async function run() {

@@ -100,6 +100,7 @@ async function run() {
     assert(!!anastasiaTask, "Anastasia's task for technical specification is PRESENT");
     assert(anastasiaTask.responsibility === "internal", "Anastasia's task has responsibility 'internal'");
     assert(anastasiaTask.due_date === "2026-09-15", `Anastasia's task due date is 2026-09-15 (got ${anastasiaTask.due_date})`);
+    assert(anastasiaTask.priority === "medium", `Anastasia's task priority defaults to 'medium' (got '${anastasiaTask.priority}')`);
     assert(anastasiaTask.title.includes("Підготувати технічне завдання"), `Anastasia's task title is formatted cleanly in infinitive (got '${anastasiaTask.title}')`);
 
     // Peter's task
@@ -107,6 +108,7 @@ async function run() {
     assert(!!petroTask, "Peter's task for checking integration is PRESENT");
     assert(petroTask.responsibility === "internal", "Peter's task has responsibility 'internal'");
     assert(petroTask.due_date === "2026-09-17", `Peter's task due date is 2026-09-17 (got ${petroTask.due_date})`);
+    assert(petroTask.priority === "medium", `Peter's task priority defaults to 'medium' (got '${petroTask.priority}')`);
     assert(petroTask.title.includes("Перевірити інтеграцію"), `Peter's task title is formatted cleanly (got '${petroTask.title}')`);
 
     // Client's task
@@ -114,6 +116,7 @@ async function run() {
     assert(!!clientTask, "Client's task for Google Calendar access is PRESENT");
     assert(clientTask.responsibility === "client", "Client's task has responsibility 'client'");
     assert(clientTask.due_date === "2026-09-14", `Client's task due date is 2026-09-14 (got ${clientTask.due_date})`);
+    assert(clientTask.priority === "medium", `Client's task priority defaults to 'medium' (got '${clientTask.priority}')`);
     assert(clientTask.title.includes("Надати тестовий доступ"), `Client's task title is formatted cleanly (got '${clientTask.title}')`);
 
     assert(!data.candidate_actions.some(a => a.title.includes("Підготувати оновлену технічну специфікацію")), "Zero hallucination: stale mock task is ABSENT");
@@ -184,6 +187,11 @@ async function run() {
         assert(uiDueDates.includes("2026-09-15"), "UI has pre-filled date '2026-09-15' for Anastasia's task");
         assert(uiDueDates.includes("2026-09-17"), "UI has pre-filled date '2026-09-17' for Peter's task");
         assert(uiDueDates.includes("2026-09-14"), "UI has pre-filled date '2026-09-14' for Client's task");
+
+        const uiPriorities = await page.$$eval('.ai-candidate-card select.ai-candidate-prio', els => els.map(e => e.value));
+        console.log("UI priorities:", uiPriorities);
+        assert(uiPriorities.length === 3, `UI rendered 3 candidate priority dropdowns (got ${uiPriorities.length})`);
+        assert(uiPriorities.every(p => p === "medium"), `All UI candidates default to neutral priority 'medium' (got ${JSON.stringify(uiPriorities)})`);
 
         // Cancel modal without applying
         await page.click('#btn-cancel-ai-review');
