@@ -196,14 +196,89 @@ async function run() {
     const taskCountAfterReapply = await pool.query("SELECT COUNT(*) FROM public.tasks WHERE source_meeting_id = $1", [meetingId]);
     assert(parseInt(taskCountAfterReapply.rows[0].count, 10) === 2, "Task count remains 2 (idempotency preserved)");
 
+    // 4. Test Concurrent Double-Submit / Race Condition on Draft Artifact
+    const concurrentMeetingId = 'e6666666-6666-6666-6666-666666666666';
+    const concurrentArtifactId = 'e5555555-5555-5555-5555-555555555555';
+
+    await pool.query(
+        "INSERT INTO public.meetings (id, organization_id, project_id, title, meeting_type, status, start_at, end_at) VALUES ($1, $2, $3, 'Concurrent Race Sync', 'review', 'completed', NOW(), NOW() + interval '1 hour')",
+        [concurrentMeetingId, orgId, projId]
+    );
+
+    await pool.query(`
+        INSERT INTO public.meeting_ai_artifacts (
+            id, organization_id, project_id, meeting_id, status, raw_input_hash,
+            summary, decisions, candidate_actions
+        ) VALUES (
+            $1, $2, $3, $4, 'draft', 'hash_test_concurrent_123',
+            'Draft summary for concurrent test',
+            '["Decision Concurrent"]'::jsonb,
+            '[{"title":"Task Concurrent","responsibility":"internal","priority":"high"}]'::jsonb
+        )
+    `, [concurrentArtifactId, orgId, projId, concurrentMeetingId]);
+
+    const runConcurrentAttempt = async (attemptId) => {
+        const c = await pool.connect();
+        try {
+            await c.query("BEGIN;");
+            await c.query(`SET LOCAL request.jwt.claim.sub = '${testOwnerId}';`);
+            const res = await c.query(
+                "SELECT public.apply_meeting_intelligence_items($1, $2, $3, $4::jsonb, $5::jsonb) as res",
+                [
+                    concurrentArtifactId,
+                    true,
+                    "Concurrent applied summary",
+                    JSON.stringify([{ decision_text: `Concurrent Decision from attempt ${attemptId}`, is_client_visible: true }]),
+                    JSON.stringify([{
+                        title: `Concurrent Task from attempt ${attemptId}`,
+                        description: "Desc",
+                        responsibility_type: "internal",
+                        priority: "high"
+                    }])
+                ]
+            );
+            await c.query("COMMIT;");
+            return { attemptId, success: true, result: res.rows[0].res };
+        } catch (e) {
+            await c.query("ROLLBACK;");
+            return { attemptId, success: false, error: e.message };
+        } finally {
+            c.release();
+        }
+    };
+
+    const [attemptA, attemptB] = await Promise.all([
+        runConcurrentAttempt('A'),
+        runConcurrentAttempt('B')
+    ]);
+
+    const successes = [attemptA, attemptB].filter(a => a.success);
+    const failures = [attemptA, attemptB].filter(a => !a.success);
+
+    assert(successes.length === 1, "Exactly one concurrent attempt succeeded");
+    assert(failures.length === 1, "Exactly one concurrent attempt failed");
+    assert(failures[0].error.includes('409') || failures[0].error.includes('already been applied'), "Failed concurrent attempt received 409 Conflict");
+
+    // Verify DB integrity for concurrent artifact
+    const concurrentArtCheck = (await pool.query("SELECT * FROM public.meeting_ai_artifacts WHERE id = $1", [concurrentArtifactId])).rows[0];
+    assert(concurrentArtCheck.status === 'applied', "Concurrent artifact status transitioned to 'applied'");
+    assert(concurrentArtCheck.applied_tasks_count === 1, "applied_tasks_count is exactly 1");
+    assert(concurrentArtCheck.applied_decisions_count === 1, "applied_decisions_count is exactly 1");
+
+    const concurrentTasks = await pool.query("SELECT COUNT(*) FROM public.tasks WHERE source_meeting_id = $1", [concurrentMeetingId]);
+    assert(parseInt(concurrentTasks.rows[0].count, 10) === 1, "Exactly 1 task created in DB despite concurrent double-submit");
+
+    const concurrentDec = await pool.query("SELECT COUNT(*) FROM public.meeting_decisions WHERE meeting_id = $1", [concurrentMeetingId]);
+    assert(parseInt(concurrentDec.rows[0].count, 10) === 1, "Exactly 1 decision created in DB despite concurrent double-submit");
+
     // Clean up fixtures
     try {
         await pool.query("SET session_replication_role = 'replica';");
-        await pool.query("DELETE FROM public.tasks WHERE source_meeting_id = $1", [meetingId]);
-        await pool.query("DELETE FROM public.meeting_decisions WHERE meeting_id = $1", [meetingId]);
-        await pool.query("DELETE FROM public.meeting_notes WHERE meeting_id = $1", [meetingId]);
-        await pool.query("DELETE FROM public.meeting_ai_artifacts WHERE id = $1", [artifactId]);
-        await pool.query("DELETE FROM public.meetings WHERE id = $1", [meetingId]);
+        await pool.query("DELETE FROM public.tasks WHERE source_meeting_id IN ($1, $2)", [meetingId, concurrentMeetingId]);
+        await pool.query("DELETE FROM public.meeting_decisions WHERE meeting_id IN ($1, $2)", [meetingId, concurrentMeetingId]);
+        await pool.query("DELETE FROM public.meeting_notes WHERE meeting_id IN ($1, $2)", [meetingId, concurrentMeetingId]);
+        await pool.query("DELETE FROM public.meeting_ai_artifacts WHERE id IN ($1, $2)", [artifactId, concurrentArtifactId]);
+        await pool.query("DELETE FROM public.meetings WHERE id IN ($1, $2)", [meetingId, concurrentMeetingId]);
         await pool.query("DELETE FROM public.projects WHERE id = $1", [projId]);
         await pool.query("DELETE FROM public.organization_memberships WHERE organization_id = $1", [orgId]);
         await pool.query("DELETE FROM public.organizations WHERE id = $1", [orgId]);

@@ -237,7 +237,7 @@ async function run() {
         await mobilePage.select('#client-org-switcher', demoOrgId);
         await new Promise(r => setTimeout(r, 1500));
 
-        const mCardAfterReload = await mobilePage.$(cardSelector);
+        const mCardAfterReload = await mobilePage.waitForSelector(cardSelector, { timeout: 10000 });
         assert(mCardAfterReload !== null, "Reopened action card persists after F5 reload");
 
         // --- Verify DB Integrity / Data Preservation Guard ---

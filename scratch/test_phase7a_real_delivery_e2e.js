@@ -1,6 +1,24 @@
 const puppeteer = require('puppeteer');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
+
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+            const idx = trimmed.indexOf('=');
+            const k = trimmed.substring(0, idx).trim();
+            const v = trimmed.substring(idx + 1).trim();
+            if (!process.env[k]) {
+                process.env[k] = v;
+            }
+        }
+    }
+}
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres.aayqydcdfxhlwizhfjun:4zCbX8YXlhSHMSZFAc7qCXMJFw9!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
@@ -15,19 +33,23 @@ function assert(condition, message) {
 }
 
 function fetchWebhookSiteRequests(token) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const url = `https://webhook.site/token/${token}/requests?sorting=newest`;
-        https.get(url, (res) => {
+        const req = https.get(url, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
                 try {
                     resolve(JSON.parse(data));
                 } catch (e) {
-                    reject(e);
+                    resolve({ data: [] });
                 }
             });
-        }).on('error', reject);
+        });
+        req.on('error', (err) => {
+            console.warn('[webhook.site warning] Transient network fetch error:', err.message);
+            resolve({ data: [] });
+        });
     });
 }
 
