@@ -25,8 +25,8 @@
   - [ ] **Phase 7D**: Additional Communication (Slack Integration — Deferred)
 - [ ] **Phase 8**: AI Delivery Layer (In Progress)
   - [x] **Phase 8A**: Core AI Gateway, Quotas & Schemas (CLOSED / Manually Accepted — Gemini Live Provider: PENDING_LIVE_ACTIVATION)
-  - [ ] **Phase 8B**: Meeting Intelligence & Action Item Extraction (PLANNING / NOT STARTED)
-  - [ ] **Phase 8C**: Delivery Risk & Predictive Health Advisor
+  - [x] **Phase 8B**: Meeting Intelligence & Action Item Extraction (CLOSED / Manually Accepted — Artifact History UX in Backlog)
+  - [ ] **Phase 8C**: Delivery Risk & Predictive Health Advisor (PLANNING ONLY / ZERO IMPLEMENTATION)
   - [ ] **Phase 8D**: Client Action & Brief Assistant
 
 

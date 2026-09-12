@@ -1,14 +1,20 @@
 # Поточне завдання: Phase 8 — AI Delivery Layer
 
-## Активний етап: Phase 8B — Meeting Intelligence & Action Item Extraction (Manual Acceptance Gate)
+## Активний етап: Phase 8C — Delivery Risk & Predictive Health Advisor (PLANNING ONLY / ZERO IMPLEMENTATION)
 
 ### Архітектурний бейслайн
-- **Статус Phase 8A (Core AI Gateway, Quotas & Schemas)**: **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED / APPROVED)**. Успішно підтверджено у Manual Acceptance: авторизація порталу, регресія Core Gateway 22/22, Unauthorized 401, авторизована структурована генерація 200, Provider allowlist 400.
+- **Статус Phase 8A (Core AI Gateway, Quotas & Schemas)**: **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED / APPROVED)**.
 - **Статус Gemini Production Provider Activation**: `PENDING_LIVE_ACTIVATION` (Окремий неблокуючий статус, очікує передачі `GEMINI_API_KEY` у середовищі).
-- **Поточний статус Phase 8B (Meeting Intelligence & Action Item Extraction)**: **ІМПЛЕМЕНТОВАНО — ОЧІКУЄ РУЧНОГО ПРИЙМАННЯ (IMPLEMENTED — PENDING ACCEPTANCE)**. Усунуто блокуючі дефекти ручного тестування:
-  1. *Live Gemini dependency*: впроваджено авторитетний `resolveTargetProvider` (dev/test -> Mock при відсутності ключа, prod -> fail-closed HTTP 503 `LIVE_AI_UNAVAILABLE`).
-  2. *Assignee binding & DOM synchronization*: реалізовано робастний алгоритм зіставлення імен `matchAssigneeByName` з підтримкою кирилиці, латинської транслітерації (KMU 2010), відмінків та очищення ролей; забезпечено повноцінне об'єднання користувачів і контактів; реалізовано обов'язкове прив'язування `select.value` у DOM через атрибут `data-matched-assignee` після створення елементів; у базу додано фікстуру `Петро Іванов` (`77777777-7777-7777-7777-777777777777`). Для generic client task ("Клієнт") виконавець залишається «— Не призначено —», а тип відповідальності — `client`.
-  3. *Верифікація*: виділений Chromium E2E тест `test_phase8b_assignee_binding_e2e.js` 100% PASS (20 перевірок), повна канонічна регресія платформи 99/99 сьютів (1936 тверджень, 0 помилок) 100% PASS, Data Preservation Guard 100% PASS.
+- **Статус Phase 8B (Meeting Intelligence & Action Item Extraction)**: **ПРИЙНЯТО ТА ЗАКРИТО (ACCEPTED / CLOSED)**. Успішно підтверджено ручним та технічним прийманням:
+  1. *Семантичне заземлення (Semantic Grounding)*: витяг рішень та кандидатних завдань без галюцинацій на незалежних текстах.
+  2. *Розподіл відповідальності*: чітке розмежування `internal` vs `client`.
+  3. *Assignee binding*: стійке зіставлення імен із транслітерацією, відмінками та безпечною поведінкою для невідомих осіб (`— Не призначено —`).
+  4. *Дедлайни та пріоритети*: витяг реальних дедлайнів, нейтральний дефолт `medium`, підвищення до `high` або зниження до `low` виключно за наявності прямих текстових маркерів.
+  5. *Human-in-the-Loop*: двоетапний інтерфейс курації перед створенням сутностей у системі.
+  6. *Persistence*: атомарне створення 2 рішень, 3 задач, 1 нотатки резюме в єдиній транзакції RPC `apply_meeting_intelligence_items`.
+  7. *Ідемпотентність та захист від дублювання*: повторний виклик для застосованого артефакту повертає 409 Conflict без змін у БД; паралельний double-submit надійно серіалізується через `FOR UPDATE`.
+  8. *Регресія*: 104 сьюти, 2013 тверджень, 100% PASS, Data Preservation Guard 100% PASS.
+  9. *Backlog UX Enhancement*: перегляд історії артефактів (`draft` / `applied` / `discarded`) зафіксовано як неблокуюче UX-покращення у беклозі.
 
 ---
 
@@ -16,9 +22,9 @@
 
 | Підетап | Компонент | Пріоритет | Статус | Опис |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phase 8A** | Core AI Gateway, Quotas & Schemas | **Обов'язковий** | **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED)** | Провайдер-агностичний шлюз `AIGateway`, підтримка Gemini 2.5, детермінований mock transport, операційні квоти токенів з UTC-скиданням, валідація JSON Schema, append-only аудит, DLP-санітизація, детерміністична деідентифікація учасників, авторитетна авторизація сесії та захист від prompt-ін'єкцій. 93/93 сьютів (1771 твердження) 100% PASS. Gemini Live Activation: PENDING_LIVE_ACTIVATION. |
-| **Phase 8B** | Meeting Intelligence & Action Item Extraction | **Обов'язковий** | **ІМПЛЕМЕНТОВАНО — ОЧІКУЄ ПРИЙМАННЯ (PENDING ACCEPTANCE)** | Автоматична генерація протоколу зустрічі з сирих нотаток/транскриптів (Рішення, Резюме), двоетапний інтерактивний інтерфейс Human-in-the-Loop перевірки, курації та створення завдань у `tasks` в 1 клік через атомарну RPC-функцію з контролем ідемпотентності. |
-| **Phase 8C** | Delivery Risk & Predictive Health Advisor | **Обов'язковий** | **ЗАПЛАНОВАНО** | Аналіз ланцюжків блокуючих залежностей, прострочених дій клієнта, генерація щотижневого дайджесту ризиків для Власника та PM. |
+| **Phase 8A** | Core AI Gateway, Quotas & Schemas | **Обов'язковий** | **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED)** | Провайдер-агностичний шлюз `AIGateway`, підтримка Gemini 2.5, детермінований mock transport, операційні квоти токенів з UTC-скиданням, валідація JSON Schema, append-only аудит, DLP-санітизація, детерміністична деідентифікація учасників, авторитетна авторизація сесії та захист від prompt-ін'єкцій. |
+| **Phase 8B** | Meeting Intelligence & Action Item Extraction | **Обов'язковий** | **ПРИЙНЯТО ТА ЗАКРИТО (CLOSED)** | Генерація протоколів зустрічей (Рішення, Резюме), двоетапний інтерфейс Human-in-the-Loop, створення завдань у `tasks` через атомарну RPC-функцію з контролем ідемпотентності та захистом від гонок double-submit. (UX історії артефактів винесено в беклог). |
+| **Phase 8C** | Delivery Risk & Predictive Health Advisor | **Обов'язковий** | **ПЛАНУВАННЯ (PLANNING ONLY / ZERO IMPL)** | Аналіз ланцюжків блокуючих залежностей, прострочених дій клієнта, генерація щотижневого дайджесту ризиків для Власника та PM. |
 | **Phase 8D** | Client Action & Brief Assistant | **Опціональний** | **ЗАПЛАНОВАНО** | Поліпшення клієнтських брифів, авто-валідація повноти відповідей перед відправленням. |
 
 ---
