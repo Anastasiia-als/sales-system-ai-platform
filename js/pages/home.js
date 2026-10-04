@@ -70,7 +70,7 @@ export const Home = {
                   </div>
                   
                   <div class="hero-express-input-wrap hero-express-phone-wrap">
-                    <span class="hero-express-phone-flag">UA +380</span>
+                    <span class="hero-express-phone-flag">🇺🇦 +380</span>
                     <input type="tel" id="he-phone" name="phone" placeholder="(__) ___-__-__" autocomplete="tel" required>
                   </div>
                   

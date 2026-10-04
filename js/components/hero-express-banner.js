@@ -1,5 +1,6 @@
 // js/components/hero-express-banner.js - Express Audit Banner (Hero Lead Capture)
 import { Toast } from './notifications.js';
+import { setupCountryPhonePicker } from './country-phone-picker.js';
 
 export const HeroExpressBanner = {
   init() {
@@ -13,15 +14,13 @@ export const HeroExpressBanner = {
     const submitBtn = document.getElementById('he-submit-btn');
     const statusMsg = document.getElementById('he-status-msg');
     const fieldsContainer = document.getElementById('he-fields-container');
+    const phoneWrap = form.querySelector('.hero-express-phone-wrap');
 
-    // Phone auto-prefixing & formatting
-    phoneInput?.addEventListener('input', (e) => {
-      let val = e.target.value;
-      if (!val.startsWith('+') && /\d/.test(val)) {
-        if (val.startsWith('380')) val = '+' + val;
-        else if (val.startsWith('0')) val = '+38' + val;
-      }
-      e.target.value = val;
+    // Initialize international country phone picker
+    const countryPicker = setupCountryPhonePicker({
+      wrapEl: phoneWrap,
+      inputEl: phoneInput,
+      defaultCountryCode: 'UA'
     });
 
     form.addEventListener('submit', async (e) => {
@@ -29,7 +28,7 @@ export const HeroExpressBanner = {
       if (!nameInput || !phoneInput || !submitBtn) return;
 
       const name = nameInput.value.trim();
-      const phone = phoneInput.value.trim();
+      const rawPhone = phoneInput.value.trim();
       const hp = hpInput ? hpInput.value.trim() : '';
 
       // Honeypot check
@@ -44,7 +43,8 @@ export const HeroExpressBanner = {
         return;
       }
 
-      if (!phone || phone.replace(/\D/g, '').length < 9) {
+      const fullPhone = countryPicker ? countryPicker.getFullNumber() : rawPhone;
+      if (!fullPhone || fullPhone.replace(/\D/g, '').length < 7) {
         showError("Будь ласка, вкажіть коректний контактний номер телефону.");
         phoneInput.focus();
         return;
@@ -57,9 +57,13 @@ export const HeroExpressBanner = {
       if (statusMsg) statusMsg.style.display = 'none';
 
       const currentPath = window.location.hash || '#/';
+      const countryObj = countryPicker ? countryPicker.getCountry() : null;
+      const countryLabel = countryObj ? `${countryObj.flag} ${countryObj.name} (${countryObj.dial})` : '';
+
       const payload = {
         name,
-        phone,
+        phone: fullPhone,
+        country: countryLabel,
         form_id: 'Експрес-діагностика бізнесу (Hero плашка під фото)',
         page_path: currentPath,
         utm_source: sessionStorage.getItem('ss_utm_source') || 'Прямий візит',

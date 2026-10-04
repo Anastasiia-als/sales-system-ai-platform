@@ -35,6 +35,7 @@ export default async function handler(req, res) {
       '',
       lead.name ? `👤 <b>Ім'я:</b> ${escapeHtml(lead.name)}` : null,
       lead.phone ? `📞 <b>Телефон:</b> ${escapeHtml(lead.phone)}` : null,
+      lead.country ? `🌍 <b>Країна:</b> ${escapeHtml(lead.country)}` : null,
       lead.email ? `✉️ <b>Email:</b> ${escapeHtml(lead.email)}` : null,
       lead.telegram ? `💬 <b>Telegram:</b> ${escapeHtml(lead.telegram)}` : null,
       lead.company ? `🏢 <b>Компанія:</b> ${escapeHtml(lead.company)}` : null,
