@@ -20,9 +20,8 @@ export const MarketingConfig = {
     // localStorage fallback until the migration is applied to the database.
     SUPABASE_LEADS_ENABLED: true,
 
-    // Telegram notifications for new leads (Edge Function lead-notify).
-    // DISABLED by owner decision until bot token + chat ID are provisioned.
-    TELEGRAM_NOTIFY_ENABLED: false,
+    // Telegram notifications for new leads (Edge Function / Serverless API).
+    TELEGRAM_NOTIFY_ENABLED: true,
     LEAD_NOTIFY_FUNCTION: "lead-notify",
 
     // Consent banner behaviour

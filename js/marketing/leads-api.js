@@ -123,10 +123,19 @@ export async function submitLead(fields, formId, offerId, eventId) {
     }
 }
 
-/* Telegram notification via Edge Function lead-notify.
-   HARD-DISABLED until the owner provides a bot token (config + secrets). */
+/* Telegram notification via /api/lead-notify and Edge Function. */
 function notifyOwner(result, payload) {
     if (!MarketingConfig.TELEGRAM_NOTIFY_ENABLED) return;
+    try {
+        fetch("/api/lead-notify", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        }).catch(() => {});
+    } catch (e) { /* notification must never break lead capture */ }
+
     if (!result || !result.ok || !result.lead_id) return;
     const supabaseUrl = env().SUPABASE_URL;
     const anonKey = env().SUPABASE_PUBLISHABLE_KEY || env().SUPABASE_ANON_KEY;
