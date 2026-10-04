@@ -221,7 +221,7 @@ export const Home = {
               <div class="diag-cta-title">Хочете побачити, де саме ваша команда втрачає заявки?</div>
               <div class="diag-cta-buttons">
                 <a href="#/audit" class="btn btn-primary btn-lg"><i data-lucide="search"></i> Замовити експрес-аудит</a>
-                <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Обговорити в Telegram</a>
+                <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Обговорити в Telegram</a>
               </div>
             </div>
 
@@ -514,7 +514,7 @@ export const Home = {
           <p class="cta-subtitle" style="color: var(--text-muted);">Почніть із консультації або експрес-аудиту. Я подивлюся на вашу ситуацію і підкажу, що дасть найбільший ефект: скрипти, CRM, автоматизація, навчання команди чи повний аудит.</p>
           <div class="hero-cta-group justify-content-center">
             <a href="#/consultation" class="btn btn-primary btn-lg">Забронювати консультацію</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
           </div>
         </div>
       </section>

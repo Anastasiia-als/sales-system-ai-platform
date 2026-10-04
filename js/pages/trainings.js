@@ -9,7 +9,7 @@ export const Trainings = {
           <p class="hero-subtitle">Навчаю команди працювати з клієнтом у реальних ситуаціях: перший контакт, виявлення потреби, презентація, ціна, заперечення, "подумаю", повторний контакт і закриття в оплату.</p>
           <div class="page-hero-cta">
             <a href="#/consultation" class="btn btn-primary btn-lg">Замовити тренінг для команди</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Обговорити програму</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Обговорити програму</a>
           </div>
           <div class="price-hero-badge">
             <span class="price-value">від 40 000 ₴</span>

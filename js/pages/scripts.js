@@ -9,7 +9,7 @@ export const Scripts = {
           <p class="hero-subtitle">Я не пишу шаблони, які менеджери читають як роботи. Я створюю логіку діалогу: як почати розмову, виявити потребу, презентувати цінність, відпрацювати сумніви й закрити клієнта на оплату або наступний крок.</p>
           <div class="page-hero-cta">
             <a href="#/consultation" class="btn btn-primary btn-lg">Замовити скрипти</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="eye"></i> Показати приклад структури</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="eye"></i> Показати приклад структури</a>
           </div>
           <div class="price-hero-badge">
             <span class="price-value">від 30 000 ₴</span>

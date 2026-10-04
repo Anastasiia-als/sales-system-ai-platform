@@ -9,7 +9,7 @@ export const Support = {
           <p class="hero-subtitle">Регулярно працюю з власником, керівником і командою: аналізую показники, знаходжу слабкі місця, коригую процеси, скрипти, CRM, KPI та допомагаю впроваджувати зміни в реальну роботу.</p>
           <div class="page-hero-cta">
             <a href="#/consultation" class="btn btn-primary btn-lg">Обговорити супровід</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
           </div>
           <div class="price-hero-badge">
             <span class="price-value">від 80 000 ₴/міс</span>
@@ -361,7 +361,7 @@ export const Support = {
           <p class="cta-subtitle">Запишіться на консультацію, обговоримо ваш відділ продажів і підберемо оптимальний формат супроводу.</p>
           <div class="hero-cta-group justify-content-center">
             <a href="#/consultation" class="btn btn-primary btn-lg">Забронювати консультацію</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
           </div>
         </div>
       </section>

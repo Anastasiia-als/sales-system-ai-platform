@@ -9,7 +9,7 @@ export const Audit = {
           <p class="hero-subtitle">Розберу вашу CRM, воронку, дзвінки, скрипти, швидкість обробки заявок, роботу менеджерів і контроль керівника. На виході ви отримаєте не загальні поради, а карту конкретних точок втрати грошей.</p>
           <div class="page-hero-cta">
             <a href="#/consultation" class="btn btn-primary btn-lg">Замовити аудит</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Запитати в Telegram</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Запитати в Telegram</a>
           </div>
           <div class="price-hero-badge">
             <span class="price-value">від 45 000 ₴</span>

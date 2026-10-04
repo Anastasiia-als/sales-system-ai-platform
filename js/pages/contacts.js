@@ -18,7 +18,7 @@ export const Contacts = {
                 <h3>Контактні дані</h3>
                 <ul style="list-style:none; padding:0;">
                   <li style="margin-bottom: 12px;"><i data-lucide="mail" style="color:var(--accent-blue);"></i> <a href="mailto:a.zaporozhetswork@gmail.com" class="btn-link" data-contact-channel="email">a.zaporozhetswork@gmail.com</a></li>
-                  <!-- Telegram & phone TO_CONFIRM: added when the owner provides real contacts. -->
+                  <li style="margin-bottom: 12px;"><i data-lucide="send" style="color:var(--accent-blue);"></i> <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn-link" data-contact-channel="telegram">@an_zaaz</a></li>
                   <li><i data-lucide="map-pin" style="color:var(--accent-blue);"></i> Київ, Україна (Онлайн по всьому світу)</li>
                 </ul>
               </div>

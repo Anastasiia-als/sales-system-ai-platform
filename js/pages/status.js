@@ -104,7 +104,7 @@ export const Status = {
                     
                     <div style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap">
                         <a href="#/consultation?service=${serviceSlug}" class="btn btn-primary">Спробувати ще раз <i data-lucide="rotate-ccw"></i></a>
-                        <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline"><i data-lucide="send"></i> Зв'язатися в Telegram</a>
+                        <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline"><i data-lucide="send"></i> Зв'язатися в Telegram</a>
                     </div>
                 </div>
             `;

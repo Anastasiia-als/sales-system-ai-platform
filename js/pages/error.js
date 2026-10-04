@@ -1,4 +1,4 @@
-﻿// js/pages/error.js
+// js/pages/error.js
 export const ErrorPage = {
   render() {
     return `
@@ -11,7 +11,7 @@ export const ErrorPage = {
           <p class="hero-subtitle" style="max-width: 600px; margin: 0 auto 32px;">На жаль, під час транзакції виникла помилка. Ваша заявка збережена, але оплата не пройшла. Ви можете спробувати ще раз або обрати інший спосіб (наприклад, Crypto-invoice).</p>
           <div class="page-hero-cta justify-content-center">
             <a href="#/consultation" class="btn btn-primary btn-lg">Спробувати ще раз</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="help-circle"></i> Звернутися в підтримку</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="help-circle"></i> Звернутися в підтримку</a>
           </div>
         </div>
       </section>

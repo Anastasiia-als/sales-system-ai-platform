@@ -1,4 +1,4 @@
-﻿// js/pages/success.js
+// js/pages/success.js
 export const Success = {
   render() {
     return `
@@ -11,7 +11,7 @@ export const Success = {
           <p class="hero-subtitle" style="max-width: 600px; margin: 0 auto 32px;">Ваша заявка та оплата підтверджені. Найближчим часом ми зв'яжемось з вами у Telegram або за вказаним номером телефону для узгодження деталей.</p>
           <div class="page-hero-cta justify-content-center">
             <a href="#/" class="btn btn-primary btn-lg">Повернутися на головну</a>
-            <a href="https://t.me/sales_expert" target="_blank" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
+            <a href="https://t.me/an_zaaz" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg"><i data-lucide="send"></i> Написати в Telegram</a>
           </div>
         </div>
       </section>
