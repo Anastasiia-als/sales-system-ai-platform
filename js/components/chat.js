@@ -177,6 +177,20 @@ export const Chat = {
             
             State.addLead(leadData);
             
+            try {
+                fetch("/api/lead-notify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: "Лід з Онлайн-чату",
+                        phone: hasPhone ? userText.match(phoneRegex)[0] : "",
+                        telegram: hasTg ? userText.match(tgRegex)[0] : "",
+                        message: userText,
+                        form_id: "online_chat"
+                    })
+                }).catch(() => {});
+            } catch (e) {}
+            
             // Trigger background sync toast
             Toast.success("CRM синхронізація", "Дані з чату автоматично надіслано в CRM та сповіщено Telegram-бота!");
             
