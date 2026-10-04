@@ -32,7 +32,7 @@ export const Home = {
               <div class="floating-card auto-card"><i data-lucide="cpu"></i> Автоматизація</div>
               
               <div style="width: 100%; aspect-ratio: 4/5; border: 1px solid var(--border-dark); border-radius: var(--radius-lg); position:relative; overflow:hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-                <img src="img/expert.jpg" alt="Експерт з системних продажів" style="width: 100%; height: 100%; object-fit: cover; object-position: center top;">
+                <img src="img/expert.jpg?v=20261004" alt="Експерт з системних продажів" style="width: 100%; height: 100%; object-fit: cover; object-position: center top;">
               </div>
               
               <!-- Schema Flow -->

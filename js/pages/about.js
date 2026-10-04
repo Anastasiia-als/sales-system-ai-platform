@@ -17,7 +17,7 @@ export const About = {
               </div>
             </div>
             <div class="about-photo fade-in" style="animation-delay: 0.2s; max-width: 420px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border-dark); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-              <img src="img/expert.jpg" alt="Експерт з системних продажів" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+              <img src="img/expert.jpg?v=20261004" alt="Експерт з системних продажів" style="width: 100%; height: 100%; object-fit: cover; display: block;">
             </div>
           </div>
         </div>
