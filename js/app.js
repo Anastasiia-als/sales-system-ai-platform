@@ -2,6 +2,7 @@
 
 import { Router } from "./router.js?v=phase7a_r2";
 import { Chat } from "./components/chat.js";
+import { BottomLeadForm } from "./components/bottom-lead-form.js";
 import { captureAttribution } from "./marketing/attribution.js";
 import { Consent } from "./marketing/consent.js";
 
@@ -15,6 +16,9 @@ function initApp() {
 
     // 2. Initialize Support Chat (Telegram Simulator)
     Chat.init();
+
+    // 2.1. Initialize Bottom Fast Lead Form
+    BottomLeadForm.init();
 
     // 3. Mobile Navigation Menu Toggle
     const menuToggle = document.getElementById("mobile-toggle");

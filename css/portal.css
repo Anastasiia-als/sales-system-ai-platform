@@ -8,11 +8,13 @@ html.portal-active .top-notice-bar,
 html.portal-active .main-header,
 html.portal-active .main-footer,
 html.portal-active .mobile-sticky-bar,
+html.portal-active .bottom-lead-section,
 html.portal-active #chat-widget-container,
 body.portal-active .top-notice-bar,
 body.portal-active .main-header,
 body.portal-active .main-footer,
 body.portal-active .mobile-sticky-bar,
+body.portal-active .bottom-lead-section,
 body.portal-active #chat-widget-container {
     display: none !important;
 }

@@ -93,6 +93,16 @@ export const Router = {
       document.body.classList.remove('public-action-active');
     }
 
+    const bottomLeadSection = document.getElementById("bottom-lead-section");
+    if (bottomLeadSection) {
+      const hideOn = ["/consultation", "/success", "/error"];
+      if (isWorkspace || hideOn.includes(hash)) {
+        bottomLeadSection.style.display = "none";
+      } else {
+        bottomLeadSection.style.display = "";
+      }
+    }
+
     const app = document.getElementById("app-content");
     if (!app) return;
 
@@ -128,6 +138,24 @@ export const Router = {
 
     const executeRoute = () => {
       try {
+        // Update canonical and og:url for the current route
+        try {
+          const canonicalHref = hash === "/" ? "https://firstwin.pro/" : `https://firstwin.pro/#${hash}`;
+          let canonicalEl = document.querySelector('link[rel="canonical"]');
+          if (!canonicalEl) {
+            canonicalEl = document.createElement("link");
+            canonicalEl.setAttribute("rel", "canonical");
+            document.head.appendChild(canonicalEl);
+          }
+          canonicalEl.setAttribute("href", canonicalHref);
+
+          let ogUrlEl = document.querySelector('meta[property="og:url"]');
+          if (ogUrlEl) {
+            ogUrlEl.setAttribute("content", canonicalHref);
+          }
+        } catch (tagErr) {
+          console.warn("[Router] Could not update canonical tag:", tagErr);
+        }
         let page = routes[hash];
         if (!page && hash.startsWith("/portal")) {
           page = PortalPage;
