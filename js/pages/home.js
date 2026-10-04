@@ -1,4 +1,6 @@
 // js/pages/home.js
+import { HeroExpressBanner } from '../components/hero-express-banner.js';
+
 export const Home = {
   render() {
     return `
@@ -43,6 +45,57 @@ export const Home = {
                 <span>Скрипт</span> <i data-lucide="arrow-right"></i>
                 <span style="color:var(--color-success)">Оплата</span> <i data-lucide="arrow-right"></i>
                 <span>Аналітика</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- HERO EXPRESS AUDIT BANNER (ПЛАШКА ПІД ФОТО) -->
+          <div class="hero-express-banner fade-in" id="hero-express-banner">
+            <div class="hero-express-card">
+              <div class="hero-express-badge">
+                <i data-lucide="sparkles"></i>
+                <span>Експрес-діагностика вашого бізнесу</span>
+              </div>
+              
+              <h2 class="hero-express-title">Почніть діяти вже сьогодні!</h2>
+              <p class="hero-express-subtitle">Залиште свій номер телефону — я зв'яжуся з вами, проведу експрес-аудит відділу продажів та покажу, де саме губляться клієнти й прибуток.</p>
+              
+              <form id="hero-express-form" class="hero-express-form" novalidate>
+                <input type="text" id="he-hp" name="website_hp" style="display:none !important;" tabindex="-1" autocomplete="off">
+                
+                <div class="hero-express-fields" id="he-fields-container">
+                  <div class="hero-express-input-wrap">
+                    <i data-lucide="user" class="hero-express-icon"></i>
+                    <input type="text" id="he-name" name="name" placeholder="Ваше ім'я" autocomplete="name" required>
+                  </div>
+                  
+                  <div class="hero-express-input-wrap hero-express-phone-wrap">
+                    <span class="hero-express-phone-flag">UA +380</span>
+                    <input type="tel" id="he-phone" name="phone" placeholder="(__) ___-__-__" autocomplete="tel" required>
+                  </div>
+                  
+                  <button type="submit" id="he-submit-btn" class="hero-express-btn">
+                    <span>ЗАЛИШИТИ ЗАЯВКУ</span>
+                    <i data-lucide="arrow-right"></i>
+                  </button>
+                </div>
+                
+                <div id="he-status-msg" class="hero-express-status" style="display: none;"></div>
+              </form>
+              
+              <div class="hero-express-trust-row">
+                <div class="hero-express-trust-item">
+                  <i data-lucide="check-circle-2"></i>
+                  <span>100% безкоштовний перший розбір</span>
+                </div>
+                <div class="hero-express-trust-item">
+                  <i data-lucide="shield-check"></i>
+                  <span>Конфіденційність гарантовано</span>
+                </div>
+                <div class="hero-express-trust-item">
+                  <i data-lucide="send"></i>
+                  <span>Миттєве сповіщення в Telegram</span>
+                </div>
               </div>
             </div>
           </div>
@@ -521,6 +574,8 @@ export const Home = {
     `;
   },
   init() {
+    HeroExpressBanner.init();
+
     const cards = document.querySelectorAll('.diag-card');
     const resultCard = document.getElementById('diag-result-card');
     const resultBadge = document.getElementById('diag-badge');

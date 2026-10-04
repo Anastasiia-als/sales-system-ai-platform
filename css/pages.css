@@ -325,7 +325,7 @@
 
 /* ============ RESPONSIVE ============ */
 @media(max-width:1024px){
-.hero-container{grid-template-columns:1fr;gap:40px;text-align:center}
+.hero-container, .hero-grid{grid-template-columns:1fr !important;gap:40px;text-align:center}
 .hero-content{max-width:100%}
 .hero-cta-group{justify-content:center}
 .hero-trust{justify-content:center}

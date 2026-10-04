@@ -1463,3 +1463,289 @@
         gap: 8px;
     }
 }
+
+/* ==========================================================================
+   HERO EXPRESS AUDIT LEAD BANNER (Під фото на головній)
+   ========================================================================== */
+.hero-express-banner {
+    margin-top: 52px;
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+
+.hero-express-card {
+    background: radial-gradient(130% 130% at 50% 0%, #0e172e 0%, #080d1a 100%);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.7), 0 0 30px -5px rgba(37, 99, 235, 0.25), inset 0 1px 0 rgba(147, 197, 253, 0.2);
+    border-radius: 20px;
+    padding: 44px 40px 36px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-express-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 7px 18px;
+    border-radius: 9999px;
+    background: rgba(37, 99, 235, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: #60A5FA;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    letter-spacing: 0.01em;
+}
+
+.hero-express-badge i {
+    width: 16px;
+    height: 16px;
+    color: #60A5FA;
+}
+
+.hero-express-title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.25;
+    margin: 0 0 14px;
+    letter-spacing: -0.02em;
+}
+
+.hero-express-subtitle {
+    font-size: 1.05rem;
+    color: #94A3B8;
+    max-width: 760px;
+    margin: 0 auto 32px;
+    line-height: 1.6;
+}
+
+.hero-express-fields {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 12px;
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+.hero-express-input-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.hero-express-input-wrap .hero-express-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: #64748B;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.hero-express-input-wrap input {
+    width: 100%;
+    height: 52px;
+    box-sizing: border-box;
+    display: block;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    color: #FFFFFF;
+    font-size: 0.95rem;
+    padding: 0 16px 0 46px;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.hero-express-input-wrap input:focus {
+    border-color: #3B82F6;
+    background: rgba(15, 23, 42, 0.9);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.hero-express-input-wrap input::placeholder {
+    color: #64748B;
+}
+
+.hero-express-phone-wrap .hero-express-phone-flag {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #94A3B8;
+    pointer-events: none;
+    z-index: 2;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.hero-express-phone-wrap input {
+    padding-left: 92px !important;
+}
+
+.hero-express-btn {
+    height: 52px;
+    padding: 0 30px;
+    border-radius: 10px;
+    background: #2563EB;
+    border: none;
+    color: #FFFFFF;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+    flex-shrink: 0;
+}
+
+.hero-express-btn:hover {
+    background: #1D4ED8;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+}
+
+.hero-express-btn:active {
+    transform: translateY(0);
+}
+
+.hero-express-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.hero-express-btn i {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.2s ease;
+}
+
+.hero-express-btn:hover i:not(.spin) {
+    transform: translateX(3px);
+}
+
+.hero-express-trust-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+}
+
+.hero-express-trust-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #94A3B8;
+}
+
+.hero-express-trust-item i {
+    width: 16px;
+    height: 16px;
+    color: #60A5FA;
+    flex-shrink: 0;
+}
+
+.hero-express-status {
+    margin-top: 14px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hero-express-status.error {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #FCA5A5;
+}
+
+.hero-express-status i {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.hero-express-success-box {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 18px 24px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 12px;
+    color: #A7F3D0;
+    text-align: left;
+}
+
+.hero-express-success-icon i {
+    width: 36px;
+    height: 36px;
+    color: var(--color-success);
+}
+
+.hero-express-success-text h4 {
+    font-size: 1.1rem;
+    color: white;
+    margin-bottom: 4px;
+}
+
+.hero-express-success-text p {
+    font-size: 0.9rem;
+    color: #D1FAE5;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .hero-express-banner {
+        margin-top: 36px;
+    }
+    .hero-express-card {
+        padding: 32px 18px 26px;
+        border-radius: 16px;
+    }
+    .hero-express-title {
+        font-size: 1.65rem;
+    }
+    .hero-express-subtitle {
+        font-size: 0.95rem;
+        margin-bottom: 24px;
+    }
+    .hero-express-fields {
+        flex-direction: column;
+        gap: 12px;
+    }
+    .hero-express-input-wrap,
+    .hero-express-btn {
+        width: 100%;
+    }
+    .hero-express-trust-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+}
